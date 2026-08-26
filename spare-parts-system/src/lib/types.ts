@@ -1,12 +1,16 @@
-export type Branch = "jeddah" | "riyadh" | "khobar";
+export type Branch = "riyadh" | "jeddah" | "dabbab" | "khobar";
 
-export const BRANCHES: Branch[] = ["jeddah", "riyadh", "khobar"];
+export const BRANCHES: Branch[] = ["riyadh", "jeddah", "dabbab", "khobar"];
 
 export const BRANCH_LABELS: Record<Branch, string> = {
-  jeddah: "جدة",
-  riyadh: "الرياض",
-  khobar: "الخبر",
+  riyadh: "RIYADH",
+  jeddah: "JEDDAH",
+  dabbab: "DABBAB",
+  khobar: "KHOBAR",
 };
+
+// The single receiving branch every source branch ships parts to.
+export const DESTINATION_BRANCH_LABEL = "MADINAH";
 
 export type SourceType = "order" | "stock_pull";
 

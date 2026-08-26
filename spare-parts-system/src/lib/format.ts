@@ -6,7 +6,7 @@
  */
 export function formatDateTime(value: string): string {
   const iso = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
-  return new Date(iso).toLocaleString("ar-SA", {
+  return new Date(iso).toLocaleString("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
   });

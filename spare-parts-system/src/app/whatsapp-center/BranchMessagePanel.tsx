@@ -72,14 +72,14 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold text-slate-900">فرع {BRANCH_LABELS[branch]}</h3>
+        <h3 className="font-semibold text-slate-900">{BRANCH_LABELS[branch]} Branch</h3>
         {contactName || phoneNumber ? (
           <span className="text-xs text-slate-500">
             {contactName ?? ""} {phoneNumber ? `· ${phoneNumber}` : ""}
           </span>
         ) : (
           <span className="text-xs text-amber-600">
-            لا يوجد رقم واتساب محفوظ لهذا الفرع — أضفه من صفحة الإعدادات لفتح المحادثة مباشرة
+            No WhatsApp number saved for this branch — add one in Settings to open the chat directly
           </span>
         )}
       </div>
@@ -96,10 +96,10 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
             <span className="font-medium text-slate-800">{line.part_code}</span>
             {line.part_name && <span className="text-slate-500">– {line.part_name}</span>}
             <span className="text-slate-500">× {line.quantity}</span>
-            <span className="text-slate-400">(طلب صيانة {line.request_number})</span>
+            <span className="text-slate-400">(Maintenance request {line.request_number})</span>
             {line.source_type === "stock_pull" && (
               <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-800">
-                سحب مخزون
+                Stock pull
               </span>
             )}
           </li>
@@ -107,11 +107,11 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
       </ul>
 
       <label className="mt-3 block text-xs text-slate-600">
-        اسم مقدم الطلب (يظهر في الرسالة)
+        Requested by (shown in the message)
         <input
           value={senderName}
           onChange={(e) => setSenderName(e.target.value)}
-          placeholder="مثال: محمد"
+          placeholder="e.g. Mohammed"
           className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
         />
       </label>
@@ -121,7 +121,7 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
         value={message}
         rows={Math.min(16, selectedLines.length * 4 + 5)}
         className="mt-3 w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
-        dir="rtl"
+        dir="ltr"
       />
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -131,7 +131,7 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
           disabled={!message}
           className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
         >
-          {copied ? "تم النسخ ✓" : "نسخ نص الرسالة"}
+          {copied ? "Copied ✓" : "Copy Message"}
         </button>
         <a
           href={message ? buildWhatsAppLink(phoneNumber, message) : undefined}
@@ -141,7 +141,7 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
             message ? "bg-emerald-600 hover:bg-emerald-700" : "pointer-events-none bg-emerald-300"
           }`}
         >
-          فتح واتساب وإرسال
+          Open WhatsApp & Send
         </a>
         <button
           type="button"
@@ -149,12 +149,12 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
           disabled={selected.size === 0 || isPending}
           className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
         >
-          {isPending ? "جارٍ التحديث..." : "تم الإرسال — تحديث الحالة"}
+          {isPending ? "Updating..." : "Mark as Sent"}
         </button>
       </div>
       {justMarked && (
         <p className="mt-2 text-xs text-emerald-700">
-          تم تحديث حالة القطع المحددة إلى «تم إرسال الطلب عبر واتساب».
+          The selected parts have been updated to &ldquo;Sent via WhatsApp&rdquo;.
         </p>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { BRANCH_LABELS, type Branch, type SourceType } from "./types";
+import { BRANCH_LABELS, DESTINATION_BRANCH_LABEL, type Branch, type SourceType } from "./types";
 
 export interface MessageLineInput {
   request_number: string;
@@ -9,28 +9,28 @@ export interface MessageLineInput {
 }
 
 /**
- * Builds the Arabic WhatsApp message text sent to a source branch asking it
- * to ship one or more spare parts to the Madinah branch. Groups every
- * selected line (which may belong to different maintenance requests) into a
- * single, ready-to-send message.
+ * Builds the WhatsApp message text sent to a source branch asking it to
+ * ship one or more spare parts to the Madinah branch. Groups every selected
+ * line (which may belong to different maintenance requests) into a single,
+ * ready-to-send message.
  */
 export function buildWhatsAppMessage(
   branch: Branch,
   lines: MessageLineInput[],
   senderName?: string,
 ): string {
-  const header = `📦 طلب قطع غيار – تحويل إلى فرع المدينة\nإلى: فرع ${BRANCH_LABELS[branch]}`;
+  const header = `📦 Spare Parts Request – Transfer to ${DESTINATION_BRANCH_LABEL} Branch\nTo: ${BRANCH_LABELS[branch]} Branch`;
 
   const body = lines
     .map((line, index) => {
       const parts = [
-        `${index + 1}) رقم طلب الصيانة: ${line.request_number}`,
-        `كود القطعة: ${line.part_code}`,
+        `${index + 1}) Maintenance Request #: ${line.request_number}`,
+        `Part Code: ${line.part_code}`,
       ];
-      if (line.part_name) parts.push(`اسم القطعة: ${line.part_name}`);
-      parts.push(`الكمية: ${line.quantity}`);
+      if (line.part_name) parts.push(`Part Name: ${line.part_name}`);
+      parts.push(`Quantity: ${line.quantity}`);
       if (line.source_type === "stock_pull") {
-        parts.push(`ملاحظة: سحب من المخزون المتوفر لديكم (الرجاء عدم بيعها)`);
+        parts.push(`Note: pull from your existing stock (please do not sell it)`);
       }
       return parts.join("\n");
     })
@@ -38,8 +38,8 @@ export function buildWhatsAppMessage(
 
   const footer = [
     "----------------------",
-    "الرجاء شحن القطع أعلاه إلى فرع المدينة، ويُرجى إرسال رقم تتبع الشحنة عند توفره.",
-    senderName ? `جهة الطلب: ${senderName}` : null,
+    `Please ship the parts above to the ${DESTINATION_BRANCH_LABEL} branch, and send the tracking number once available.`,
+    senderName ? `Requested by: ${senderName}` : null,
   ]
     .filter(Boolean)
     .join("\n");

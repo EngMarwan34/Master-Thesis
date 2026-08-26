@@ -28,14 +28,16 @@ export default async function MaintenanceRequestDetailPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">طلب صيانة {request.request_number}</h1>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Maintenance Request {request.request_number}
+          </h1>
           <p className="mt-1 text-sm text-slate-500">
-            {request.customer_name ?? "بدون اسم عميل"} · {request.machine_name ?? "بدون تحديد المكينة"}
+            {request.customer_name ?? "No customer name"} · {request.machine_name ?? "No machine specified"}
           </p>
         </div>
         <form action={toggleStatus}>
           <button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            {request.status === "open" ? "إغلاق الطلب" : "إعادة فتح الطلب"}
+            {request.status === "open" ? "Close Request" : "Reopen Request"}
           </button>
         </form>
       </div>
@@ -45,9 +47,9 @@ export default async function MaintenanceRequestDetailPage({
         className="grid gap-3 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-4"
       >
         <input type="hidden" name="maintenance_request_id" value={request.id} />
-        <h2 className="font-semibold text-slate-800 sm:col-span-4">إضافة قطعة غيار للطلب</h2>
+        <h2 className="font-semibold text-slate-800 sm:col-span-4">Add a Spare Part to This Request</h2>
         <label className="text-sm text-slate-600">
-          كود القطعة *
+          Part code *
           <input
             name="part_code"
             required
@@ -55,14 +57,14 @@ export default async function MaintenanceRequestDetailPage({
           />
         </label>
         <label className="text-sm text-slate-600">
-          اسم القطعة
+          Part name
           <input
             name="part_name"
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
           />
         </label>
         <label className="text-sm text-slate-600">
-          الكمية المطلوبة *
+          Quantity needed *
           <input
             type="number"
             min={1}
@@ -72,7 +74,7 @@ export default async function MaintenanceRequestDetailPage({
           />
         </label>
         <label className="text-sm text-slate-600">
-          ملاحظات
+          Notes
           <input
             name="notes"
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
@@ -80,7 +82,7 @@ export default async function MaintenanceRequestDetailPage({
         </label>
         <div className="sm:col-span-4">
           <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
-            إضافة القطعة
+            Add Part
           </button>
         </div>
       </form>
@@ -99,11 +101,11 @@ export default async function MaintenanceRequestDetailPage({
                   {partRequest.part_name ? ` – ${partRequest.part_name}` : ""}
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  الكمية المطلوبة: {partRequest.quantity_needed} · تم تحديد مصدرها:{" "}
-                  {partRequest.sourced_quantity} · تم استلامها: {partRequest.received_quantity}
+                  Needed: {partRequest.quantity_needed} · Sourced: {partRequest.sourced_quantity} ·
+                  Received: {partRequest.received_quantity}
                   {remaining > 0 && (
-                    <span className="mr-2 font-medium text-amber-700">
-                      · متبقٍ {remaining} بدون تحديد مصدر
+                    <span className="ml-2 font-medium text-amber-700">
+                      · {remaining} still unsourced
                     </span>
                   )}
                 </p>
@@ -111,23 +113,23 @@ export default async function MaintenanceRequestDetailPage({
 
               {stockHints.length > 0 && (
                 <p className="mt-2 rounded-md bg-teal-50 px-3 py-2 text-xs text-teal-800">
-                  ⚠️ متوفر ستوك لهذه القطعة:{" "}
+                  ⚠️ Stock already available for this part:{" "}
                   {stockHints
                     .map((stock) => `${BRANCH_LABELS[stock.branch]} (${stock.quantity_available})`)
-                    .join("، ")}{" "}
-                  — يفضّل السحب من المخزون بدل الطلب لتفادي بيعها بالخطأ.
+                    .join(", ")}{" "}
+                  — pull from stock instead of ordering to avoid it being sold by mistake.
                 </p>
               )}
 
               <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-right text-sm">
+                <table className="w-full text-left text-sm">
                   <thead className="text-slate-500">
                     <tr>
-                      <th className="py-1">الفرع</th>
-                      <th className="py-1">الكمية</th>
-                      <th className="py-1">النوع</th>
-                      <th className="py-1">الحالة</th>
-                      <th className="py-1">المستلم</th>
+                      <th className="py-1">Branch</th>
+                      <th className="py-1">Qty</th>
+                      <th className="py-1">Type</th>
+                      <th className="py-1">Status</th>
+                      <th className="py-1">Received by</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -153,7 +155,7 @@ export default async function MaintenanceRequestDetailPage({
                     {sourcing.length === 0 && (
                       <tr>
                         <td colSpan={5} className="py-3 text-center text-slate-400">
-                          لم يتم تحديد مصدر لهذه القطعة بعد
+                          No source assigned to this part yet
                         </td>
                       </tr>
                     )}
@@ -168,7 +170,7 @@ export default async function MaintenanceRequestDetailPage({
                 <input type="hidden" name="part_request_id" value={partRequest.id} />
                 <input type="hidden" name="maintenance_request_id" value={request.id} />
                 <label className="text-xs text-slate-600">
-                  الفرع
+                  Branch
                   <select
                     name="branch"
                     className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
@@ -181,7 +183,7 @@ export default async function MaintenanceRequestDetailPage({
                   </select>
                 </label>
                 <label className="text-xs text-slate-600">
-                  الكمية
+                  Quantity
                   <input
                     type="number"
                     min={1}
@@ -191,17 +193,17 @@ export default async function MaintenanceRequestDetailPage({
                   />
                 </label>
                 <label className="text-xs text-slate-600">
-                  المصدر
+                  Source
                   <select
                     name="source_type"
                     className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
                   >
-                    <option value="order">طلب جديد من الفرع</option>
-                    <option value="stock_pull">سحب من مخزون الفرع</option>
+                    <option value="order">New order from branch</option>
+                    <option value="stock_pull">Pull from branch stock</option>
                   </select>
                 </label>
                 <button className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">
-                  إضافة توزيع
+                  Add Split
                 </button>
               </form>
             </div>
@@ -209,7 +211,7 @@ export default async function MaintenanceRequestDetailPage({
         })}
         {partRequests.length === 0 && (
           <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-400">
-            لم تتم إضافة أي قطع لهذا الطلب بعد
+            No parts added to this request yet
           </p>
         )}
       </div>

@@ -8,10 +8,10 @@ const STATUS_STYLES: Record<SourcingStatus, string> = {
 };
 
 const STATUS_LABELS: Record<SourcingStatus, string> = {
-  pending: "بانتظار تجهيز الرسالة",
-  message_sent: "تم إرسال الطلب عبر واتساب",
-  shipped: "تم الشحن",
-  received: "تم الاستلام",
+  pending: "Awaiting message",
+  message_sent: "Sent via WhatsApp",
+  shipped: "Shipped",
+  received: "Received",
 };
 
 export function StatusBadge({ status }: { status: SourcingStatus }) {
@@ -34,13 +34,13 @@ export function SourceTypeBadge({ type }: { type: SourceType }) {
   if (type === "stock_pull") {
     return (
       <span className="inline-block rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-medium text-teal-800">
-        سحب من المخزون
+        Stock pull
       </span>
     );
   }
   return (
     <span className="inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-      طلب جديد
+      New order
     </span>
   );
 }

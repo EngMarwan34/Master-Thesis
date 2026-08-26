@@ -2,6 +2,7 @@ import Link from "next/link";
 import * as repo from "@/lib/repo";
 import { BranchBadge, SourceTypeBadge, StatusBadge } from "@/components/badges";
 import { markReceived, markShipped } from "@/lib/actions";
+import { DESTINATION_BRANCH_LABEL } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -13,17 +14,20 @@ export default function ReceivingPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">استلام القطع بفرع المدينة</h1>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Receiving Parts at {DESTINATION_BRANCH_LABEL}
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
-          حدّث حالة الشحن، ثم أكّد الاستلام باسم الفني ووقت الاستلام لضمان توثيق كل قطعة أمنيًا.
+          Update the shipping status, then confirm receipt with the technician&apos;s name and time
+          to keep every part documented securely.
         </p>
       </div>
 
       <section className="space-y-3">
         <h2 className="font-semibold text-slate-800">
-          بانتظار الشحن من الفرع ({awaitingShipment.length})
+          Awaiting shipment from branch ({awaitingShipment.length})
         </h2>
-        {awaitingShipment.length === 0 && <p className="text-sm text-slate-400">لا يوجد</p>}
+        {awaitingShipment.length === 0 && <p className="text-sm text-slate-400">None</p>}
         <div className="space-y-3">
           {awaitingShipment.map((line) => (
             <div
@@ -35,7 +39,7 @@ export default function ReceivingPage() {
                   href={`/maintenance-requests/${line.maintenance_request_id}`}
                   className="font-medium text-blue-700 hover:underline"
                 >
-                  طلب صيانة {line.request_number}
+                  Maintenance request {line.request_number}
                 </Link>
                 <span className="mx-2 text-slate-400">·</span>
                 <span className="font-medium text-slate-800">{line.part_code}</span>
@@ -49,14 +53,14 @@ export default function ReceivingPage() {
               </div>
               <form action={markShipped.bind(null, line.id)} className="flex items-end gap-2">
                 <label className="text-xs text-slate-600">
-                  رقم تتبع الشحنة (اختياري)
+                  Tracking number (optional)
                   <input
                     name="tracking_ref"
                     className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
                   />
                 </label>
                 <button className="rounded-md bg-purple-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-purple-700">
-                  تم الشحن
+                  Mark Shipped
                 </button>
               </form>
             </div>
@@ -66,9 +70,9 @@ export default function ReceivingPage() {
 
       <section className="space-y-3">
         <h2 className="font-semibold text-slate-800">
-          تم الشحن — بانتظار تأكيد الاستلام ({awaitingConfirmation.length})
+          Shipped — awaiting receipt confirmation ({awaitingConfirmation.length})
         </h2>
-        {awaitingConfirmation.length === 0 && <p className="text-sm text-slate-400">لا يوجد</p>}
+        {awaitingConfirmation.length === 0 && <p className="text-sm text-slate-400">None</p>}
         <div className="space-y-3">
           {awaitingConfirmation.map((line) => (
             <div
@@ -80,14 +84,14 @@ export default function ReceivingPage() {
                   href={`/maintenance-requests/${line.maintenance_request_id}`}
                   className="font-medium text-blue-700 hover:underline"
                 >
-                  طلب صيانة {line.request_number}
+                  Maintenance request {line.request_number}
                 </Link>
                 <span className="mx-2 text-slate-400">·</span>
                 <span className="font-medium text-slate-800">{line.part_code}</span>
                 {line.part_name && <span className="text-slate-500"> – {line.part_name}</span>}
                 <span className="text-slate-500"> × {line.quantity}</span>
                 {line.tracking_ref && (
-                  <span className="text-slate-400"> · تتبع: {line.tracking_ref}</span>
+                  <span className="text-slate-400"> · Tracking: {line.tracking_ref}</span>
                 )}
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   <BranchBadge branch={line.branch} />
@@ -97,7 +101,7 @@ export default function ReceivingPage() {
               </div>
               <form action={markReceived.bind(null, line.id)} className="flex flex-wrap items-end gap-2">
                 <label className="text-xs text-slate-600">
-                  اسم الفني المستلم *
+                  Receiving technician&apos;s name *
                   <input
                     name="received_by"
                     required
@@ -105,14 +109,14 @@ export default function ReceivingPage() {
                   />
                 </label>
                 <label className="text-xs text-slate-600">
-                  ملاحظات
+                  Notes
                   <input
                     name="notes"
                     className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
                   />
                 </label>
                 <button className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">
-                  تأكيد الاستلام
+                  Confirm Receipt
                 </button>
               </form>
             </div>

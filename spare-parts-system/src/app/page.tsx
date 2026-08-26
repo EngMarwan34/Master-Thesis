@@ -1,5 +1,6 @@
 import Link from "next/link";
 import * as repo from "@/lib/repo";
+import { DESTINATION_BRANCH_LABEL } from "@/lib/types";
 
 // This page reads live counts from SQLite on every request — never
 // statically prerender it, or deploys would ship stale build-time numbers.
@@ -9,15 +10,19 @@ export default function DashboardPage() {
   const stats = repo.dashboardStats();
 
   const cards = [
-    { label: "طلبات صيانة مفتوحة", value: stats.openRequests, href: "/maintenance-requests" },
-    { label: "قطع بانتظار تجهيز رسالة واتساب", value: stats.pendingMessages, href: "/whatsapp-center" },
-    { label: "قطع بانتظار الاستلام بفرع المدينة", value: stats.awaitingReceipt, href: "/receiving" },
-    { label: "قطع تم استلامها اليوم", value: stats.receivedToday, href: "/receiving" },
+    { label: "Open maintenance requests", value: stats.openRequests, href: "/maintenance-requests" },
+    { label: "Parts awaiting a WhatsApp message", value: stats.pendingMessages, href: "/whatsapp-center" },
+    {
+      label: `Parts awaiting receipt at ${DESTINATION_BRANCH_LABEL}`,
+      value: stats.awaitingReceipt,
+      href: "/receiving",
+    },
+    { label: "Parts received today", value: stats.receivedToday, href: "/receiving" },
   ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">نظرة عامة</h1>
+      <h1 className="text-2xl font-bold text-slate-900">Overview</h1>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
@@ -33,22 +38,23 @@ export default function DashboardPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="mb-2 font-semibold text-slate-800">كيف تسير العملية؟</h2>
+        <h2 className="mb-2 font-semibold text-slate-800">How the workflow works</h2>
         <ol className="list-inside list-decimal space-y-1.5 text-sm text-slate-600">
           <li>
-            أنشئ <b>طلب صيانة</b> برقمه، وأضف له القطع المطلوبة وكمياتها.
+            Create a <b>maintenance request</b> with its number, and add the parts it needs with
+            their quantities.
           </li>
           <li>
-            وزّع كل قطعة على الفرع الذي وصلت إليه (جدة / الرياض / الخبر)، أو اسحبها من مخزون
-            متوفر لديهم مسبقًا بدل طلبها من جديد.
+            Split each part across the branch it actually arrived at (RIYADH / JEDDAH / DABBAB /
+            KHOBAR), or pull it from stock already sitting there instead of ordering it again.
           </li>
           <li>
-            من صفحة <b>مركز رسائل واتساب</b> جهّز رسالة موحدة لكل فرع تجمع كل قطعها المطلوبة،
-            وانسخها أو أرسلها مباشرة.
+            From the <b>WhatsApp Center</b> page, prepare one combined message per branch listing
+            everything it needs, then copy it or send it directly.
           </li>
           <li>
-            عند وصول القطعة لفرع المدينة، وثّق الشحن ثم أكّد <b>الاستلام</b> باسم الفني ووقت
-            الاستلام من صفحة استلام القطع.
+            Once the part arrives at {DESTINATION_BRANCH_LABEL}, log the shipment and then confirm{" "}
+            <b>receipt</b> with the technician&apos;s name and time from the Receiving page.
           </li>
         </ol>
       </div>

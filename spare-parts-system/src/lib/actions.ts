@@ -3,9 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as repo from "./repo";
-import type { Branch, SourceType } from "./types";
-
-const VALID_BRANCHES: Branch[] = ["jeddah", "riyadh", "khobar"];
+import { BRANCHES, type Branch, type SourceType } from "./types";
 
 function requireString(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -22,9 +20,9 @@ function optionalString(formData: FormData, key: string): string | null {
 
 export async function createMaintenanceRequest(formData: FormData) {
   const request_number = requireString(formData, "request_number");
-  if (!request_number) throw new Error("رقم طلب الصيانة مطلوب");
+  if (!request_number) throw new Error("Maintenance request number is required");
   if (repo.requestNumberExists(request_number)) {
-    throw new Error(`رقم طلب الصيانة "${request_number}" مُستخدم مسبقًا`);
+    throw new Error(`Maintenance request number "${request_number}" is already in use`);
   }
 
   const id = repo.createMaintenanceRequest({
@@ -57,10 +55,10 @@ export async function addPartRequest(formData: FormData) {
   const part_code = requireString(formData, "part_code");
   const quantity_needed = Number(formData.get("quantity_needed"));
 
-  if (!maintenance_request_id) throw new Error("طلب الصيانة غير صحيح");
-  if (!part_code) throw new Error("كود القطعة مطلوب");
+  if (!maintenance_request_id) throw new Error("Invalid maintenance request");
+  if (!part_code) throw new Error("Part code is required");
   if (!Number.isFinite(quantity_needed) || quantity_needed <= 0) {
-    throw new Error("الكمية المطلوبة يجب أن تكون رقمًا أكبر من صفر");
+    throw new Error("Quantity needed must be a number greater than zero");
   }
 
   repo.createPartRequest({
@@ -85,11 +83,11 @@ export async function addSourcing(formData: FormData) {
   const quantity = Number(formData.get("quantity"));
   const source_type = requireString(formData, "source_type") as SourceType;
 
-  if (!part_request_id) throw new Error("القطعة غير صحيحة");
-  if (!VALID_BRANCHES.includes(branch)) throw new Error("الفرع غير صحيح");
-  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("الكمية غير صحيحة");
+  if (!part_request_id) throw new Error("Invalid part");
+  if (!BRANCHES.includes(branch)) throw new Error("Invalid branch");
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("Invalid quantity");
   if (source_type !== "order" && source_type !== "stock_pull") {
-    throw new Error("نوع المصدر غير صحيح");
+    throw new Error("Invalid source type");
   }
 
   repo.createSourcing({ part_request_id, branch, quantity, source_type });
@@ -123,7 +121,7 @@ export async function markShipped(id: number, formData: FormData) {
 
 export async function markReceived(id: number, formData: FormData) {
   const received_by = requireString(formData, "received_by");
-  if (!received_by) throw new Error("اسم الفني المستلم مطلوب لتأكيد الاستلام");
+  if (!received_by) throw new Error("Receiving technician's name is required to confirm receipt");
   const notes = optionalString(formData, "notes");
   repo.markSourcingReceived(id, received_by, notes);
   revalidatePath("/receiving");
@@ -140,8 +138,8 @@ export async function upsertBranchStock(formData: FormData) {
   const part_code = requireString(formData, "part_code");
   const quantity_available = Number(formData.get("quantity_available") ?? 0);
 
-  if (!VALID_BRANCHES.includes(branch)) throw new Error("الفرع غير صحيح");
-  if (!part_code) throw new Error("كود القطعة مطلوب");
+  if (!BRANCHES.includes(branch)) throw new Error("Invalid branch");
+  if (!part_code) throw new Error("Part code is required");
 
   repo.upsertBranchStock({
     branch,
@@ -164,7 +162,7 @@ export async function deleteBranchStock(id: number) {
 
 export async function saveBranchContact(formData: FormData) {
   const branch = requireString(formData, "branch") as Branch;
-  if (!VALID_BRANCHES.includes(branch)) throw new Error("الفرع غير صحيح");
+  if (!BRANCHES.includes(branch)) throw new Error("Invalid branch");
 
   repo.upsertBranchContact({
     branch,

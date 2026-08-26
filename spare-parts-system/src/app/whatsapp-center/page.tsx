@@ -12,16 +12,16 @@ export default function WhatsAppCenterPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">مركز رسائل واتساب</h1>
+        <h1 className="text-2xl font-bold text-slate-900">WhatsApp Center</h1>
         <p className="mt-1 text-sm text-slate-500">
-          جهّز رسالة موحدة لكل فرع تجمع كل القطع التي بانتظار الطلب، ثم انسخها أو أرسلها مباشرة عبر
-          واتساب.
+          Prepare one combined message per branch listing every part still awaiting a request,
+          then copy it or send it directly over WhatsApp.
         </p>
       </div>
 
       {pending.length === 0 && (
         <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-400">
-          لا توجد قطع بانتظار تجهيز رسالة حاليًا 🎉
+          No parts awaiting a message right now 🎉
         </p>
       )}
 

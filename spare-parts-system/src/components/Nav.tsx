@@ -1,19 +1,19 @@
 import Link from "next/link";
 
 const LINKS = [
-  { href: "/", label: "الرئيسية" },
-  { href: "/maintenance-requests", label: "طلبات الصيانة" },
-  { href: "/whatsapp-center", label: "مركز رسائل واتساب" },
-  { href: "/receiving", label: "استلام القطع" },
-  { href: "/branch-stock", label: "مخزون الفروع" },
-  { href: "/settings", label: "الإعدادات" },
+  { href: "/", label: "Dashboard" },
+  { href: "/maintenance-requests", label: "Maintenance Requests" },
+  { href: "/whatsapp-center", label: "WhatsApp Center" },
+  { href: "/receiving", label: "Receiving" },
+  { href: "/branch-stock", label: "Branch Stock" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function Nav() {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
-        <span className="text-lg font-bold text-slate-800">📦 قطع الغيار – فرع المدينة</span>
+        <span className="text-lg font-bold text-slate-800">📦 Spare Parts – Madinah Branch</span>
         <nav className="flex flex-wrap gap-1">
           {LINKS.map((link) => (
             <Link
