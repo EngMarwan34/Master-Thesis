@@ -19,7 +19,7 @@ export function buildWhatsAppMessage(
   lines: MessageLineInput[],
   senderName?: string,
 ): string {
-  const header = `📦 Spare Parts Request – Transfer to ${DESTINATION_BRANCH_LABEL} Branch\nTo: ${BRANCH_LABELS[branch]} Branch`;
+  const header = `📦 Spare Parts Request – Transfer to ${DESTINATION_BRANCH_LABEL} Branch\nFrom: ${BRANCH_LABELS[branch]} Branch`;
 
   const body = lines
     .map((line, index) => {
