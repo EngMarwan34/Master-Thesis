@@ -3,6 +3,8 @@ import * as repo from "@/lib/repo";
 import { BranchBadge, SourceTypeBadge, StatusBadge } from "@/components/badges";
 import { markReceived, markShipped } from "@/lib/actions";
 
+export const dynamic = "force-dynamic";
+
 export default function ReceivingPage() {
   const awaiting = repo.listAwaitingReceipt();
   const awaitingShipment = awaiting.filter((line) => line.status === "message_sent");

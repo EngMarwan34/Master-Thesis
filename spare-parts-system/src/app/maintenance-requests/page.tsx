@@ -3,6 +3,8 @@ import * as repo from "@/lib/repo";
 import { createMaintenanceRequest } from "@/lib/actions";
 import { formatDateTime } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 export default function MaintenanceRequestsPage() {
   const requests = repo.listMaintenanceRequests();
 

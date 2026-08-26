@@ -5,6 +5,8 @@ import { BranchBadge, SourceTypeBadge, StatusBadge } from "@/components/badges";
 import { formatDateTime } from "@/lib/format";
 import { BRANCHES, BRANCH_LABELS } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function MaintenanceRequestDetailPage({
   params,
 }: {

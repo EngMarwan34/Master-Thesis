@@ -2,6 +2,8 @@ import * as repo from "@/lib/repo";
 import { BRANCHES, BRANCH_LABELS } from "@/lib/types";
 import { saveBranchContact } from "@/lib/actions";
 
+export const dynamic = "force-dynamic";
+
 export default function SettingsPage() {
   const contacts = repo.listBranchContacts();
   const contactMap = Object.fromEntries(contacts.map((contact) => [contact.branch, contact]));

@@ -1,6 +1,10 @@
 import Link from "next/link";
 import * as repo from "@/lib/repo";
 
+// This page reads live counts from SQLite on every request — never
+// statically prerender it, or deploys would ship stale build-time numbers.
+export const dynamic = "force-dynamic";
+
 export default function DashboardPage() {
   const stats = repo.dashboardStats();
 

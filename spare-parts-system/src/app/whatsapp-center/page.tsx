@@ -2,6 +2,8 @@ import * as repo from "@/lib/repo";
 import { BRANCHES } from "@/lib/types";
 import BranchMessagePanel from "./BranchMessagePanel";
 
+export const dynamic = "force-dynamic";
+
 export default function WhatsAppCenterPage() {
   const pending = repo.listPendingSourcing();
   const contacts = repo.listBranchContacts();

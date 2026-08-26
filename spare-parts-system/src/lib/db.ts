@@ -2,7 +2,11 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+// In production the container filesystem is ephemeral — anything not on a
+// mounted persistent volume is wiped on every redeploy/restart. Set
+// DATABASE_DIR to that volume's mount path (e.g. "/data" on Railway) so the
+// database survives deploys. Defaults to a local ./data folder for dev.
+const DATA_DIR = process.env.DATABASE_DIR ?? path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "app.db");
 
 const SCHEMA = `
@@ -69,6 +73,12 @@ const SCHEMA = `
 function init(): DatabaseSync {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const database = new DatabaseSync(DB_PATH);
+  // Next.js opens this module from several worker processes at once (e.g.
+  // during `next build`'s page-data collection), which race to create the
+  // schema on a brand-new file. Without a busy timeout the loser gets an
+  // immediate "database is locked" instead of just waiting its turn.
+  database.exec("PRAGMA busy_timeout = 5000;");
+  database.exec("PRAGMA journal_mode = WAL;");
   database.exec(SCHEMA);
   return database;
 }

@@ -4,6 +4,8 @@ import { deleteBranchStock, upsertBranchStock } from "@/lib/actions";
 import { BranchBadge } from "@/components/badges";
 import { formatDateTime } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 export default function BranchStockPage() {
   const stock = repo.listBranchStock();
 
