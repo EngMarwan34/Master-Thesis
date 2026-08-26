@@ -3,10 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 // In production the container filesystem is ephemeral — anything not on a
-// mounted persistent volume is wiped on every redeploy/restart. Set
-// DATABASE_DIR to that volume's mount path (e.g. "/data" on Railway) so the
-// database survives deploys. Defaults to a local ./data folder for dev.
-const DATA_DIR = process.env.DATABASE_DIR ?? path.join(process.cwd(), "data");
+// mounted persistent volume is wiped on every redeploy/restart.
+// RAILWAY_VOLUME_MOUNT_PATH is auto-injected by Railway once a volume is
+// attached to the service, so attaching one is enough on its own; DATABASE_DIR
+// remains available as an explicit override for other hosts. Defaults to a
+// local ./data folder for dev.
+const DATA_DIR =
+  process.env.DATABASE_DIR ?? process.env.RAILWAY_VOLUME_MOUNT_PATH ?? path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "app.db");
 
 const SCHEMA = `
