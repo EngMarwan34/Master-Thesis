@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مدير المهام اليومي</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="topbar-title">
+      <h1>📋 مدير المهام اليومي</h1>
+      <div id="todayDate" class="today-date"></div>
+    </div>
+    <div class="progress-badge" id="progressBadge">
+      <span id="progressText">0/0</span>
+      <span id="progressPercent">0%</span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="tasks">المهام</button>
+    <button class="tab-btn" data-tab="reports">التقارير</button>
+    <button class="tab-btn" data-tab="settings">الإعدادات</button>
+  </nav>
+
+  <!-- ===================== TASKS TAB ===================== -->
+  <section id="tab-tasks" class="tab-panel active">
+
+    <div class="period-card" id="period-morning">
+      <div class="period-header">
+        <h2>🌅 الفترة الأولى <span class="period-time" id="morningTimeLabel"></span></h2>
+        <div class="period-capacity" id="morningCapacity"></div>
+      </div>
+
+      <ul class="task-list" id="morningTaskList"></ul>
+
+      <form class="add-task-form" data-period="morning">
+        <input type="text" name="title" placeholder="اسم المهمة" required>
+        <input type="number" name="minutes" placeholder="الوقت المتوقع (د)" min="1" required>
+        <button type="submit">+ إضافة</button>
+      </form>
+    </div>
+
+    <div class="period-card" id="period-afternoon">
+      <div class="period-header">
+        <h2>🌇 الفترة الثانية <span class="period-time" id="afternoonTimeLabel"></span></h2>
+        <div class="period-capacity" id="afternoonCapacity"></div>
+      </div>
+
+      <ul class="task-list" id="afternoonTaskList"></ul>
+
+      <form class="add-task-form" data-period="afternoon">
+        <input type="text" name="title" placeholder="اسم المهمة" required>
+        <input type="number" name="minutes" placeholder="الوقت المتوقع (د)" min="1" required>
+        <button type="submit">+ إضافة</button>
+      </form>
+    </div>
+
+  </section>
+
+  <!-- ===================== REPORTS TAB ===================== -->
+  <section id="tab-reports" class="tab-panel">
+    <div class="report-summary" id="weeklySummary"></div>
+    <h2 class="section-title">آخر 7 أيام</h2>
+    <div class="table-wrap">
+      <table class="report-table" id="reportTable">
+        <thead>
+          <tr>
+            <th>اليوم</th>
+            <th>المنجزة</th>
+            <th>المؤجلة</th>
+            <th>الإجمالي</th>
+            <th>النسبة</th>
+          </tr>
+        </thead>
+        <tbody id="reportTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== SETTINGS TAB ===================== -->
+  <section id="tab-settings" class="tab-panel">
+    <div class="settings-card">
+      <h2 class="section-title">أوقات الفترات</h2>
+      <form id="settingsForm">
+        <label>
+          بداية الفترة الأولى
+          <input type="time" name="morningStart" required>
+        </label>
+        <label>
+          نهاية الفترة الأولى
+          <input type="time" name="morningEnd" required>
+        </label>
+        <label>
+          بداية الفترة الثانية
+          <input type="time" name="afternoonStart" required>
+        </label>
+        <label>
+          نهاية الفترة الثانية
+          <input type="time" name="afternoonEnd" required>
+        </label>
+        <button type="submit">حفظ الإعدادات</button>
+      </form>
+    </div>
+
+    <div class="settings-card">
+      <h2 class="section-title">التذكيرات</h2>
+      <p class="hint">فعّل إشعارات المتصفح ليصلك تنبيه عند بداية كل فترة بمهامها، حتى لو كانت الصفحة في الخلفية. يبقى ظهور النافذة المنبثقة داخل الصفحة يعمل دائمًا كخيار احتياطي.</p>
+      <button id="enableNotifBtn" type="button">تفعيل إشعارات المتصفح</button>
+      <span id="notifStatus" class="notif-status"></span>
+    </div>
+  </section>
+
+</div>
+
+<!-- Popup modal for period reminders -->
+<div id="reminderModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h2 id="reminderTitle"></h2>
+    <ul id="reminderList" class="task-list"></ul>
+    <button id="reminderClose">حسنًا</button>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
