@@ -1,1471 +1,870 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>نظام تقارير الصيانة الوقائية — المحتسب</title>
-
-<!-- Supabase JS (auth + database + storage) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<!-- ماسح QR -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-<!-- مولّد QR (لطباعة الملصقات) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<!-- قراءة/كتابة ملفات Excel -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>الصيانة الوقائية — المحتسب</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Zain:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 :root{
-  --bg:#f4f6f8; --card:#ffffff; --border:#e2e6ea; --text:#1c2530; --muted:#6b7684;
-  --brand:#0e6e55; --brand-dark:#0a5240; --brand-light:#e6f3ef;
-  --ok:#1a8a4a; --ok-bg:#e6f6ec; --warn:#b8790a; --warn-bg:#fdf1de; --bad:#c0342c; --bad-bg:#fbe7e5; --mut2:#6b7684; --mut2-bg:#eceff2;
-  --radius:10px; --shadow:0 1px 3px rgba(20,30,40,.08), 0 1px 2px rgba(20,30,40,.06);
+  --brand:#0F5DA3; --brand-deep:#0A3F73; --brand-soft:#E7F0F8;
+  --ink:#0B2239; --muted:#5B6B7C; --surface:#F2F5F8; --card:#fff; --line:#DCE4EC;
+  --ok:#0E7C66; --maint:#B7791F; --parts:#C2410C; --down:#B0233A; --na:#64748B;
+  --r:14px; --shadow:0 1px 2px rgba(11,34,57,.06),0 8px 24px rgba(11,34,57,.06);
 }
-*{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
 body{
-  background:var(--bg); color:var(--text);
-  font-family:"Segoe UI","Tahoma","Cairo",system-ui,Arial,sans-serif;
-  font-size:15px; line-height:1.6;
+  font-family:"IBM Plex Sans Arabic",system-ui,"Segoe UI",sans-serif;
+  background:var(--surface); color:var(--ink); font-size:15px; line-height:1.65;
+  -webkit-text-size-adjust:100%;
 }
-a{color:var(--brand);}
-h1,h2,h3,h4{margin:.2em 0 .5em; font-weight:700;}
-.container{max-width:1150px;margin:0 auto;padding:16px;}
+h1,h2,h3{font-family:"Zain","IBM Plex Sans Arabic",sans-serif;font-weight:800;letter-spacing:0;margin:0}
+h1{font-size:26px} h2{font-size:21px} h3{font-size:17px}
+a{color:var(--brand);text-decoration:none}
+button{font-family:inherit;font-size:15px;cursor:pointer}
+input,select,textarea{
+  font-family:inherit;font-size:15px;width:100%;padding:11px 13px;border:1px solid var(--line);
+  border-radius:10px;background:#fff;color:var(--ink)
+}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+textarea{min-height:88px;resize:vertical}
+label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:12px 0 5px}
+
+/* ---------- الهيكل ---------- */
 .topbar{
-  background:var(--brand); color:#fff; position:sticky; top:0; z-index:20;
-  box-shadow:var(--shadow);
+  position:sticky;top:0;z-index:40;background:var(--brand);color:#fff;
+  padding:10px 16px;display:flex;align-items:center;gap:12px;
+  padding-top:calc(10px + env(safe-area-inset-top))
 }
-.topbar .container{display:flex;align-items:center;gap:18px;padding:10px 16px;flex-wrap:wrap;}
-.brand{font-weight:800;font-size:18px;white-space:nowrap;}
-.brand small{display:block;font-weight:400;font-size:11px;opacity:.85;}
-.nav{display:flex;gap:4px;flex-wrap:wrap;flex:1;}
-.nav a{
-  color:#fff;text-decoration:none;padding:8px 12px;border-radius:8px;font-size:14px;opacity:.9;
-}
-.nav a.active,.nav a:hover{background:rgba(255,255,255,.18);opacity:1;}
-.userbox{display:flex;align-items:center;gap:10px;font-size:13px;white-space:nowrap;}
-.userbox button{margin-inline-start:6px;}
+.topbar img{height:34px;background:#fff;border-radius:7px;padding:3px}
+.topbar .who{margin-inline-start:auto;font-size:12.5px;opacity:.92;text-align:end;line-height:1.35}
+.topbar h1{font-size:19px;color:#fff}
+.wrap{max-width:900px;margin:0 auto;padding:18px 16px 96px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.muted{color:var(--muted);font-size:13.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:520px){.grid2{grid-template-columns:1fr}}
 
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:16px;}
-.card h3{margin-top:0;}
-.grid{display:grid;gap:14px;}
-.grid.cols-2{grid-template-columns:repeat(2,1fr);}
-.grid.cols-3{grid-template-columns:repeat(3,1fr);}
-.grid.cols-4{grid-template-columns:repeat(4,1fr);}
-@media(max-width:800px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr 1fr;}}
-@media(max-width:520px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr;}}
+.btn{background:var(--brand);color:#fff;border:0;border-radius:11px;padding:12px 18px;font-weight:600}
+.btn:active{background:var(--brand-deep)}
+.btn.ghost{background:#fff;color:var(--brand);border:1.5px solid var(--brand)}
+.btn.quiet{background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:500}
+.btn.danger{background:var(--down)}
+.btn.sm{padding:8px 13px;font-size:13.5px;border-radius:9px}
+.btn:disabled{opacity:.5}
 
-.btn{
-  display:inline-flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--border);
-  background:#fff;color:var(--text);padding:9px 14px;border-radius:8px;font-size:14px;font-weight:600;
-}
-.btn:hover{background:#f0f2f4;}
-.btn-primary{background:var(--brand);border-color:var(--brand);color:#fff;}
-.btn-primary:hover{background:var(--brand-dark);}
-.btn-danger{background:#fff;border-color:var(--bad);color:var(--bad);}
-.btn-danger:hover{background:var(--bad-bg);}
-.btn-sm{padding:5px 10px;font-size:12.5px;}
-.btn[disabled]{opacity:.5;cursor:not-allowed;}
-.btn-block{width:100%;justify-content:center;}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;
+  padding:4px 10px;border-radius:999px;background:var(--brand-soft);color:var(--brand-deep)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.c-ok{background:var(--ok)} .c-maint{background:var(--maint)} .c-parts{background:var(--parts)}
+.c-down{background:var(--down)} .c-na{background:var(--na)} .c-none{background:#CBD5E1}
 
-label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:10px 0 4px;}
-input[type=text],input[type=email],input[type=password],input[type=date],input[type=number],input[type=tel],select,textarea{
-  width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:var(--text);
-}
-textarea{min-height:70px;resize:vertical;}
-.field-row{display:flex;gap:10px;flex-wrap:wrap;}
-.field-row > *{flex:1;min-width:150px;}
-.hint{font-size:12px;color:var(--muted);}
+/* ---------- مصفوفة الفحص (العنصر المميّز) ---------- */
+.mosaic{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0 4px}
+.mosaic i{width:20px;height:20px;border-radius:5px;background:#CBD5E1;display:block}
+.rail{height:7px;border-radius:99px;background:#E2E8F0;overflow:hidden;margin-top:10px}
+.rail span{display:block;height:100%;background:var(--brand);transition:width .35s}
 
-table{width:100%;border-collapse:collapse;font-size:13.5px;}
-th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;vertical-align:middle;}
-th{background:#f8f9fb;color:var(--muted);font-weight:700;font-size:12.5px;}
-tr:hover td{background:#fafcfd;}
-.table-wrap{overflow-x:auto;}
+/* ---------- قوائم ---------- */
+.list{display:flex;flex-direction:column;gap:9px}
+.item{display:flex;gap:12px;align-items:center;background:#fff;border:1px solid var(--line);
+  border-radius:12px;padding:12px 13px;text-align:start;width:100%}
+.item .edge{width:5px;align-self:stretch;border-radius:99px;background:#CBD5E1;flex:none}
+.item .body{flex:1;min-width:0}
+.item .t{font-weight:600}
+.item .s{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thumb{width:48px;height:48px;border-radius:9px;object-fit:cover;background:var(--surface);flex:none}
 
-.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;}
-.badge.ok{background:var(--ok-bg);color:var(--ok);}
-.badge.warn{background:var(--warn-bg);color:var(--warn);}
-.badge.bad{background:var(--bad-bg);color:var(--bad);}
-.badge.muted{background:var(--mut2-bg);color:var(--mut2);}
+/* ---------- شاشة الحالة ---------- */
+.sheet{position:fixed;inset:0;background:rgba(11,34,57,.45);z-index:60;display:flex;align-items:flex-end}
+.sheet .panel{background:#fff;width:100%;max-height:94vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px 28px}
+@media(min-width:700px){.sheet{align-items:center;justify-content:center}
+ .sheet .panel{max-width:640px;border-radius:18px}}
+.states{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.state{display:flex;align-items:center;gap:11px;border:1.5px solid var(--line);background:#fff;
+  border-radius:12px;padding:14px;font-weight:600;width:100%;text-align:start}
+.state b{width:6px;height:26px;border-radius:99px;flex:none}
+.state.on{border-color:var(--brand);background:var(--brand-soft)}
+.photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.photos img{width:74px;height:74px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.addphoto{width:74px;height:74px;border-radius:10px;border:1.5px dashed var(--brand);background:#fff;
+  color:var(--brand);font-size:12px;font-weight:600}
 
-.stat{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;}
-.stat .n{font-size:26px;font-weight:800;}
-.stat .l{font-size:12.5px;color:var(--muted);}
+.bar{position:fixed;bottom:0;inset-inline:0;background:#fff;border-top:1px solid var(--line);
+  padding:12px 16px calc(12px + env(safe-area-inset-bottom));z-index:30}
+.bar .inner{max-width:900px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.bar .btn{flex:1}
 
-.progressbar{background:#eef0f2;border-radius:20px;overflow:hidden;height:10px;}
-.progressbar > i{display:block;height:100%;background:var(--brand);}
+.kpi{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi .b{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi .n{font-family:"Zain";font-size:32px;font-weight:800;line-height:1}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:start;vertical-align:top}
+th{color:var(--muted);font-size:12px;font-weight:600}
+.toast{position:fixed;bottom:88px;inset-inline:16px;background:var(--ink);color:#fff;padding:12px 16px;
+  border-radius:12px;z-index:90;text-align:center;font-size:14px}
+.center{max-width:420px;margin:8vh auto;padding:0 18px}
+.center img{width:120px;display:block;margin:0 auto 18px}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+#reader{border-radius:14px;overflow:hidden}
 
-.modal-backdrop{position:fixed;inset:0;background:rgba(20,30,40,.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;}
-.modal{background:#fff;border-radius:var(--radius);padding:20px;max-width:560px;width:100%;max-height:90vh;overflow:auto;}
-.modal-lg{max-width:900px;}
-
-.toastwrap{position:fixed;bottom:16px;inset-inline-end:16px;z-index:200;display:flex;flex-direction:column;gap:8px;}
-.toast{background:#22303c;color:#fff;padding:10px 16px;border-radius:8px;font-size:13.5px;box-shadow:var(--shadow);}
-.toast.err{background:var(--bad);}
-.toast.ok{background:var(--ok);}
-
-.photo-thumb{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border);}
-.photo-thumb.lg{width:100%;height:140px;}
-.thumbs{display:flex;gap:6px;flex-wrap:wrap;}
-
-.asset-card{border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:#fff;}
-.asset-list-item{display:flex;justify-content:space-between;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer;}
-.asset-list-item:hover{background:#fafcfd;}
-.chip{display:inline-block;background:var(--brand-light);color:var(--brand-dark);padding:2px 8px;border-radius:14px;font-size:11.5px;margin-inline-end:4px;}
-
-#qr-reader{width:100%;max-width:340px;margin:0 auto;}
-
-.history-item{border-inline-start:3px solid var(--border);padding:6px 10px;margin-bottom:6px;font-size:13px;}
-.history-item.alert{border-inline-start-color:var(--bad);background:var(--bad-bg);border-radius:6px;}
-
-.center{text-align:center;} .muted{color:var(--muted);} .small{font-size:12.5px;}
-.mt0{margin-top:0;} .flex{display:flex;} .flex-between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
-.gap6{gap:6px;} .gap10{gap:10px;} .mb10{margin-bottom:10px;}
-
-.labels-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8mm;padding:10mm;}
-.label-box{border:1px dashed #999;border-radius:4px;padding:6px;text-align:center;}
-.label-box .qr-holder{display:flex;justify-content:center;margin:4px 0;}
-.label-box .asset-no{font-weight:800;font-size:13px;}
-.label-box .name{font-size:11px;color:#333;}
-.label-box .co{font-size:10px;color:#666;}
-
-/* التقرير: ترويسة، إحصاءات، جدول ثنائي اللغة */
-.report-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--brand);padding-bottom:12px;margin-bottom:14px;}
-.report-head .co{font-weight:800;font-size:18px;color:var(--brand-dark);}
-.report-head .meta{text-align:end;font-size:13px;color:var(--muted);}
-.bi{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;}
-.bi .en{direction:ltr;text-align:left;color:#444;}
-.bi .ar{direction:rtl;text-align:right;}
-.sig-row{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:40px;}
-.sig-box{border-top:1px solid #999;padding-top:6px;text-align:center;font-size:13px;color:var(--muted);}
-
+/* ---------- التقرير ---------- */
+.report{background:#fff;color:#000;max-width:820px;margin:0 auto;padding:26px}
+.rhead{display:flex;gap:16px;align-items:flex-start;border-bottom:3px solid var(--brand);padding-bottom:12px}
+.rhead img{height:76px}
+.bi{font-size:12px;color:#444}
+.sum{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.sum div{border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:96px}
+.sum .n{font-family:"Zain";font-size:24px;font-weight:800;line-height:1.1}
+.rtable th{background:#F1F5F9;color:#000;font-size:11.5px}
+.rtable td{font-size:12px}
+.rtable img{width:74px;height:56px;object-fit:cover;border-radius:6px}
+.sign{display:flex;gap:40px;margin-top:34px}
+.sign div{flex:1;border-top:1px solid #000;padding-top:7px;font-size:12px}
 @media print{
-  body *{visibility:hidden;}
-  #print-area, #print-area *{visibility:visible;}
-  #print-area{position:absolute;inset-inline-start:0;top:0;width:100%;padding:0;margin:0;}
-  .no-print{display:none !important;}
-  @page{margin:12mm;}
+  @page{size:A4;margin:12mm}
+  .noprint{display:none!important}
+  body{background:#fff}
+  .report{padding:0;max-width:none}
+  .rtable tr{break-inside:avoid}
 }
 </style>
 </head>
 <body>
-<div id="topbar-root"></div>
-<div id="app" class="container"></div>
-<div id="print-area" style="display:none"></div>
-<div class="toastwrap" id="toastwrap"></div>
+<div id="app"></div>
 
 <script>
 /* =====================================================================
-   الإعدادات — عدّل القيمتين التاليتين بعد إنشاء مشروعك في supabase.com
-   (Project Settings → API). هذا المفتاح "anon public" آمن للاستخدام في
-   المتصفح لأن كل الحماية الفعلية مطبّقة عبر سياسات RLS في قاعدة البيانات.
+   إعدادات الاتصال — ضع هنا رابط مشروع Supabase والمفتاح العام (anon)
+   من: Supabase ← Project Settings ← API
+   المفتاح العام مصمم ليكون ظاهراً؛ الحماية الفعلية في سياسات RLS.
    ===================================================================== */
-const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
-const PHOTOS_BUCKET = 'ppm-photos';
-const COMPANY_NAME_AR = 'شركة المحتسب';
-const COMPANY_NAME_EN = 'Al-Muhtasib Co.';
-const COMPANY_LOGO_URL = ''; // رابط شعار الشركة (اختياري) — PNG بخلفية شفافة
+const SUPABASE_URL = "";
+const SUPABASE_ANON_KEY = "";
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const LOGO = "data:image/png;base64,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";
 
-/* ===================== ثوابت وتسميات ثنائية اللغة ===================== */
-const CATEGORY_LABELS = {
-  refrigeration:{ar:'تبريد', en:'Refrigeration'},
-  cooking:{ar:'طبخ', en:'Cooking'},
-  ac:{ar:'تكييف', en:'AC'},
-  laundry:{ar:'غسيل', en:'Laundry'},
-};
-const CONDITION_LABELS = {
-  sound:{ar:'سليم', en:'Sound', cls:'ok'},
-  needs_maintenance:{ar:'يحتاج صيانة', en:'Needs Maintenance', cls:'warn'},
-  needs_parts:{ar:'يحتاج قطع غيار', en:'Needs Parts', cls:'warn'},
-  out_of_service:{ar:'متوقف عن العمل', en:'Out of Service', cls:'bad'},
-  not_accessible:{ar:'غير متاح للفحص', en:'Not Accessible', cls:'muted'},
-};
-const VISIT_STATUS_LABELS = {
-  draft:{ar:'مسودة', en:'Draft'},
-  pending_approval:{ar:'بانتظار الاعتماد', en:'Pending Approval'},
-  approved:{ar:'معتمدة', en:'Approved'},
-  rejected:{ar:'مرفوضة', en:'Rejected'},
-};
-const ROLE_LABELS = {branch_admin:'مشرف فرع', technician:'فني ميداني', client:'عميل (اطلاع)'};
-
-/* ============================ حالة عامة ============================ */
-const state = { session:null, profile:null, clientsCache:null };
-
-/* ============================== أدوات ============================== */
-const $ = (s,r=document)=>r.querySelector(s);
-const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
-function h(strings,...vals){ // مجرد وسم لتوضيح القالب، بلا معالجة خاصة
-  return strings.reduce((acc,s,i)=>acc+s+(vals[i]??''),'');
-}
-function esc(str){
-  return String(str??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function fmtDate(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('ar-SA'); }
-function fmtDateTime(d){ if(!d) return '—'; return new Date(d).toLocaleString('ar-SA'); }
-function toast(msg, type=''){
-  const t = document.createElement('div');
-  t.className = 'toast '+type;
-  t.textContent = msg;
-  $('#toastwrap').appendChild(t);
-  setTimeout(()=>t.remove(), 4000);
-}
-function navigate(hash){ location.hash = hash; }
-function currentHash(){ return location.hash.replace(/^#/,'') || '/login'; }
-function qparam(name, def=null){
-  const parts = currentHash().split('?');
-  if(parts.length<2) return def;
-  const p = new URLSearchParams(parts[1]);
-  return p.has(name) ? p.get(name) : def;
-}
-
-/* ضغط الصورة في المتصفح: تصغير أطول ضلع إلى 1600px بجودة 0.7 */
-function compressImage(file, maxDim=1600, quality=0.7){
-  return new Promise((resolve,reject)=>{
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = ()=>{
-      img.onerror = reject;
-      img.onload = ()=>{
-        let {width,height} = img;
-        if(width>height && width>maxDim){ height=Math.round(height*maxDim/width); width=maxDim; }
-        else if(height>maxDim){ width=Math.round(width*maxDim/height); height=maxDim; }
-        const canvas = document.createElement('canvas');
-        canvas.width=width; canvas.height=height;
-        canvas.getContext('2d').drawImage(img,0,0,width,height);
-        canvas.toBlob(blob=>resolve(blob), 'image/jpeg', quality);
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-async function uploadPhoto(clientId, visitId, assetId, blob){
-  const path = `${clientId}/${visitId}/${assetId}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.jpg`;
-  const {error} = await sb.storage.from(PHOTOS_BUCKET).upload(path, blob, {contentType:'image/jpeg', upsert:false});
-  if(error) throw error;
-  const {data} = sb.storage.from(PHOTOS_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
-}
-
-/* ============================ المصادقة ============================ */
-async function refreshSession(){
-  const {data:{session}} = await sb.auth.getSession();
-  state.session = session;
-  if(session){
-    const {data, error} = await sb.from('profiles').select('*').eq('id', session.user.id).single();
-    if(!error) state.profile = data;
-  } else {
-    state.profile = null;
-  }
-}
-sb.auth.onAuthStateChange((_evt, session)=>{ state.session = session; });
-
-function requireAuth(){
-  if(!state.session){
-    sessionStorage.setItem('pendingRoute', currentHash());
-    navigate('/login');
-    return false;
-  }
-  if(state.profile && state.profile.active === false){
-    renderApp('<div class="card"><h3>الحساب موقوف</h3><p class="muted">تم إيقاف حسابك من قبل مشرف الفرع. راجع إدارة الفرع.</p></div>');
-    return false;
-  }
-  return true;
-}
-function requireRole(...roles){
-  if(!requireAuth()) return false;
-  if(!state.profile || !roles.includes(state.profile.role)){
-    renderApp('<div class="card"><h3>غير مصرح</h3><p class="muted">لا تملك صلاحية الوصول لهذه الصفحة.</p></div>');
-    return false;
-  }
-  return true;
-}
-
-/* ============================ الواجهة العامة ============================ */
-function renderApp(htmlStr){ $('#app').innerHTML = htmlStr; }
-function renderTopbar(){
-  const root = $('#topbar-root');
-  if(!state.session || !state.profile){ root.innerHTML=''; return; }
-  const r = state.profile.role;
-  let links = [];
-  if(r==='branch_admin'){
-    links = [
-      ['/dashboard','لوحة المتابعة'],
-      ['/clients','العملاء'],
-      ['/approvals','الاعتمادات'],
-      ['/users','إدارة المستخدمين'],
-    ];
-  } else if(r==='technician'){
-    links = [
-      ['/technician','عملائي'],
-      ['/technician/history','زياراتي'],
-    ];
-  } else if(r==='client'){
-    links = [
-      ['/portal','أجهزتي'],
-      ['/portal/reports','تقاريري'],
-    ];
-  }
-  const cur = '/'+currentHash().split('?')[0].replace(/^\//,'');
-  root.innerHTML = `
-  <div class="topbar"><div class="container">
-    <div class="brand">${esc(COMPANY_NAME_AR)}<small>نظام تقارير الصيانة الوقائية</small></div>
-    <div class="nav">${links.map(([href,label])=>`<a href="#${href}" class="${cur===href?'active':''}">${label}</a>`).join('')}</div>
-    <div class="userbox">
-      <span>${esc(state.profile.full_name||state.session.user.email)} · ${ROLE_LABELS[r]||''}</span>
-      <button class="btn btn-sm" data-action="logout">خروج</button>
-    </div>
-  </div></div>`;
-}
-
-/* ======================= جلب بيانات مساعد عام ======================= */
-async function fetchClientsList(){
-  const {data, error} = await sb.from('clients').select('*').order('name_ar');
-  if(error){ toast(error.message,'err'); return []; }
-  return data||[];
-}
-async function fetchClient(id){
-  const {data} = await sb.from('clients').select('*').eq('id',id).single();
-  return data;
-}
-
-/* =============================================================
-   المُوجِّه (Router)
-   ============================================================= */
-const ROUTES = [
-  [/^\/login$/, viewLogin],
-  [/^\/dashboard$/, viewDashboard],
-  [/^\/clients$/, viewClients],
-  [/^\/clients\/([\w-]+)$/, (m)=>viewClientDetail(m[1])],
-  [/^\/clients\/([\w-]+)\/import$/, (m)=>viewImport(m[1])],
-  [/^\/labels\/([\w-]+)$/, (m)=>viewLabels(m[1])],
-  [/^\/users$/, viewUsers],
-  [/^\/approvals$/, viewApprovals],
-  [/^\/approvals\/([\w-]+)$/, (m)=>viewApprovalDetail(m[1])],
-  [/^\/technician$/, viewTechnicianHome],
-  [/^\/technician\/history$/, viewTechnicianHistory],
-  [/^\/technician\/visit\/([\w-]+)$/, (m)=>viewVisit(m[1])],
-  [/^\/portal$/, viewPortal],
-  [/^\/portal\/reports$/, viewPortalReports],
-  [/^\/report\/([\w-]+)$/, (m)=>viewReport(m[1])],
-  [/^\/share\/([\w-]+)$/, (m)=>viewShare(m[1])],
-  [/^\/scan\/([\w-]+)$/, (m)=>viewScan(m[1])],
+const STATES = [
+  {k:"سليم",              en:"Good",              c:"c-ok",    v:"--ok"},
+  {k:"يحتاج صيانة",        en:"Needs maintenance", c:"c-maint", v:"--maint"},
+  {k:"يحتاج قطع غيار",     en:"Needs spare parts", c:"c-parts", v:"--parts"},
+  {k:"متوقف عن العمل",     en:"Out of service",    c:"c-down",  v:"--down"},
+  {k:"غير متاح للفحص",     en:"Not accessible",    c:"c-na",    v:"--na"}
 ];
+const stateOf = k => STATES.find(s=>s.k===k);
+const CATS = ["تبريد","طبخ","تكييف","غسيل","أخرى"];
+const CAT_EN = {"تبريد":"Refrigeration","طبخ":"Cooking","تكييف":"HVAC","غسيل":"Laundry","أخرى":"Other"};
+
+let sb=null, me=null, session=null, scanner=null;
+const $ = s => document.querySelector(s);
+const app = $("#app");
+const esc = s => (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = d => d ? new Date(d).toLocaleDateString("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}) : "—";
+const time = d => d ? new Date(d).toLocaleTimeString("ar-SA",{hour:"2-digit",minute:"2-digit"}) : "—";
+
+function toast(msg,ms=2600){
+  const t=document.createElement("div"); t.className="toast noprint"; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(),ms);
+}
+function cfg(){
+  const u = SUPABASE_URL || localStorage.getItem("sb_url");
+  const k = SUPABASE_ANON_KEY || localStorage.getItem("sb_key");
+  return (u && k) ? {u,k} : null;
+}
+
+/* ---------------------- الإقلاع ---------------------- */
+(async function boot(){
+  const c = cfg();
+  if(!c) return setupScreen();
+  sb = window.supabase.createClient(c.u, c.k);
+  const {data} = await sb.auth.getSession();
+  session = data.session;
+  if(!session) return loginScreen();
+  const {data:p} = await sb.from("profiles").select("*").eq("id",session.user.id).single();
+  if(!p){ await sb.auth.signOut(); return loginScreen("لا يوجد ملف صلاحيات لهذا الحساب. راجع مشرف النظام."); }
+  me = p;
+  window.addEventListener("hashchange",route);
+  route();
+})();
+
+function setupScreen(){
+  app.innerHTML = `<div class="center">
+    <img src="${LOGO}" alt="المحتسب">
+    <div class="card">
+      <h2>ربط النظام بقاعدة البيانات</h2>
+      <p class="muted">أدخل بيانات مشروع Supabase مرة واحدة. تجدها في Project Settings ← API.</p>
+      <label>Project URL</label><input id="u" placeholder="https://xxxx.supabase.co">
+      <label>anon public key</label><input id="k" placeholder="eyJhbGciOi...">
+      <div style="height:14px"></div>
+      <button class="btn" style="width:100%" onclick="saveCfg()">حفظ ومتابعة</button>
+    </div></div>`;
+}
+function saveCfg(){
+  const u=$("#u").value.trim(), k=$("#k").value.trim();
+  if(!u||!k) return toast("أدخل الرابط والمفتاح");
+  localStorage.setItem("sb_url",u); localStorage.setItem("sb_key",k); location.reload();
+}
+
+function loginScreen(msg){
+  app.innerHTML = `<div class="center">
+    <img src="${LOGO}" alt="المحتسب">
+    <div class="card">
+      <h2>تسجيل الدخول</h2>
+      <p class="muted">نظام تقارير الصيانة الوقائية</p>
+      ${msg?`<p style="color:var(--down);font-size:13.5px">${esc(msg)}</p>`:""}
+      <label>البريد الإلكتروني</label><input id="e" type="email" autocomplete="username">
+      <label>كلمة المرور</label><input id="p" type="password" autocomplete="current-password">
+      <div style="height:14px"></div>
+      <button class="btn" style="width:100%" onclick="doLogin()">دخول</button>
+    </div></div>`;
+  $("#p").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
+}
+async function doLogin(){
+  const email=$("#e").value.trim(), password=$("#p").value;
+  const {error} = await sb.auth.signInWithPassword({email,password});
+  if(error) return toast("تعذر الدخول: تحقق من البريد وكلمة المرور");
+  location.reload();
+}
+async function logout(){ await sb.auth.signOut(); location.hash=""; location.reload(); }
+
+/* ---------------------- الهيكل العام ---------------------- */
+function shell(title, html, bar=""){
+  const roleAr = {supervisor:"مشرف فرع",technician:"فني ميداني",client:"حساب عميل"}[me.role];
+  app.innerHTML = `
+  <div class="topbar noprint">
+    <img src="${LOGO}" alt="">
+    <h1>${esc(title)}</h1>
+    <div class="who">${esc(me.full_name)}<br>${roleAr}${me.branch?" — "+esc(me.branch):""}</div>
+  </div>
+  <div class="wrap">${html}</div>
+  ${bar?`<div class="bar noprint"><div class="inner">${bar}</div></div>`:""}`;
+}
+const back = h => `<button class="btn quiet sm" onclick="location.hash='${h}'">رجوع</button>`;
 
 async function route(){
-  await refreshSession();
-  renderTopbar();
-  const path = currentHash().split('?')[0];
-  if(path==='/' || path===''){ navigate(state.session?'/dashboard':'/login'); return; }
-  for(const [re, fn] of ROUTES){
-    const m = path.match(re);
-    if(m){ try{ await fn(m); }catch(e){ console.error(e); renderApp(`<div class="card">تعذّر تحميل الصفحة: ${esc(e.message||e)}</div>`);} return; }
-  }
-  renderApp('<div class="card">الصفحة غير موجودة</div>');
-}
-window.addEventListener('hashchange', route);
-window.addEventListener('load', route);
-
-/* تفويض الأحداث */
-document.addEventListener('click', async (e)=>{
-  const btn = e.target.closest('[data-action]');
-  if(!btn) return;
-  const action = btn.dataset.action;
-  try{ await handleAction(action, btn, e); }
-  catch(err){ console.error(err); toast(err.message||String(err), 'err'); }
-});
-document.addEventListener('submit', async (e)=>{
-  const form = e.target.closest('form[data-form]');
-  if(!form) return;
-  e.preventDefault();
-  try{ await handleForm(form.dataset.form, form, e); }
-  catch(err){ console.error(err); toast(err.message||String(err), 'err'); }
-});
-document.addEventListener('change', async (e)=>{
-  const el2 = e.target.closest('[data-change]');
-  if(!el2) return;
-  try{ await handleChange(el2.dataset.change, el2, e); }
-  catch(err){ console.error(err); toast(err.message||String(err), 'err'); }
-});
-
-/* =============================================================
-   شاشة الدخول
-   ============================================================= */
-function viewLogin(){
-  if(state.session){ navigate(sessionStorage.getItem('pendingRoute')||'/dashboard'); return; }
-  renderApp(`
-  <div class="card" style="max-width:380px;margin:60px auto;">
-    <h2 class="center">تسجيل الدخول</h2>
-    <p class="muted center small">نظام تقارير الصيانة الوقائية — ${esc(COMPANY_NAME_AR)}</p>
-    <form data-form="login">
-      <label>البريد الإلكتروني</label>
-      <input type="email" name="email" required autocomplete="username" />
-      <label>كلمة المرور</label>
-      <input type="password" name="password" required autocomplete="current-password" />
-      <button class="btn btn-primary btn-block" style="margin-top:16px;" type="submit">دخول</button>
-    </form>
-  </div>`);
-}
-
-/* =============================================================
-   لوحة المتابعة (مشرف الفرع)
-   ============================================================= */
-async function viewDashboard(){
-  if(!requireRole('branch_admin')) return;
-  renderApp('<div class="card">جارِ التحميل…</div>');
-
-  const {data: pending} = await sb.from('visits')
-    .select('id, visit_date, check_in, client_id, clients(name_ar)')
-    .eq('status','pending_approval').order('check_in',{ascending:true});
-
-  const {data: partsItems} = await sb.from('visit_items')
-    .select('id, parts_needed_text, condition, asset_id, assets(asset_no,name_ar,client_id,clients(name_ar))')
-    .eq('condition','needs_parts').not('parts_needed_text','is', null);
-
-  const {data: contracts} = await sb.from('contracts')
-    .select('*, clients(name_ar)');
-  const {data: approvedVisits} = await sb.from('visits').select('contract_id, status').eq('status','approved');
-
-  const byContract = {};
-  (approvedVisits||[]).forEach(v=>{ if(v.contract_id){ byContract[v.contract_id]=(byContract[v.contract_id]||0)+1; } });
-
-  const partsByClient = {};
-  (partsItems||[]).forEach(it=>{
-    const cname = it.assets?.clients?.name_ar || '—';
-    (partsByClient[cname] ||= []).push(it);
-  });
-
-  renderApp(`
-  <h2>لوحة المتابعة</h2>
-
-  <div class="card">
-    <h3>زيارات بانتظار اعتمادك (${(pending||[]).length})</h3>
-    ${(pending||[]).length ? `<div class="table-wrap"><table><thead><tr><th>العميل</th><th>تاريخ الزيارة</th><th>منذ الإرسال</th><th></th></tr></thead><tbody>
-      ${pending.map(v=>{
-        const days = v.check_in ? Math.floor((Date.now()-new Date(v.check_in).getTime())/86400000) : 0;
-        return `<tr><td>${esc(v.clients?.name_ar||'—')}</td><td>${fmtDate(v.visit_date)}</td><td>${days} يوم</td>
-          <td><a class="btn btn-sm btn-primary" href="#/approvals/${v.id}">مراجعة</a></td></tr>`;
-      }).join('')}
-    </tbody></table></div>` : '<p class="muted">لا توجد زيارات بانتظار الاعتماد.</p>'}
-  </div>
-
-  <div class="card">
-    <div class="flex-between"><h3 class="mt0">أجهزة تحتاج قطع غيار الآن (${(partsItems||[]).length})</h3>
-      <button class="btn btn-sm" data-action="export-parts-dashboard">تصدير الكل Excel</button></div>
-    ${Object.keys(partsByClient).length ? Object.entries(partsByClient).map(([cname, items])=>`
-      <h4>${esc(cname)} <span class="muted small">(${items.length})</span></h4>
-      <ul>${items.map(it=>`<li>${esc(it.assets?.asset_no)} — ${esc(it.assets?.name_ar)}: ${esc(it.parts_needed_text)}</li>`).join('')}</ul>
-    `).join('') : '<p class="muted">لا توجد قطع مطلوبة حالياً.</p>'}
-  </div>
-
-  <div class="card">
-    <h3>التزام العقود</h3>
-    <div class="table-wrap"><table><thead><tr><th>العميل</th><th>رقم العقد</th><th>الإنجاز</th><th>نهاية العقد</th><th>الحالة</th></tr></thead><tbody>
-      ${(contracts||[]).map(c=>{
-        const done = byContract[c.id]||0;
-        const total = c.visits_planned||0;
-        const daysLeft = Math.floor((new Date(c.end_date).getTime()-Date.now())/86400000);
-        let status = `<span class="badge ok">ضمن الخطة</span>`;
-        if(daysLeft<0) status = `<span class="badge bad">العقد منتهٍ</span>`;
-        else if(daysLeft<30 && done<total) status = `<span class="badge warn">قارب الانتهاء</span>`;
-        else if(total>0 && done>=total) status = `<span class="badge ok">مكتمل</span>`;
-        return `<tr><td>${esc(c.clients?.name_ar||'—')}</td><td>${esc(c.contract_no)}</td>
-          <td>زيارة ${done} من ${total}</td><td>${fmtDate(c.end_date)}</td><td>${status}</td></tr>`;
-      }).join('')}
-    </tbody></table></div>
-  </div>
-  `);
-
-  window.__dashboardPartsFlat = (partsItems||[]).map(it=>({
-    'رقم الأصل':it.assets?.asset_no, 'اسم الجهاز':it.assets?.name_ar, 'العميل':it.assets?.clients?.name_ar, 'القطع المطلوبة':it.parts_needed_text
-  }));
-}
-
-/* =============================================================
-   إدارة العملاء
-   ============================================================= */
-async function viewClients(){
-  if(!requireRole('branch_admin')) return;
-  const clients = await fetchClientsList();
-  renderApp(`
-  <div class="flex-between"><h2>العملاء</h2><button class="btn btn-primary" data-action="open-client-modal">+ عميل جديد</button></div>
-  <div class="card">
-    <div class="table-wrap"><table><thead><tr><th>الاسم</th><th>النوع</th><th>المدينة</th><th>جهة الاتصال</th><th></th></tr></thead><tbody>
-    ${clients.map(c=>`<tr>
-      <td><a href="#/clients/${c.id}">${esc(c.name_ar)}</a><div class="muted small">${esc(c.name_en||'')}</div></td>
-      <td>${esc(c.type||'—')}</td><td>${esc(c.city||'—')}</td>
-      <td>${esc(c.contact_name||'—')} ${c.contact_phone?('· '+esc(c.contact_phone)):''}</td>
-      <td><a class="btn btn-sm" href="#/clients/${c.id}">فتح</a></td>
-    </tr>`).join('') || '<tr><td colspan="5" class="muted center">لا يوجد عملاء بعد</td></tr>'}
-    </tbody></table></div>
-  </div>`);
-}
-
-function clientModalHtml(client){
-  const c = client||{};
-  return `<div class="modal-backdrop" id="client-modal"><div class="modal">
-    <h3>${client?'تعديل عميل':'عميل جديد'}</h3>
-    <form data-form="save-client">
-      <input type="hidden" name="id" value="${c.id||''}" />
-      <div class="field-row"><div><label>الاسم بالعربية *</label><input name="name_ar" required value="${esc(c.name_ar||'')}"></div>
-      <div><label>Name (English)</label><input name="name_en" value="${esc(c.name_en||'')}"></div></div>
-      <div class="field-row"><div><label>النوع</label><input name="type" placeholder="مستشفى / فندق / مصنع" value="${esc(c.type||'')}"></div>
-      <div><label>المدينة</label><input name="city" value="${esc(c.city||'')}"></div></div>
-      <div class="field-row"><div><label>الفرع *</label><input name="branch" required value="${esc(c.branch|| state.profile.branch||'')}"></div></div>
-      <div class="field-row"><div><label>اسم جهة الاتصال</label><input name="contact_name" value="${esc(c.contact_name||'')}"></div>
-      <div><label>جوال جهة الاتصال</label><input name="contact_phone" value="${esc(c.contact_phone||'')}"></div></div>
-      <label>رابط شعار العميل (اختياري)</label><input name="logo_url" value="${esc(c.logo_url||'')}">
-      <div class="flex gap10" style="margin-top:16px;">
-        <button class="btn btn-primary" type="submit">حفظ</button>
-        <button class="btn" type="button" data-action="close-modal">إلغاء</button>
-      </div>
-    </form>
-  </div></div>`;
-}
-
-async function viewClientDetail(id){
-  if(!requireRole('branch_admin','technician')) return;
-  const client = await fetchClient(id);
-  if(!client){ renderApp('<div class="card">العميل غير موجود</div>'); return; }
-  const {data:locations} = await sb.from('locations').select('*').eq('client_id',id).order('name');
-  const {data:assets} = await sb.from('assets').select('*, locations(name)').eq('client_id',id).order('asset_no');
-  const {data:contracts} = await sb.from('contracts').select('*').eq('client_id',id).order('start_date',{ascending:false});
-  const isAdmin = state.profile.role==='branch_admin';
-
-  renderApp(`
-  <div class="flex-between">
-    <h2>${esc(client.name_ar)} <span class="muted small">${esc(client.name_en||'')}</span></h2>
-    ${isAdmin?`<div class="flex gap6"><a class="btn" href="#/labels/${id}">طباعة ملصقات QR</a>
-      <a class="btn" href="#/clients/${id}/import">استيراد Excel</a>
-      <button class="btn" data-action="open-client-modal" data-id="${id}">تعديل بيانات العميل</button></div>`:''}
-  </div>
-
-  <div class="grid cols-3">
-    <div class="card"><div class="stat"><div class="n">${(assets||[]).length}</div><div class="l">إجمالي الأجهزة</div></div></div>
-    <div class="card"><div class="stat"><div class="n">${(locations||[]).length}</div><div class="l">المواقع</div></div></div>
-    <div class="card"><div class="stat"><div class="n">${(contracts||[]).length}</div><div class="l">العقود</div></div></div>
-  </div>
-
-  <div class="card">
-    <div class="flex-between"><h3 class="mt0">المواقع</h3>${isAdmin?'<button class="btn btn-sm" data-action="add-location" data-client="'+id+'">+ إضافة موقع</button>':''}</div>
-    <div class="thumbs">${(locations||[]).map(l=>`<span class="chip">${esc(l.name)}</span>`).join('') || '<span class="muted">لا توجد مواقع</span>'}</div>
-  </div>
-
-  <div class="card">
-    <div class="flex-between"><h3 class="mt0">العقود</h3>${isAdmin?'<button class="btn btn-sm" data-action="add-contract" data-client="'+id+'">+ عقد جديد</button>':''}</div>
-    <div class="table-wrap"><table><thead><tr><th>رقم العقد</th><th>البداية</th><th>النهاية</th><th>الدورية</th><th>الزيارات المخططة</th></tr></thead><tbody>
-    ${(contracts||[]).map(c=>`<tr><td>${esc(c.contract_no)}</td><td>${fmtDate(c.start_date)}</td><td>${fmtDate(c.end_date)}</td>
-      <td>كل ${c.frequency_months} شهر</td><td>${c.visits_planned}</td></tr>`).join('') || '<tr><td colspan="5" class="muted center">لا توجد عقود</td></tr>'}
-    </tbody></table></div>
-  </div>
-
-  <div class="card">
-    <div class="flex-between"><h3 class="mt0">الأجهزة</h3>${isAdmin?'<button class="btn btn-sm" data-action="add-asset" data-client="'+id+'">+ جهاز جديد</button>':''}</div>
-    <div class="table-wrap"><table><thead><tr><th>رقم الأصل</th><th>الاسم</th><th>الفئة</th><th>الموقع</th><th>الماركة/الموديل</th><th></th></tr></thead><tbody>
-    ${(assets||[]).map(a=>`<tr><td>${esc(a.asset_no)}</td><td>${esc(a.name_ar)} ${a.field_added?'<span class="badge warn">مضاف ميدانياً</span>':''}</td>
-      <td>${CATEGORY_LABELS[a.category]?.ar||a.category}</td><td>${esc(a.locations?.name||'—')}</td>
-      <td>${esc(a.brand||'')} ${esc(a.model||'')}</td>
-      <td>${isAdmin?`<button class="btn btn-sm" data-action="edit-asset" data-id="${a.id}">تعديل</button>`:''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted center">لا توجد أجهزة بعد</td></tr>'}
-    </tbody></table></div>
-  </div>
-  `);
-}
-
-function assetModalHtml(clientId, asset, locations){
-  const a = asset||{};
-  return `<div class="modal-backdrop" id="asset-modal"><div class="modal">
-    <h3>${asset?'تعديل جهاز':'جهاز جديد'}</h3>
-    <form data-form="save-asset">
-      <input type="hidden" name="id" value="${a.id||''}"/>
-      <input type="hidden" name="client_id" value="${clientId}"/>
-      <div class="field-row"><div><label>رقم الأصل *</label><input name="asset_no" required value="${esc(a.asset_no||'')}"></div>
-      <div><label>الموقع</label><select name="location_id"><option value="">—</option>${(locations||[]).map(l=>`<option value="${l.id}" ${a.location_id===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select></div></div>
-      <div class="field-row"><div><label>الاسم بالعربية *</label><input name="name_ar" required value="${esc(a.name_ar||'')}"></div>
-      <div><label>Name (English)</label><input name="name_en" value="${esc(a.name_en||'')}"></div></div>
-      <div class="field-row"><div><label>الفئة *</label><select name="category" required>
-        ${Object.entries(CATEGORY_LABELS).map(([k,v])=>`<option value="${k}" ${a.category===k?'selected':''}>${v.ar}</option>`).join('')}
-      </select></div></div>
-      <div class="field-row"><div><label>الماركة</label><input name="brand" value="${esc(a.brand||'')}"></div>
-      <div><label>الموديل</label><input name="model" value="${esc(a.model||'')}"></div></div>
-      <label>الرقم التسلسلي</label><input name="serial_no" value="${esc(a.serial_no||'')}">
-      <div class="flex gap10" style="margin-top:16px;">
-        <button class="btn btn-primary" type="submit">حفظ</button>
-        <button class="btn" type="button" data-action="close-modal">إلغاء</button>
-      </div>
-    </form>
-  </div></div>`;
-}
-
-/* =============================================================
-   استيراد الأجهزة من Excel
-   ============================================================= */
-let importState = null;
-async function viewImport(clientId){
-  if(!requireRole('branch_admin')) return;
-  const client = await fetchClient(clientId);
-  importState = {clientId, rows:null, headers:null};
-  renderApp(`
-  <h2>استيراد أجهزة: ${esc(client?.name_ar||'')}</h2>
-  <div class="card">
-    <p class="hint">اختر ملف Excel الحالي لديك (asset_no, الاسم، الفئة، الماركة، الموديل، الرقم التسلسلي، الموقع...) وسيتم عرض الأعمدة لمطابقتها.</p>
-    <input type="file" id="import-file" accept=".xlsx,.xls,.csv" data-change="import-file" />
-    <div id="import-mapping"></div>
-  </div>`);
-}
-
-function importMappingHtml(){
-  const fields = [
-    ['asset_no','رقم الأصل *', true], ['name_ar','الاسم بالعربية *', true], ['name_en','Name (English)', false],
-    ['category','الفئة (تبريد/طبخ/تكييف/غسيل) *', true], ['brand','الماركة', false], ['model','الموديل', false],
-    ['serial_no','الرقم التسلسلي', false], ['location','اسم الموقع', false],
-  ];
-  const headers = importState.headers;
-  return `
-  <h4>مطابقة الأعمدة (${importState.rows.length} صف مكتشف)</h4>
-  <div class="grid cols-2">
-  ${fields.map(([key,label,req])=>`
-    <div><label>${label}</label>
-      <select data-map-field="${key}">
-        <option value="">— بدون —</option>
-        ${headers.map((hh,i)=>`<option value="${i}">${esc(hh)}</option>`).join('')}
-      </select>
-    </div>`).join('')}
-  </div>
-  <button class="btn btn-primary" style="margin-top:14px;" data-action="run-import">استيراد الآن</button>
-  <div id="import-result" class="small muted" style="margin-top:10px;"></div>
-  `;
-}
-
-/* =============================================================
-   طباعة ملصقات QR
-   ============================================================= */
-async function viewLabels(clientId){
-  if(!requireRole('branch_admin')) return;
-  const client = await fetchClient(clientId);
-  const {data:assets} = await sb.from('assets').select('*').eq('client_id',clientId).eq('active',true).order('asset_no');
-  renderApp(`
-  <div class="flex-between no-print"><h2>ملصقات QR: ${esc(client?.name_ar||'')}</h2>
-    <button class="btn btn-primary" data-action="print-labels">طباعة (A4)</button></div>
-  <p class="muted small no-print">شبكة 3×N قابلة للقص على ورق A4. يفتح مسح الرمز رابط الجهاز مباشرة في النظام.</p>
-  <div class="card" id="labels-preview"><div class="labels-grid" id="labels-grid"></div></div>
-  `);
-  const grid = $('#labels-grid');
-  (assets||[]).forEach(a=>{
-    const box = document.createElement('div');
-    box.className='label-box';
-    box.innerHTML = `<div class="co">${esc(COMPANY_NAME_AR)}</div><div class="qr-holder"></div>
-      <div class="asset-no">${esc(a.asset_no)}</div><div class="name">${esc(a.name_ar)}</div>`;
-    grid.appendChild(box);
-    const url = `${location.origin}${location.pathname}#/scan/${a.qr_code}`;
-    new QRCode(box.querySelector('.qr-holder'), {text:url, width:90, height:90, correctLevel: QRCode.CorrectLevel.M});
-  });
-}
-
-/* =============================================================
-   إدارة المستخدمين
-   ============================================================= */
-async function viewUsers(){
-  if(!requireRole('branch_admin')) return;
-  const {data:profiles} = await sb.from('profiles').select('*, clients(name_ar)').order('created_at',{ascending:false});
-  const clients = await fetchClientsList();
-  renderApp(`
-  <h2>إدارة المستخدمين</h2>
-  <p class="hint card">لإنشاء حساب فني أو عميل جديد: أضف المستخدم أولاً من لوحة Supabase (Authentication → Add user) بالبريد الإلكتروني المطلوب، ثم يظهر هنا تلقائياً لتعيين اسمه ودوره وفرعه.</p>
-  <div class="card">
-    <div class="table-wrap"><table><thead><tr><th>الاسم</th><th>الدور</th><th>الفرع</th><th>العميل المرتبط</th><th>الحالة</th><th></th></tr></thead><tbody>
-    ${(profiles||[]).map(p=>`<tr>
-      <td>${esc(p.full_name||'(بلا اسم)')}</td>
-      <td>${ROLE_LABELS[p.role]||p.role}</td>
-      <td>${esc(p.branch||'—')}</td>
-      <td>${esc(p.clients?.name_ar||'—')}</td>
-      <td>${p.active?'<span class="badge ok">مفعّل</span>':'<span class="badge bad">موقوف</span>'}</td>
-      <td><button class="btn btn-sm" data-action="edit-user" data-id="${p.id}">تعديل</button></td>
-    </tr>`).join('')}
-    </tbody></table></div>
-  </div>`);
-  window.__usersCache = profiles; window.__clientsCacheForUsers = clients;
-}
-
-function userModalHtml(p, clients){
-  return `<div class="modal-backdrop" id="user-modal"><div class="modal">
-    <h3>تعديل مستخدم</h3>
-    <form data-form="save-user">
-      <input type="hidden" name="id" value="${p.id}"/>
-      <label>الاسم الكامل</label><input name="full_name" value="${esc(p.full_name||'')}">
-      <label>الدور</label><select name="role">
-        ${Object.entries(ROLE_LABELS).map(([k,v])=>`<option value="${k}" ${p.role===k?'selected':''}>${v}</option>`).join('')}
-      </select>
-      <label>الفرع</label><input name="branch" value="${esc(p.branch||state.profile.branch||'')}">
-      <label>العميل المرتبط (لدور "عميل" فقط)</label>
-      <select name="client_id"><option value="">—</option>${(clients||[]).map(c=>`<option value="${c.id}" ${p.client_id===c.id?'selected':''}>${esc(c.name_ar)}</option>`).join('')}</select>
-      <label>الجوال</label><input name="phone" value="${esc(p.phone||'')}">
-      <label class="flex gap6" style="align-items:center;"><input type="checkbox" name="active" style="width:auto" ${p.active?'checked':''}> مفعّل</label>
-      <div class="flex gap10" style="margin-top:16px;">
-        <button class="btn btn-primary" type="submit">حفظ</button>
-        <button class="btn" type="button" data-action="close-modal">إلغاء</button>
-      </div>
-    </form>
-  </div></div>`;
-}
-
-/* =============================================================
-   الاعتماد (مشرف الفرع)
-   ============================================================= */
-async function viewApprovals(){
-  if(!requireRole('branch_admin')) return;
-  const {data:visits} = await sb.from('visits').select('*, clients(name_ar), profiles!technician_id(full_name)')
-    .in('status',['pending_approval']).order('check_in',{ascending:true});
-  renderApp(`
-  <h2>زيارات بانتظار الاعتماد</h2>
-  <div class="card"><div class="table-wrap"><table><thead><tr><th>العميل</th><th>الفني</th><th>التاريخ</th><th>منذ الإرسال</th><th></th></tr></thead><tbody>
-  ${(visits||[]).map(v=>{
-    const days = v.check_in ? Math.floor((Date.now()-new Date(v.check_in).getTime())/86400000) : 0;
-    return `<tr><td>${esc(v.clients?.name_ar)}</td><td>${esc(v.profiles?.full_name)}</td><td>${fmtDate(v.visit_date)}</td><td>${days} يوم</td>
-      <td><a class="btn btn-sm btn-primary" href="#/approvals/${v.id}">مراجعة</a></td></tr>`;
-  }).join('') || '<tr><td colspan="5" class="muted center">لا توجد زيارات بانتظار الاعتماد</td></tr>'}
-  </tbody></table></div></div>`);
-}
-
-async function loadVisitFull(visitId){
-  const {data:visit} = await sb.from('visits').select('*, clients(*), profiles!technician_id(full_name)').eq('id',visitId).single();
-  const {data:items} = await sb.from('visit_items').select('*, assets(*, locations(name))').eq('visit_id',visitId).order('created_at');
-  for(const it of (items||[])){
-    const {data:photos} = await sb.from('photos').select('*').eq('visit_item_id',it.id);
-    it.photos = photos||[];
-  }
-  return {visit, items: items||[]};
-}
-
-async function viewApprovalDetail(visitId){
-  if(!requireRole('branch_admin')) return;
-  const {visit, items} = await loadVisitFull(visitId);
-  if(!visit){ renderApp('<div class="card">الزيارة غير موجودة</div>'); return; }
-  renderApp(`
-  <div class="flex-between"><h2>مراجعة زيارة: ${esc(visit.clients?.name_ar)}</h2>
-    <span class="badge ${visit.status==='approved'?'ok':(visit.status==='rejected'?'bad':'warn')}">${VISIT_STATUS_LABELS[visit.status]?.ar}</span></div>
-  <p class="muted">الفني: ${esc(visit.profiles?.full_name)} · دخول: ${fmtDateTime(visit.check_in)} · خروج: ${fmtDateTime(visit.check_out)}</p>
-
-  <div class="card">
-    <label>الملاحظات العامة</label>
-    <textarea id="edit-general-notes">${esc(visit.general_notes||'')}</textarea>
-    <label>التوصيات</label>
-    <textarea id="edit-recommendations">${esc(visit.recommendations||'')}</textarea>
-    <button class="btn btn-sm" style="margin-top:8px;" data-action="save-visit-notes" data-id="${visit.id}">حفظ الصياغة</button>
-  </div>
-
-  ${items.map(it=>`
-  <div class="card">
-    <div class="flex-between">
-      <b>${esc(it.assets?.asset_no)} — ${esc(it.assets?.name_ar)}</b>
-      <span class="badge ${CONDITION_LABELS[it.condition]?.cls}">${CONDITION_LABELS[it.condition]?.ar}</span>
-    </div>
-    <p class="small muted">${esc(it.assets?.locations?.name||'')}</p>
-    <label>ملاحظات الفني (قابلة للتعديل قبل ظهورها للعميل)</label>
-    <textarea data-item-notes="${it.id}">${esc(it.technician_notes||'')}</textarea>
-    ${it.condition!=='sound'?`<label>القطع المطلوبة</label><textarea data-item-parts="${it.id}">${esc(it.parts_needed_text||'')}</textarea>`:''}
-    <button class="btn btn-sm" data-action="save-item-notes" data-id="${it.id}">حفظ</button>
-    <div class="thumbs" style="margin-top:8px;">${it.photos.map(p=>`<a href="${p.url}" target="_blank"><img class="photo-thumb" src="${p.url}"></a>`).join('') || '<span class="muted small">لا صور</span>'}</div>
-  </div>`).join('')}
-
-  <div class="card flex gap10">
-    <button class="btn btn-primary" data-action="approve-visit" data-id="${visit.id}">اعتماد الزيارة</button>
-    <button class="btn btn-danger" data-action="reject-visit" data-id="${visit.id}">رفض وإعادة للفني</button>
-  </div>`);
-}
-
-/* =============================================================
-   الفني: اختيار العميل وبدء زيارة
-   ============================================================= */
-async function viewTechnicianHome(){
-  if(!requireRole('technician')) return;
-  const clients = await fetchClientsList();
-  renderApp(`
-  <h2>عملائي</h2>
-  <div class="grid cols-3">
-  ${clients.map(c=>`<div class="card">
-    <h3 class="mt0">${esc(c.name_ar)}</h3>
-    <p class="muted small">${esc(c.city||'')}</p>
-    <button class="btn btn-primary btn-block" data-action="start-visit" data-client="${c.id}">بدء زيارة</button>
-  </div>`).join('') || '<p class="muted">لا يوجد عملاء في فرعك.</p>'}
-  </div>`);
-}
-
-async function viewTechnicianHistory(){
-  if(!requireRole('technician')) return;
-  const {data:visits} = await sb.from('visits').select('*, clients(name_ar)').eq('technician_id', state.session.user.id).order('visit_date',{ascending:false});
-  renderApp(`
-  <h2>زياراتي</h2>
-  <div class="card"><div class="table-wrap"><table><thead><tr><th>العميل</th><th>التاريخ</th><th>الحالة</th><th></th></tr></thead><tbody>
-  ${(visits||[]).map(v=>`<tr><td>${esc(v.clients?.name_ar)}</td><td>${fmtDate(v.visit_date)}</td>
-    <td><span class="badge ${v.status==='approved'?'ok':(v.status==='rejected'?'bad':'warn')}">${VISIT_STATUS_LABELS[v.status]?.ar}</span>
-      ${v.status==='rejected'&&v.rejection_reason?`<div class="small muted">${esc(v.rejection_reason)}</div>`:''}</td>
-    <td>${v.status==='draft'||v.status==='rejected'?`<a class="btn btn-sm btn-primary" href="#/technician/visit/${v.id}">متابعة</a>`:`<a class="btn btn-sm" href="#/report/${v.id}">${v.status==='approved'?'عرض التقرير':'عرض'}</a>`}</td>
-  </tr>`).join('') || '<tr><td colspan="4" class="muted center">لا توجد زيارات</td></tr>'}
-  </tbody></table></div></div>`);
-}
-
-/* =============================================================
-   شاشة الزيارة الميدانية (لُبّ النظام)
-   ============================================================= */
-let visitCtx = null; // {visit, client, assets, items(byAssetId), openAssetId}
-
-async function viewVisit(visitId){
-  if(!requireRole('technician')) return;
-  const {data:visit} = await sb.from('visits').select('*').eq('id',visitId).single();
-  if(!visit){ renderApp('<div class="card">الزيارة غير موجودة</div>'); return; }
-  if(visit.technician_id !== state.session.user.id){ renderApp('<div class="card">غير مصرح لك بهذه الزيارة</div>'); return; }
-  const client = await fetchClient(visit.client_id);
-  const {data:assets} = await sb.from('assets').select('*, locations(name)').eq('client_id', visit.client_id).eq('active',true).order('asset_no');
-  const {data:items} = await sb.from('visit_items').select('*').eq('visit_id', visitId);
-  const itemsByAsset = {}; (items||[]).forEach(it=>itemsByAsset[it.asset_id]=it);
-
-  visitCtx = {visit, client, assets: assets||[], itemsByAsset, openAssetId: qparam('asset')};
-  renderVisitScreen();
-  if(visitCtx.openAssetId) openAssetCard(visitCtx.openAssetId);
-}
-
-function renderVisitScreen(){
-  const {visit, client, assets, itemsByAsset} = visitCtx;
-  const total = assets.length;
-  const done = Object.keys(itemsByAsset).length;
-  const pct = total ? Math.round(done*100/total) : 0;
-  const locked = visit.status!=='draft' && visit.status!=='rejected';
-
-  renderApp(`
-  <div class="flex-between"><h2>زيارة: ${esc(client.name_ar)}</h2>
-    <span class="badge ${visit.status==='approved'?'ok':(visit.status==='rejected'?'bad':'warn')}">${VISIT_STATUS_LABELS[visit.status]?.ar}</span></div>
-  <p class="muted small">دخول: ${fmtDateTime(visit.check_in)} ${visit.rejection_reason?(' · سبب الرفض السابق: '+esc(visit.rejection_reason)):''}</p>
-
-  <div class="card">
-    <div class="flex-between"><b>فُحص ${done} من ${total} جهازاً</b><span>${pct}%</span></div>
-    <div class="progressbar"><i style="width:${pct}%"></i></div>
-    ${!locked?`<div class="flex gap10" style="margin-top:12px;">
-      <button class="btn btn-primary" data-action="open-scanner">📷 مسح QR</button>
-      <button class="btn" data-action="add-asset-field" data-client="${client.id}">+ جهاز غير مسجّل</button>
-    </div>`:''}
-  </div>
-
-  <div class="card">
-    <label>ملاحظات عامة على الزيارة</label>
-    <textarea id="visit-general-notes" ${locked?'disabled':''}>${esc(visit.general_notes||'')}</textarea>
-    <label>توصيات عامة</label>
-    <textarea id="visit-recommendations" ${locked?'disabled':''}>${esc(visit.recommendations||'')}</textarea>
-    ${!locked?`<button class="btn btn-sm" style="margin-top:8px;" data-action="save-visit-meta" data-id="${visit.id}">حفظ</button>`:''}
-  </div>
-
-  <div class="card">
-    <h3 class="mt0">الأجهزة (${total})</h3>
-    <input type="text" placeholder="بحث برقم الأصل أو الاسم…" id="asset-search" style="margin-bottom:10px;">
-    <div id="asset-list">
-    ${assets.map(a=>{
-      const it = itemsByAsset[a.id];
-      const badge = it ? `<span class="badge ${CONDITION_LABELS[it.condition]?.cls}">${CONDITION_LABELS[it.condition]?.ar}</span>` : `<span class="badge muted">لم يُفحص</span>`;
-      return `<div class="asset-list-item" data-asset-row data-search="${esc((a.asset_no+' '+a.name_ar).toLowerCase())}" data-action="open-asset" data-id="${a.id}">
-        <span>${esc(a.asset_no)} — ${esc(a.name_ar)} ${a.field_added?'<span class=\"chip\">ميداني</span>':''}</span>${badge}
-      </div>`;
-    }).join('') || '<p class="muted">لا توجد أجهزة مسجّلة لهذا العميل بعد.</p>'}
-    </div>
-  </div>
-
-  ${!locked?`<div class="card"><button class="btn btn-primary btn-block" data-action="finish-visit" data-id="${visit.id}">إنهاء الزيارة وإرسالها للاعتماد</button></div>`
-    : `<div class="card"><a class="btn btn-block" href="#/report/${visit.id}">عرض التقرير</a></div>`}
-
-  <div id="asset-modal-slot"></div>
-  <div id="scanner-modal-slot"></div>
-  `);
-
-  $('#asset-search')?.addEventListener('input', (e)=>{
-    const q = e.target.value.trim().toLowerCase();
-    $$('[data-asset-row]').forEach(row=>{ row.style.display = row.dataset.search.includes(q) ? '' : 'none'; });
-  });
-}
-
-async function openAssetCard(assetId){
-  const {visit, client, assets, itemsByAsset} = visitCtx;
-  const asset = assets.find(a=>a.id===assetId);
-  if(!asset){ toast('الجهاز غير موجود ضمن قائمة هذا العميل','err'); return; }
-  const existing = itemsByAsset[assetId];
-  const locked = visit.status!=='draft' && visit.status!=='rejected';
-
-  let history = [];
+  if(scanner){ try{await scanner.stop()}catch(e){} scanner=null; }
+  const h = location.hash.replace(/^#\/?/,"");
+  const [page,id] = h.split("/");
   try{
-    const {data} = await sb.rpc('rpc_asset_history', {p_asset_id: assetId});
-    history = data||[];
-  }catch(e){ /* تجاهل إن لم تُنشأ الدالة بعد */ }
+    if(page==="client")      return clientPage(id);
+    if(page==="visit")       return visitPage(id);
+    if(page==="review")      return reviewPage(id);
+    if(page==="report")      return reportPage(id);
+    if(page==="labels")      return labelsPage(id);
+    if(page==="scan")        return scanPage(id);
+    return homePage();
+  }catch(e){ console.error(e); toast("حدث خطأ في التحميل"); }
+}
 
-  const lastBad = history.find(hI=>hI.condition && hI.condition!=='sound');
-  const cond = existing?.condition || '';
+/* ---------------------- الوصول عبر مسح ملصق QR ---------------------- */
+async function scanPage(code){
+  const {data:a} = await sb.from("assets").select("*").eq("qr_code",code).maybeSingle();
+  if(!a){ toast("هذا الرمز غير معروف أو لا يخص فرعك"); return location.hash="#/"; }
+  if(me.role==="client"){ return location.hash="#/client/"+a.client_id; }
 
-  $('#asset-modal-slot').innerHTML = `
-  <div class="modal-backdrop" id="asset-check-modal"><div class="modal modal-lg">
-    <div class="flex-between"><h3 class="mt0">${esc(asset.asset_no)} — ${esc(asset.name_ar)}</h3>
-      <button class="btn btn-sm" data-action="close-asset-modal">✕</button></div>
-    <p class="muted small">${esc(asset.locations?.name||'')} · ${esc(asset.brand||'')} ${esc(asset.model||'')} · تسلسلي: ${esc(asset.serial_no||'—')}</p>
-    ${asset.base_photo_url?`<img src="${asset.base_photo_url}" class="photo-thumb lg" style="margin-bottom:8px;">`:''}
+  // فني/مشرف: افتح زيارة اليوم المفتوحة لهذا العميل أو ابدأ واحدة، ثم افتح بطاقة الجهاز مباشرة
+  const today = new Date().toISOString().slice(0,10);
+  let {data:v} = await sb.from("visits").select("*").eq("client_id",a.client_id).eq("technician_id",me.id)
+    .in("status",["draft","rejected"]).eq("visit_date",today)
+    .order("created_at",{ascending:false}).limit(1).maybeSingle();
+  if(!v){
+    const {data:nv,error} = await sb.from("visits").insert({client_id:a.client_id,technician_id:me.id}).select().single();
+    if(error){ toast("تعذر بدء الزيارة: "+error.message); return location.hash="#/"; }
+    v = nv;
+  }
+  sessionStorage.setItem("openAssetAfterLoad", a.id);
+  location.hash = "#/visit/"+v.id;
+}
 
-    ${lastBad?`<div class="history-item alert">⚠️ تكرار عطل محتمل: آخر حالة مسجّلة لهذا الجهاز كانت "${CONDITION_LABELS[lastBad.condition]?.ar}" بتاريخ ${fmtDate(lastBad.visit_date)}${lastBad.parts_needed_text?(' — قطع سابقة: '+esc(lastBad.parts_needed_text)):''}</div>`:''}
+/* ---------------------- الرئيسية ---------------------- */
+async function homePage(){
+  if(me.role==="client") return clientHome();
 
-    <details ${history.length?'':'style="display:none"'}>
-      <summary class="small muted">السجل السابق (${history.length})</summary>
-      ${history.map(hI=>`<div class="history-item"><b>${fmtDate(hI.visit_date)}</b> — ${CONDITION_LABELS[hI.condition]?.ar||'—'}
-        ${hI.technician_notes?(' — '+esc(hI.technician_notes)):''} ${hI.parts_needed_text?(' — قطع: '+esc(hI.parts_needed_text)):''}
-        <div class="thumbs">${(hI.photos||[]).map(p=>`<img class="photo-thumb" src="${p.url}">`).join('')}</div>
-      </div>`).join('')}
-    </details>
+  const {data:clients=[]} = await sb.from("clients").select("*").order("name_ar");
+  let body = "";
 
-    <form data-form="save-visit-item" id="asset-check-form">
-      <input type="hidden" name="asset_id" value="${asset.id}">
-      <input type="hidden" name="item_id" value="${existing?.id||''}">
-      <label>حالة الجهاز *</label>
-      <select name="condition" id="condition-select" required ${locked?'disabled':''}>
-        <option value="">— اختر —</option>
-        ${Object.entries(CONDITION_LABELS).map(([k,v])=>`<option value="${k}" ${cond===k?'selected':''}>${v.ar}</option>`).join('')}
-      </select>
+  if(me.role==="supervisor"){
+    const {data:pending=[]} = await sb.from("visits")
+      .select("id,visit_date,client_id,check_out,clients(name_ar)").eq("status","submitted").order("check_out");
+    const {data:parts=[]} = await sb.from("visit_items")
+      .select("id,condition,parts_needed_text,assets(name_ar,asset_no),visits!inner(id,client_id,status,visit_date,clients(name_ar))")
+      .in("condition",["يحتاج قطع غيار","يحتاج صيانة","متوقف عن العمل"])
+      .in("visits.status",["submitted","approved"]).order("id",{ascending:false}).limit(60);
 
-      <label>صورة عامة للجهاز * (إلزامية)</label>
-      <input type="file" accept="image/*" capture="environment" name="general_photo" ${locked?'disabled':''}>
-      <div class="thumbs" id="existing-general-photos"></div>
+    body += `<div class="kpi">
+      <div class="b"><div class="n">${pending.length}</div><div class="muted">زيارة بانتظار اعتمادك</div></div>
+      <div class="b"><div class="n">${parts.length}</div><div class="muted">جهاز يحتاج تدخّلاً</div></div>
+    </div><div style="height:14px"></div>`;
 
-      <div id="defect-fields" style="display:${cond&&cond!=='sound'?'block':'none'}">
-        <label>صورة العيب * (إلزامية عند وجود عطل)</label>
-        <input type="file" accept="image/*" capture="environment" name="defect_photo" ${locked?'disabled':''}>
-        <div class="thumbs" id="existing-defect-photos"></div>
-        <label>القطع المطلوبة</label>
-        <textarea name="parts_needed_text" ${locked?'disabled':''}>${esc(existing?.parts_needed_text||'')}</textarea>
-      </div>
+    body += `<div class="card"><h3>زيارات بانتظار الاعتماد</h3>
+      ${pending.length?`<div class="list" style="margin-top:10px">${pending.map(v=>`
+        <button class="item" onclick="location.hash='#/review/${v.id}'">
+          <span class="edge" style="background:var(--maint)"></span>
+          <span class="body"><span class="t">${esc(v.clients?.name_ar||"")}</span>
+          <span class="s">زيارة ${fmt(v.visit_date)} · أُرسلت ${fmt(v.check_out)}</span></span>
+          <span class="pill">مراجعة</span></button>`).join("")}</div>`
+        : `<p class="empty">لا توجد زيارات بانتظارك.</p>`}</div>`;
 
-      <label>ملاحظات الفني</label>
-      <textarea name="technician_notes" ${locked?'disabled':''}>${esc(existing?.technician_notes||'')}</textarea>
+    body += `<div class="card"><div class="spread"><h3>أجهزة تحتاج قطع غيار</h3>
+        <button class="btn quiet sm" onclick="exportParts()">تصدير Excel</button></div>
+      ${parts.length?`<div style="overflow:auto"><table><thead><tr>
+        <th>العميل</th><th>الجهاز</th><th>رقم الأصل</th><th>الحالة</th><th>القطع المطلوبة</th></tr></thead>
+        <tbody>${parts.map(p=>`<tr>
+          <td>${esc(p.visits?.clients?.name_ar||"")}</td><td>${esc(p.assets?.name_ar||"")}</td>
+          <td>${esc(p.assets?.asset_no||"")}</td>
+          <td><span class="dot ${stateOf(p.condition)?.c}"></span> ${esc(p.condition)}</td>
+          <td>${esc(p.parts_needed_text||"—")}</td></tr>`).join("")}</tbody></table></div>`
+        : `<p class="empty">لا توجد طلبات قطع غيار حالياً.</p>`}</div>`;
+    window._parts = parts;
+  }
 
-      ${!locked?'<button class="btn btn-primary btn-block" type="submit" style="margin-top:12px;">حفظ بيانات الجهاز</button>':'<p class="muted small">لا يمكن التعديل بعد إرسال الزيارة.</p>'}
-    </form>
-  </div></div>`;
+  body += `<div class="card"><div class="spread"><h3>العملاء</h3>
+      ${me.role==="supervisor"?`<button class="btn ghost sm" onclick="newClient()">عميل جديد</button>`:""}</div>
+    ${clients.length?`<div class="list" style="margin-top:10px">${clients.map(c=>`
+      <button class="item" onclick="location.hash='#/client/${c.id}'">
+        <span class="edge" style="background:var(--brand)"></span>
+        <span class="body"><span class="t">${esc(c.name_ar)}</span>
+        <span class="s">${esc(c.type||"")} ${c.city?"· "+esc(c.city):""}</span></span>
+        <span class="muted">›</span></button>`).join("")}</div>`
+      : `<p class="empty">لا يوجد عملاء بعد.</p>`}</div>`;
 
-  $('#condition-select')?.addEventListener('change', (e)=>{
-    $('#defect-fields').style.display = (e.target.value && e.target.value!=='sound') ? 'block' : 'none';
+  shell("لوحة المتابعة", body, `<button class="btn quiet" onclick="logout()">خروج</button>`);
+}
+
+async function clientHome(){
+  const {data:visits=[]} = await sb.from("visits").select("*").eq("status","approved").order("visit_date",{ascending:false});
+  const body = `<div class="card"><h3>تقارير الصيانة الوقائية</h3>
+    ${visits.length?`<div class="list" style="margin-top:10px">${visits.map(v=>`
+      <button class="item" onclick="location.hash='#/report/${v.id}'">
+        <span class="edge" style="background:var(--ok)"></span>
+        <span class="body"><span class="t">تقرير ${esc(v.report_no||"")}</span>
+        <span class="s">زيارة ${fmt(v.visit_date)}</span></span><span class="muted">›</span></button>`).join("")}</div>`
+      : `<p class="empty">لا توجد تقارير معتمدة بعد.</p>`}</div>`;
+  shell("تقاريري", body, `<button class="btn quiet" onclick="logout()">خروج</button>`);
+}
+
+async function newClient(){
+  const name = prompt("اسم العميل بالعربية"); if(!name) return;
+  const name_en = prompt("الاسم بالإنجليزية (كما يظهر في التقرير)")||"";
+  const type = prompt("النوع: فندق / مستشفى / مطعم")||"";
+  const {error} = await sb.from("clients").insert({name_ar:name,name_en,type,branch:me.branch,city:""});
+  if(error) return toast("تعذر الحفظ: "+error.message);
+  route();
+}
+
+function exportParts(){
+  const rows = (window._parts||[]).map(p=>({
+    "العميل":p.visits?.clients?.name_ar||"", "الجهاز":p.assets?.name_ar||"",
+    "رقم الأصل":p.assets?.asset_no||"", "الحالة":p.condition,
+    "القطع المطلوبة":p.parts_needed_text||"", "تاريخ الزيارة":p.visits?.visit_date||""
+  }));
+  if(!rows.length) return toast("لا توجد بيانات للتصدير");
+  const ws = XLSX.utils.json_to_sheet(rows), wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"القطع المطلوبة");
+  XLSX.writeFile(wb,"قطع_الغيار_المطلوبة.xlsx");
+}
+
+/* ---------------------- صفحة العميل ---------------------- */
+async function clientPage(id){
+  const {data:c} = await sb.from("clients").select("*").eq("id",id).single();
+  if(!c) return toast("العميل غير موجود");
+  const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",id).eq("active",true).order("asset_no");
+  const {data:visits=[]} = await sb.from("visits").select("*").eq("client_id",id).order("visit_date",{ascending:false}).limit(12);
+  window._client = c; window._assets = assets;
+
+  const byCat = CATS.map(k=>[k,assets.filter(a=>a.category===k).length]).filter(x=>x[1]);
+  const staff = me.role!=="client";
+
+  let body = `<div class="spread" style="margin-bottom:12px">${back("#/")}
+    ${staff?`<div class="row">
+      <button class="btn ghost sm" onclick="location.hash='#/labels/${id}'">ملصقات QR</button>
+      <button class="btn ghost sm" onclick="importExcel()">استيراد Excel</button></div>`:""}</div>`;
+
+  body += `<div class="card"><h2>${esc(c.name_ar)}</h2>
+    <p class="muted">${esc(c.name_en||"")} ${c.type?"· "+esc(c.type):""} ${c.city?"· "+esc(c.city):""}</p>
+    <div class="row" style="margin-top:8px">${byCat.map(([k,n])=>`<span class="pill">${k} ${n}</span>`).join("")}
+      <span class="pill">الإجمالي ${assets.length}</span></div></div>`;
+
+  body += `<div class="card"><div class="spread"><h3>الأجهزة</h3>
+      ${staff?`<button class="btn quiet sm" onclick="addAsset()">إضافة جهاز</button>`:""}</div>
+    ${assets.length?`<div class="list" style="margin-top:10px">${assets.map(a=>`
+      <div class="item"><span class="edge" style="background:var(--brand)"></span>
+        ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}" alt="">`:""}
+        <span class="body"><span class="t">${esc(a.name_ar)}</span>
+        <span class="s">${esc(a.asset_no)} · ${esc(a.category)} ${a.brand?"· "+esc(a.brand):""} ${a.location_text?"· "+esc(a.location_text):""}</span></span>
+      </div>`).join("")}</div>` : `<p class="empty">لا توجد أجهزة. ابدأ باستيراد ملف Excel.</p>`}</div>`;
+
+  body += `<div class="card"><h3>الزيارات</h3>
+    ${visits.length?`<div class="list" style="margin-top:10px">${visits.map(v=>{
+      const st={draft:["مسودة","--na"],submitted:["بانتظار الاعتماد","--maint"],
+                approved:["معتمدة","--ok"],rejected:["مُعادة للفني","--down"]}[v.status];
+      const target = v.status==="approved" ? `#/report/${v.id}`
+        : (me.role==="supervisor" && v.status==="submitted" ? `#/review/${v.id}` : `#/visit/${v.id}`);
+      return `<button class="item" onclick="location.hash='${target}'">
+        <span class="edge" style="background:var(${st[1]})"></span>
+        <span class="body"><span class="t">زيارة ${fmt(v.visit_date)}</span>
+        <span class="s">${st[0]}${v.report_no?" · "+esc(v.report_no):""}</span></span>
+        <span class="muted">›</span></button>`;}).join("")}</div>`
+      : `<p class="empty">لا توجد زيارات.</p>`}</div>`;
+
+  const bar = staff && assets.length ? `<button class="btn" onclick="startVisit('${id}')">بدء زيارة جديدة</button>` : "";
+  shell(c.name_ar, body, bar);
+}
+
+async function addAsset(){
+  const c = window._client;
+  const name = prompt("اسم الجهاز"); if(!name) return;
+  const asset_no = prompt("رقم الأصل")||("NEW-"+Date.now().toString().slice(-5));
+  const category = prompt("التصنيف: "+CATS.join(" / "))||"أخرى";
+  const location_text = prompt("الموقع داخل المنشأة")||"";
+  const {error} = await sb.from("assets").insert({client_id:c.id,name_ar:name,asset_no,
+    category:CATS.includes(category)?category:"أخرى",location_text,field_added:me.role==="technician"});
+  if(error) return toast("تعذر الحفظ: "+error.message);
+  route();
+}
+
+/* ---------------------- استيراد Excel ---------------------- */
+function importExcel(){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=".xlsx,.xls,.csv";
+  inp.onchange=async()=>{
+    const f=inp.files[0]; if(!f) return;
+    const wb = XLSX.read(await f.arrayBuffer());
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""});
+    if(!rows.length) return toast("الملف فارغ");
+    const cols = Object.keys(rows[0]);
+    const pick = (...keys)=>cols.find(c=>keys.some(k=>c.includes(k)))||"";
+    const map = {name:pick("اسم الجهاز","الجهاز","Equipment","Name"), no:pick("رقم الأصل","الأصل","Asset","Tag","م"),
+      brand:pick("الماركة","Brand","Make"), model:pick("الموديل","Model"),
+      serial:pick("التسلسلي","السيريال","Serial"), loc:pick("الموقع","Location"), cat:pick("التصنيف","النوع","Category")};
+    const sel = k => `<select id="m_${k}">${["",...cols].map(c=>`<option ${c===map[k]?"selected":""}>${esc(c)}</option>`).join("")}</select>`;
+    openSheet(`<h3>استيراد ${rows.length} صفاً</h3>
+      <p class="muted">طابق أعمدة ملفك بحقول النظام. اسم الجهاز ورقم الأصل مطلوبان.</p>
+      <label>اسم الجهاز</label>${sel("name")}<label>رقم الأصل</label>${sel("no")}
+      <div class="grid2"><div><label>الماركة</label>${sel("brand")}</div><div><label>الموديل</label>${sel("model")}</div></div>
+      <div class="grid2"><div><label>الرقم التسلسلي</label>${sel("serial")}</div><div><label>الموقع</label>${sel("loc")}</div></div>
+      <label>التصنيف</label>${sel("cat")}
+      <div style="height:16px"></div>
+      <div class="row"><button class="btn" onclick="runImport()">استيراد</button>
+      <button class="btn quiet" onclick="closeSheet()">إلغاء</button></div>`);
+    window._rows = rows;
+  };
+  inp.click();
+}
+async function runImport(){
+  const g = k => $("#m_"+k).value;
+  const [name,no] = [g("name"),g("no")];
+  if(!name||!no) return toast("حدد عمودَي اسم الجهاز ورقم الأصل");
+  const cid = window._client.id;
+  const recs = window._rows.map(r=>({
+    client_id:cid, name_ar:String(r[name]||"").trim(), asset_no:String(r[no]||"").trim(),
+    brand:g("brand")?String(r[g("brand")]||""):null, model:g("model")?String(r[g("model")]||""):null,
+    serial_no:g("serial")?String(r[g("serial")]||""):null, location_text:g("loc")?String(r[g("loc")]||""):null,
+    category:(()=>{const v=g("cat")?String(r[g("cat")]||""):""; return CATS.find(c=>v.includes(c))||"أخرى";})()
+  })).filter(r=>r.name_ar && r.asset_no);
+  if(!recs.length) return toast("لا توجد صفوف صالحة");
+  closeSheet(); toast("جارٍ الاستيراد…");
+  const {error} = await sb.from("assets").insert(recs);
+  if(error) return toast("تعذر الاستيراد: "+error.message);
+  toast(`أُضيف ${recs.length} جهازاً`); route();
+}
+
+/* ---------------------- ملصقات QR ---------------------- */
+async function labelsPage(id){
+  const {data:c} = await sb.from("clients").select("*").eq("id",id).single();
+  const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",id).eq("active",true).order("asset_no");
+  app.innerHTML = `<div class="wrap">
+    <div class="spread noprint" style="margin-bottom:12px">${back("#/client/"+id)}
+      <button class="btn sm" onclick="window.print()">طباعة الملصقات</button></div>
+    <p class="muted noprint">${assets.length} ملصقاً — اطبع على ورق لاصق A4 ثم قصّها.</p>
+    <div id="sheet" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div></div>`;
+  const box = $("#sheet");
+  for(const a of assets){
+    const url = location.origin+location.pathname+"#/scan/"+a.qr_code;
+    const img = await QRCode.toDataURL(url,{margin:1,width:220});
+    const d = document.createElement("div");
+    d.style.cssText="border:1px solid #cbd5e1;border-radius:8px;padding:8px;text-align:center;break-inside:avoid;background:#fff";
+    d.innerHTML = `<img src="${LOGO}" style="height:22px"><br>
+      <img src="${img}" style="width:100%;max-width:118px"><br>
+      <b style="font-size:12px">${esc(a.asset_no)}</b>
+      <div style="font-size:10.5px;color:#475569;line-height:1.3">${esc(a.name_ar)}</div>`;
+    box.appendChild(d);
+  }
+}
+
+/* ---------------------- الزيارة ---------------------- */
+async function startVisit(clientId){
+  const {data,error} = await sb.from("visits").insert({client_id:clientId,technician_id:me.id}).select().single();
+  if(error) return toast("تعذر بدء الزيارة: "+error.message);
+  location.hash = "#/visit/"+data.id;
+}
+
+async function loadVisit(id){
+  const {data:v} = await sb.from("visits").select("*,clients(*)").eq("id",id).single();
+  const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",v.client_id).eq("active",true).order("asset_no");
+  const {data:items=[]} = await sb.from("visit_items").select("*,photos(*)").eq("visit_id",id);
+  return {v,assets,items};
+}
+
+async function visitPage(id){
+  const {v,assets,items} = await loadVisit(id);
+  window._v = v; window._assets = assets; window._items = items;
+  const done = new Map(items.map(i=>[i.asset_id,i]));
+  const pct = assets.length ? Math.round(done.size/assets.length*100) : 0;
+  const readOnly = !(v.status==="draft"||v.status==="rejected") || me.role==="client";
+
+  let body = `<div class="spread" style="margin-bottom:12px">${back("#/client/"+v.client_id)}
+    <span class="pill">${done.size} من ${assets.length}</span></div>`;
+
+  if(v.status==="rejected") body += `<div class="card" style="border-color:var(--down)">
+    <h3 style="color:var(--down)">أُعيدت الزيارة للتعديل</h3><p>${esc(v.reject_reason||"")}</p></div>`;
+
+  body += `<div class="card"><h3>${esc(v.clients.name_ar)}</h3>
+    <p class="muted">زيارة ${fmt(v.visit_date)} · بدأت ${time(v.check_in)}</p>
+    <div class="mosaic">${assets.map(a=>{const it=done.get(a.id);
+      return `<i style="background:${it?`var(${stateOf(it.condition).v})`:"#CBD5E1"}"></i>`}).join("")}</div>
+    <div class="rail"><span style="width:${pct}%"></span></div></div>`;
+
+  if(!readOnly) body += `<div class="card"><div class="spread"><h3>مسح ملصق الجهاز</h3>
+    <button class="btn ghost sm" onclick="toggleScan()">فتح الكاميرا</button></div>
+    <div id="reader" style="margin-top:10px"></div></div>`;
+
+  body += `<div class="card"><h3>الأجهزة</h3><div class="list" style="margin-top:10px">
+    ${assets.map(a=>{ const it=done.get(a.id); const s=it?stateOf(it.condition):null;
+      return `<button class="item" onclick="openAsset('${a.id}')">
+        <span class="edge" style="background:${s?`var(${s.v})`:"#CBD5E1"}"></span>
+        ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}">`:""}
+        <span class="body"><span class="t">${esc(a.name_ar)}</span>
+        <span class="s">${esc(a.asset_no)} ${a.location_text?"· "+esc(a.location_text):""}</span></span>
+        <span class="muted" style="font-size:12.5px">${it?esc(it.condition):"لم يُفحص"}</span></button>`;
+    }).join("")}</div></div>`;
+
+  const bar = readOnly ? "" :
+    `<button class="btn quiet" onclick="addAssetInVisit()">جهاز غير مسجّل</button>
+     <button class="btn" onclick="finishVisit()">إنهاء الزيارة</button>`;
+  shell("زيارة صيانة وقائية", body, bar);
+  window._client = v.clients;
+
+  const pendingAsset = sessionStorage.getItem("openAssetAfterLoad");
+  if(pendingAsset){
+    sessionStorage.removeItem("openAssetAfterLoad");
+    if(assets.some(x=>x.id===pendingAsset)) openAsset(pendingAsset);
+  }
+}
+
+async function toggleScan(){
+  if(scanner){ await scanner.stop(); scanner=null; return; }
+  scanner = new Html5Qrcode("reader");
+  try{
+    await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:230,height:230}}, txt=>{
+      const code = txt.split("/scan/")[1] || txt.trim();
+      const a = window._assets.find(x=>x.qr_code===code);
+      scanner.stop().then(()=>{scanner=null;});
+      if(a) openAsset(a.id); else toast("هذا الملصق لا يخص أجهزة هذا العميل");
+    }, ()=>{});
+  }catch(e){ scanner=null; toast("تعذر فتح الكاميرا. اختر الجهاز من القائمة."); }
+}
+
+async function addAssetInVisit(){ window._client = window._v.clients; await addAsset(); location.hash="#/visit/"+window._v.id; route(); }
+
+/* ---------------------- بطاقة فحص الجهاز ---------------------- */
+function openSheet(html){
+  const d=document.createElement("div"); d.className="sheet noprint"; d.id="sheetEl";
+  d.innerHTML = `<div class="panel">${html}</div>`;
+  d.addEventListener("click",e=>{ if(e.target===d) closeSheet(); });
+  document.body.appendChild(d);
+}
+function closeSheet(){ $("#sheetEl")?.remove(); }
+
+async function openAsset(assetId){
+  const a = window._assets.find(x=>x.id===assetId);
+  const item = window._items.find(i=>i.asset_id===assetId);
+  const readOnly = !(window._v.status==="draft"||window._v.status==="rejected");
+
+  // سجل الجهاز السابق
+  const {data:hist=[]} = await sb.from("visit_items")
+    .select("condition,technician_notes,parts_needed_text,photos(url,type),visits!inner(visit_date,status,id)")
+    .eq("asset_id",assetId).neq("visit_id",window._v.id)
+    .order("id",{ascending:false}).limit(4);
+  const repeated = item ? false : hist.some(h=>h.condition!=="سليم" && h.condition!=="غير متاح للفحص");
+
+  window._draft = { assetId, condition:item?.condition||null, itemId:item?.id||null,
+    notes:item?.technician_notes||"", parts:item?.parts_needed_text||"",
+    photos:(item?.photos||[]).map(p=>({url:p.url,type:p.type})) };
+
+  openSheet(`
+    <div class="spread"><h3>${esc(a.name_ar)}</h3><button class="btn quiet sm" onclick="closeSheet()">إغلاق</button></div>
+    <p class="muted">${esc(a.asset_no)} · ${esc(a.category)} ${a.brand?"· "+esc(a.brand):""} ${a.model?"· "+esc(a.model):""}
+      ${a.serial_no?"<br>الرقم التسلسلي: "+esc(a.serial_no):""} ${a.location_text?"<br>الموقع: "+esc(a.location_text):""}</p>
+    ${repeated?`<div class="card" style="background:#FEF6E7;border-color:var(--maint);padding:11px">
+      <b style="color:var(--maint)">تنبيه:</b> سُجّلت ملاحظات على هذا الجهاز في زيارة سابقة.</div>`:""}
+    ${hist.length?`<details style="margin:10px 0"><summary style="cursor:pointer;font-weight:600">سجل الزيارات السابقة (${hist.length})</summary>
+      ${hist.map(h=>`<div style="border-top:1px solid var(--line);padding:9px 0">
+        <div class="row"><span class="dot ${stateOf(h.condition)?.c}"></span><b>${esc(h.condition)}</b>
+          <span class="muted">${fmt(h.visits.visit_date)}</span></div>
+        ${h.parts_needed_text?`<div class="muted">القطع: ${esc(h.parts_needed_text)}</div>`:""}
+        ${h.technician_notes?`<div class="muted">${esc(h.technician_notes)}</div>`:""}
+        <div class="photos">${(h.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
+      </div>`).join("")}</details>`:`<p class="muted">لا يوجد سجل سابق لهذا الجهاز.</p>`}
+
+    <label>حالة الجهاز</label>
+    <div class="states" id="states">${STATES.map(s=>`
+      <button class="state ${window._draft.condition===s.k?"on":""}" data-k="${s.k}" onclick="pickState('${s.k}')"
+        ${readOnly?"disabled":""}><b style="background:var(${s.v})"></b>${s.k}</button>`).join("")}</div>
+
+    <div id="extra"></div>
+    ${readOnly?"":`<div style="height:16px"></div>
+      <button class="btn" style="width:100%" onclick="saveItem()">حفظ الجهاز</button>`}
+  `);
+  renderExtra();
+}
+
+function pickState(k){
+  window._draft.condition = k;
+  document.querySelectorAll("#states .state").forEach(b=>b.classList.toggle("on",b.dataset.k===k));
+  renderExtra();
+}
+
+function renderExtra(){
+  const d = window._draft; const box = $("#extra"); if(!box) return;
+  const needDefect = d.condition && d.condition!=="سليم";
+  box.innerHTML = `
+    <label>صورة الجهاز (إلزامية)</label>
+    <div class="photos">${d.photos.filter(p=>p.type==="general").map((p,i)=>
+      `<img src="${p.url}" onclick="dropPhoto('general',${i})">`).join("")}
+      <button class="addphoto" onclick="pickPhoto('general')">+ صورة</button></div>
+    ${needDefect?`<label>صور العيب (إلزامية)</label>
+      <div class="photos">${d.photos.filter(p=>p.type==="defect").map((p,i)=>
+        `<img src="${p.url}" onclick="dropPhoto('defect',${i})">`).join("")}
+        <button class="addphoto" onclick="pickPhoto('defect')">+ صورة</button></div>
+      <label>القطع المطلوبة</label>
+      <textarea id="parts" placeholder="اكتب القطع المطلوبة ووصف العطل">${esc(d.parts)}</textarea>`:""}
+    <label>ملاحظات الفني</label>
+    <textarea id="notes" placeholder="اختياري">${esc(d.notes)}</textarea>`;
+}
+
+function pickPhoto(type){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*"; inp.capture="environment";
+  inp.onchange=async()=>{
+    const f=inp.files[0]; if(!f) return;
+    keepText(); toast("جارٍ رفع الصورة…");
+    try{
+      const blob = await compress(f);
+      const path = `${window._v.id}/${window._draft.assetId}-${type}-${Date.now()}.jpg`;
+      const {error} = await sb.storage.from("visit-photos").upload(path,blob,{contentType:"image/jpeg"});
+      if(error) throw error;
+      const {data} = sb.storage.from("visit-photos").getPublicUrl(path);
+      window._draft.photos.push({url:data.publicUrl,type,isNew:true});
+      renderExtra(); toast("تم رفع الصورة");
+    }catch(e){ toast("تعذر رفع الصورة: "+(e.message||"")); }
+  };
+  inp.click();
+}
+function dropPhoto(type,i){
+  if(!confirm("حذف هذه الصورة؟")) return;
+  keepText();
+  const list = window._draft.photos.filter(p=>p.type===type);
+  const target = list[i];
+  window._draft.photos = window._draft.photos.filter(p=>p!==target);
+  renderExtra();
+}
+function keepText(){
+  const d=window._draft;
+  if($("#notes")) d.notes=$("#notes").value;
+  if($("#parts")) d.parts=$("#parts").value;
+}
+function compress(file){
+  return new Promise((res,rej)=>{
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const max=1600, sc=Math.min(1,max/Math.max(img.width,img.height));
+      const cv=document.createElement("canvas");
+      cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc);
+      cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+      URL.revokeObjectURL(url);
+      cv.toBlob(b=>b?res(b):rej(new Error("فشل الضغط")),"image/jpeg",0.7);
+    };
+    img.onerror=()=>rej(new Error("ملف صورة غير صالح"));
+    img.src=url;
   });
+}
 
-  if(existing){
-    const {data:photos} = await sb.from('photos').select('*').eq('visit_item_id', existing.id);
-    (photos||[]).forEach(p=>{
-      const target = p.type==='defect' ? '#existing-defect-photos' : '#existing-general-photos';
-      const box = $(target); if(box) box.innerHTML += `<img class="photo-thumb" src="${p.url}">`;
-    });
+async function saveItem(){
+  keepText();
+  const d = window._draft;
+  if(!d.condition) return toast("اختر حالة الجهاز");
+  if(!d.photos.some(p=>p.type==="general")) return toast("أضف صورة الجهاز");
+  if(d.condition!=="سليم"){
+    if(!d.photos.some(p=>p.type==="defect")) return toast("أضف صورة للعيب");
+    if(!d.parts.trim()) return toast("اكتب القطع المطلوبة أو وصف العطل");
   }
+  const payload = {visit_id:window._v.id, asset_id:d.assetId, condition:d.condition,
+    technician_notes:d.notes.trim()||null, parts_needed_text:d.condition==="سليم"?null:d.parts.trim()};
+  let itemId = d.itemId;
+  if(itemId){
+    const {error} = await sb.from("visit_items").update(payload).eq("id",itemId);
+    if(error) return toast("تعذر الحفظ: "+error.message);
+    await sb.from("photos").delete().eq("visit_item_id",itemId);
+  }else{
+    const {data,error} = await sb.from("visit_items").insert(payload).select().single();
+    if(error) return toast("تعذر الحفظ: "+error.message);
+    itemId = data.id;
+  }
+  const rows = d.photos.map(p=>({visit_item_id:itemId,url:p.url,type:p.type}));
+  if(rows.length) await sb.from("photos").insert(rows);
+  closeSheet(); toast("حُفظ الجهاز"); route();
 }
 
-/* =============================================================
-   ماسح QR (نافذة الكاميرا)
-   ============================================================= */
-let html5QrInstance = null;
-function openScannerModal(){
-  $('#scanner-modal-slot').innerHTML = `
-  <div class="modal-backdrop" id="scanner-modal"><div class="modal center">
-    <h3>وجّه الكاميرا نحو ملصق QR</h3>
-    <div id="qr-reader"></div>
-    <p class="muted small">تعذّر المسح؟ اختر الجهاز من القائمة مباشرة.</p>
-    <button class="btn" data-action="close-scanner">إغلاق</button>
-  </div></div>`;
-  html5QrInstance = new Html5Qrcode("qr-reader");
-  html5QrInstance.start({facingMode:"environment"}, {fps:10, qrbox:230}, onScanDecoded, ()=>{})
-    .catch(err=>toast('تعذّر تشغيل الكاميرا: '+err,'err'));
-}
-async function closeScannerModal(){
-  if(html5QrInstance){ try{ await html5QrInstance.stop(); await html5QrInstance.clear(); }catch(e){} html5QrInstance=null; }
-  $('#scanner-modal-slot').innerHTML='';
-}
-async function onScanDecoded(text){
-  let code = text.trim();
-  const m = code.match(/#\/scan\/([\w-]+)/);
-  if(m) code = m[1];
-  await closeScannerModal();
-  const asset = visitCtx?.assets.find(a=>a.qr_code===code);
-  if(asset){ openAssetCard(asset.id); }
-  else { toast('لم يُعثر على جهاز بهذا الرمز ضمن أجهزة هذا العميل','err'); }
+async function finishVisit(){
+  const v = window._v;
+  const total = window._assets.length, done = window._items.length;
+  if(done===0) return toast("لم تُفحص أي أجهزة بعد");
+  if(done<total && !confirm(`فُحص ${done} من ${total}. إنهاء الزيارة الآن؟`)) return;
+  const rec = prompt("التوصيات العامة (تظهر في التقرير)")||"";
+  const {error} = await sb.from("visits").update({status:"submitted",check_out:new Date().toISOString(),
+    recommendations:rec, reject_reason:null}).eq("id",v.id);
+  if(error) return toast("تعذر الإرسال: "+error.message);
+  toast("أُرسلت الزيارة للاعتماد");
+  location.hash = "#/client/"+v.client_id;
 }
 
-/* =============================================================
-   بوابة العميل (اطلاع فقط)
-   ============================================================= */
-async function viewPortal(){
-  if(!requireRole('client')) return;
-  const cid = state.profile.client_id;
-  if(!cid){ renderApp('<div class="card">لم يُربط حسابك بعد بعميل. راجع مشرف الفرع.</div>'); return; }
-  const {data:assets} = await sb.from('assets').select('*, locations(name)').eq('client_id',cid).eq('active',true).order('asset_no');
-  renderApp(`
-  <h2>أجهزتي</h2>
-  <div class="card"><div class="table-wrap"><table><thead><tr><th>رقم الأصل</th><th>الاسم</th><th>الفئة</th><th>الموقع</th></tr></thead><tbody>
-  ${(assets||[]).map(a=>`<tr><td>${esc(a.asset_no)}</td><td>${esc(a.name_ar)}</td><td>${CATEGORY_LABELS[a.category]?.ar||''}</td><td>${esc(a.locations?.name||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted center">لا توجد أجهزة</td></tr>'}
-  </tbody></table></div></div>`);
-}
-async function viewPortalReports(){
-  if(!requireRole('client')) return;
-  const cid = state.profile.client_id;
-  if(!cid){ renderApp('<div class="card">لم يُربط حسابك بعد بعميل. راجع مشرف الفرع.</div>'); return; }
-  const {data:visits} = await sb.from('visits').select('*').eq('client_id',cid).eq('status','approved').order('visit_date',{ascending:false});
-  renderApp(`
-  <h2>تقاريري</h2>
-  <div class="card"><div class="table-wrap"><table><thead><tr><th>رقم التقرير</th><th>تاريخ الزيارة</th><th></th></tr></thead><tbody>
-  ${(visits||[]).map(v=>`<tr><td>${esc(v.report_no||'—')}</td><td>${fmtDate(v.visit_date)}</td><td><a class="btn btn-sm" href="#/report/${v.id}">عرض</a></td></tr>`).join('') || '<tr><td colspan="3" class="muted center">لا توجد تقارير معتمدة بعد</td></tr>'}
-  </tbody></table></div></div>`);
-}
+/* ---------------------- المراجعة والاعتماد ---------------------- */
+async function reviewPage(id){
+  if(me.role!=="supervisor") return visitPage(id);
+  const {v,assets,items} = await loadVisit(id);
+  const map = new Map(assets.map(a=>[a.id,a]));
+  let body = `<div class="spread" style="margin-bottom:12px">${back("#/")}
+    <span class="pill">${items.length} جهازاً</span></div>
+  <div class="card"><h3>${esc(v.clients.name_ar)}</h3>
+    <p class="muted">زيارة ${fmt(v.visit_date)} · من ${time(v.check_in)} إلى ${time(v.check_out)}</p>
+    <label>التوصيات العامة</label><textarea id="rec">${esc(v.recommendations||"")}</textarea></div>`;
 
-/* =============================================================
-   تقرير الزيارة (ثنائي اللغة) + طباعة + تصدير Excel + مشاركة
-   ============================================================= */
-async function viewReport(visitId){
-  if(!requireAuth()) return;
-  const {visit, items} = await loadVisitFull(visitId);
-  if(!visit){ renderApp('<div class="card">الزيارة غير موجودة</div>'); return; }
-  renderApp(reportToolbarHtml(visit) + buildReportHtml(visit, items));
-  $('#print-area').innerHTML = buildReportHtml(visit, items, true);
-  window.__reportCtx = {visit, items};
+  body += `<div class="card"><h3>البنود</h3><div class="list" style="margin-top:10px">
+    ${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
+      return `<div class="item" style="align-items:flex-start">
+        <span class="edge" style="background:var(${s.v})"></span>
+        <span class="body"><span class="t">${esc(a.name_ar||"")}</span>
+          <span class="s">${esc(a.asset_no||"")} · ${esc(i.condition)}</span>
+          ${i.parts_needed_text?`<div style="font-size:13px">القطع: ${esc(i.parts_needed_text)}</div>`:""}
+          ${i.technician_notes?`<div class="muted">${esc(i.technician_notes)}</div>`:""}
+          <div class="photos">${(i.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
+        </span></div>`;}).join("")}</div></div>`;
+
+  shell("مراجعة الزيارة", body,
+    `<button class="btn quiet" onclick="rejectVisit('${id}')">إعادة للفني</button>
+     <button class="btn" onclick="approveVisit('${id}')">اعتماد وإصدار التقرير</button>`);
 }
 
-function reportToolbarHtml(visit){
-  const shareUrl = `${location.origin}${location.pathname}#/share/${visit.share_token}`;
-  return `
-  <div class="card no-print">
-    <div class="flex gap10" style="flex-wrap:wrap;">
-      <button class="btn btn-primary" data-action="print-report">🖨️ طباعة / PDF</button>
-      <button class="btn" data-action="export-parts-report" data-id="${visit.id}">تصدير Excel (القطع المطلوبة)</button>
-      ${visit.status==='approved'?`<button class="btn" data-action="copy-share-link" data-url="${esc(shareUrl)}">نسخ رابط المشاركة</button>
-      <a class="btn" target="_blank" href="https://wa.me/?text=${encodeURIComponent('تقرير زيارة الصيانة: '+shareUrl)}">مشاركة واتساب</a>`:''}
-    </div>
-  </div>`;
+async function approveVisit(id){
+  const rec = $("#rec")?.value||"";
+  const {error} = await sb.from("visits").update({status:"approved",approved_by:me.id,recommendations:rec}).eq("id",id);
+  if(error) return toast("تعذر الاعتماد: "+error.message);
+  location.hash = "#/report/"+id;
+}
+async function rejectVisit(id){
+  const why = prompt("سبب الإعادة للفني"); if(!why) return;
+  const {error} = await sb.from("visits").update({status:"rejected",reject_reason:why}).eq("id",id);
+  if(error) return toast("تعذر الحفظ: "+error.message);
+  toast("أُعيدت الزيارة للفني"); location.hash="#/";
 }
 
-function buildReportHtml(visit, items, forPrint){
-  const c = visit.clients||{};
-  const counts = {}; Object.keys(CONDITION_LABELS).forEach(k=>counts[k]=0);
-  items.forEach(it=>{ if(it.condition) counts[it.condition]=(counts[it.condition]||0)+1; });
-  const total = items.length || 1;
-  const soundPct = Math.round((counts.sound||0)*100/total);
+/* ---------------------- التقرير ---------------------- */
+async function reportPage(id){
+  const {v,assets,items} = await loadVisit(id);
+  const map = new Map(assets.map(a=>[a.id,a]));
+  const {data:tech} = await sb.from("profiles").select("full_name").eq("id",v.technician_id).maybeSingle();
+  const counts = STATES.map(s=>[s,items.filter(i=>i.condition===s.k).length]);
+  const okPct = items.length ? Math.round(items.filter(i=>i.condition==="سليم").length/items.length*100) : 0;
 
-  return `
-  <div class="card" id="report-body">
-    <div class="report-head">
-      <div>
-        ${COMPANY_LOGO_URL?`<img src="${COMPANY_LOGO_URL}" style="height:46px;">`:''}
-        <div class="co">${esc(COMPANY_NAME_AR)} <span class="muted" style="font-weight:400;">/ ${esc(COMPANY_NAME_EN)}</span></div>
-        <div>${esc(c.name_ar||'')} — ${esc(c.name_en||'')}</div>
-        <div class="muted small">${esc(c.city||'')}</div>
+  app.innerHTML = `
+  <div class="wrap noprint"><div class="spread">
+    ${back("#/client/"+v.client_id)}
+    <div class="row">
+      <button class="btn quiet sm" onclick="exportVisitParts()">Excel للقطع</button>
+      <button class="btn quiet sm" onclick="shareReport()">مشاركة</button>
+      <button class="btn sm" onclick="window.print()">طباعة / PDF</button>
+    </div></div></div>
+
+  <div class="report">
+    <div class="rhead">
+      <img src="${LOGO}" alt="AL-MOHTASEB">
+      <div style="flex:1">
+        <h2 style="margin:0">تقرير زيارة صيانة وقائية</h2>
+        <div class="bi">Preventive Maintenance Visit Report</div>
+        <div style="margin-top:6px;font-weight:600">${esc(v.clients.name_ar)}</div>
+        <div class="bi">${esc(v.clients.name_en||"")}</div>
       </div>
-      <div class="meta">
-        <div>رقم التقرير / Report No: <b>${esc(visit.report_no||'—')}</b></div>
-        <div>تاريخ الزيارة / Visit Date: <b>${fmtDate(visit.visit_date)}</b></div>
-        <div>الحالة / Status: <b>${VISIT_STATUS_LABELS[visit.status]?.ar} / ${VISIT_STATUS_LABELS[visit.status]?.en}</b></div>
+      <div style="text-align:end;font-size:12px">
+        <div><b>${esc(v.report_no||"مسودة")}</b></div>
+        <div>التاريخ / Date: ${fmt(v.visit_date)}</div>
+        <div>الفني / Technician: ${esc(tech?.full_name||"")}</div>
+        <div>الدخول والخروج: ${time(v.check_in)} — ${time(v.check_out)}</div>
       </div>
     </div>
 
-    <div class="grid cols-4">
-      ${Object.entries(CONDITION_LABELS).map(([k,v])=>`<div class="stat"><div class="n">${counts[k]||0}</div><div class="l">${v.ar} / ${v.en}</div></div>`).join('')}
+    <div class="sum">
+      ${counts.map(([s,n])=>`<div><div class="n" style="color:var(${s.v})">${n}</div>
+        <div style="font-size:11.5px">${s.k}</div><div class="bi" style="font-size:10px">${s.en}</div></div>`).join("")}
+      <div><div class="n" style="color:var(--brand)">${okPct}%</div>
+        <div style="font-size:11.5px">نسبة السليم</div><div class="bi" style="font-size:10px">Healthy rate</div></div>
     </div>
-    <p class="center"><b>نسبة الأجهزة السليمة / Sound Rate: ${soundPct}%</b></p>
 
-    <div class="table-wrap">
-    <table>
-      <thead><tr>
-        <th>رقم الأصل<br><span class="muted">Asset No</span></th>
-        <th>الجهاز<br><span class="muted">Equipment</span></th>
-        <th>الموقع<br><span class="muted">Location</span></th>
-        <th>الماركة/الموديل<br><span class="muted">Brand/Model</span></th>
-        <th>الحالة<br><span class="muted">Condition</span></th>
-        <th>القطع المطلوبة<br><span class="muted">Parts Needed</span></th>
-        <th>صورة<br><span class="muted">Photo</span></th>
-      </tr></thead>
-      <tbody>
-      ${items.map(it=>{
-        const a = it.assets||{};
-        const photo = (it.photos||[])[0];
+    <table class="rtable"><thead><tr>
+      <th>رقم الأصل<div class="bi">Asset No.</div></th>
+      <th>الجهاز<div class="bi">Equipment</div></th>
+      <th>الموقع<div class="bi">Location</div></th>
+      <th>الماركة والموديل<div class="bi">Brand / Model</div></th>
+      <th>الحالة<div class="bi">Condition</div></th>
+      <th>القطع المطلوبة<div class="bi">Spare parts</div></th>
+      <th>الصورة<div class="bi">Photo</div></th></tr></thead>
+      <tbody>${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
+        const ph=(i.photos||[])[0];
         return `<tr>
-          <td>${esc(a.asset_no)}</td>
-          <td class="bi"><span class="ar">${esc(a.name_ar)}</span><span class="en">${esc(a.name_en||'')}</span></td>
-          <td>${esc(a.locations?.name||'')}</td>
-          <td>${esc(a.brand||'')} ${esc(a.model||'')}</td>
-          <td><span class="badge ${CONDITION_LABELS[it.condition]?.cls}">${CONDITION_LABELS[it.condition]?.ar||'—'}</span></td>
-          <td>${esc(it.parts_needed_text||'—')}</td>
-          <td>${photo?`<img class="photo-thumb" src="${photo.url}">`:'—'}</td>
-        </tr>`;
-      }).join('')}
-      </tbody>
-    </table>
-    </div>
+          <td>${esc(a.asset_no||"")}</td>
+          <td>${esc(a.name_ar||"")}<div class="bi">${esc(a.name_en||CAT_EN[a.category]||"")}</div></td>
+          <td>${esc(a.location_text||"—")}</td>
+          <td>${esc(a.brand||"")} ${esc(a.model||"")}</td>
+          <td><span class="dot ${s.c}"></span> ${esc(i.condition)}<div class="bi">${s.en}</div></td>
+          <td>${esc(i.parts_needed_text||"—")}${i.technician_notes?`<div class="bi">${esc(i.technician_notes)}</div>`:""}</td>
+          <td>${ph?`<img src="${ph.url}">`:"—"}</td></tr>`;}).join("")}
+      </tbody></table>
 
-    <div class="card" style="background:#fafbfc;">
-      <b>التوصيات العامة / General Recommendations</b>
-      <p>${esc(visit.recommendations||'—')}</p>
-    </div>
+    ${v.recommendations?`<div style="margin-top:16px"><b>التوصيات العامة / Recommendations</b>
+      <p style="font-size:12.5px">${esc(v.recommendations)}</p></div>`:""}
 
-    <div class="sig-row">
-      <div class="sig-box">ممثل ${esc(COMPANY_NAME_AR)}<br><span class="muted">Company Representative</span></div>
-      <div class="sig-box">ممثل العميل<br><span class="muted">Client Representative</span></div>
+    <div class="sign">
+      <div>ممثل شركة المحتسب<div class="bi">Al-Mohtaseb representative</div></div>
+      <div>ممثل العميل<div class="bi">Client representative</div></div>
     </div>
   </div>`;
+  window._reportItems = items.map(i=>({...i,asset:map.get(i.asset_id)}));
+  window._reportVisit = v;
 }
 
-/* رابط مشاركة عام بلا تسجيل دخول */
-async function viewShare(token){
-  renderApp('<div class="card">جارِ التحميل…</div>');
-  const {data, error} = await sb.rpc('rpc_public_report', {p_token: token});
-  if(error || !data){ renderApp('<div class="card">هذا الرابط غير صالح أو لم يُعتمد التقرير بعد.</div>'); return; }
-  const visit = {...data.visit, clients: data.client};
-  const items = (data.items||[]).map(x=>({...x.item, assets:{...x.asset, locations:x.location}, photos:x.photos}));
-  renderApp(`<div class="no-print center" style="margin-bottom:10px;"><button class="btn btn-primary" data-action="print-report">🖨️ طباعة / PDF</button></div>` + buildReportHtml(visit, items));
-  $('#print-area').innerHTML = buildReportHtml(visit, items, true);
+function exportVisitParts(){
+  const rows = (window._reportItems||[]).filter(i=>i.condition!=="سليم").map(i=>({
+    "رقم الأصل":i.asset?.asset_no||"", "الجهاز":i.asset?.name_ar||"", "الموقع":i.asset?.location_text||"",
+    "الحالة":i.condition, "القطع المطلوبة":i.parts_needed_text||"", "ملاحظات":i.technician_notes||""
+  }));
+  if(!rows.length) return toast("جميع الأجهزة سليمة — لا قطع مطلوبة");
+  const ws=XLSX.utils.json_to_sheet(rows), wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"القطع");
+  XLSX.writeFile(wb,`قطع_${window._reportVisit.report_no||"زيارة"}.xlsx`);
 }
-
-/* رابط مسح QR مباشر (من ملصق) */
-async function viewScan(code){
-  if(!state.session){ sessionStorage.setItem('pendingRoute', currentHash()); navigate('/login'); return; }
-  const {data:asset} = await sb.from('assets').select('*').eq('qr_code', code).single();
-  if(!asset){ renderApp('<div class="card">رمز غير معروف</div>'); return; }
-  if(state.profile.role==='technician'){
-    const today = new Date().toISOString().slice(0,10);
-    let {data:visit} = await sb.from('visits').select('*').eq('client_id', asset.client_id).eq('technician_id', state.session.user.id)
-      .in('status',['draft','rejected']).eq('visit_date', today).limit(1).maybeSingle();
-    if(!visit){
-      const {data:created, error} = await sb.from('visits').insert({client_id:asset.client_id, technician_id:state.session.user.id, check_in:new Date().toISOString()}).select().single();
-      if(error){ toast(error.message,'err'); return; }
-      visit = created;
-    }
-    navigate(`/technician/visit/${visit.id}?asset=${asset.id}`);
-  } else {
-    navigate(`/clients/${asset.client_id}`);
-  }
+async function shareReport(){
+  const url = location.href;
+  const txt = `تقرير الصيانة الوقائية — ${window._reportVisit.clients.name_ar}\n${url}`;
+  if(navigator.share){ try{ await navigator.share({title:"تقرير الصيانة الوقائية",text:txt,url}); return; }catch(e){} }
+  window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
 }
-
-/* =============================================================
-   معالجات النماذج/الأزرار (Actions & Forms)
-   ============================================================= */
-async function handleAction(action, btn, e){
-  switch(action){
-    case 'logout': {
-      await sb.auth.signOut(); state.profile=null; navigate('/login'); break;
-    }
-    case 'close-modal': {
-      const modal = btn.closest('.modal-backdrop'); modal?.remove(); break;
-    }
-    case 'close-asset-modal': {
-      $('#asset-modal-slot').innerHTML=''; break;
-    }
-    case 'open-client-modal': {
-      let client = null;
-      if(btn.dataset.id){ client = await fetchClient(btn.dataset.id); }
-      document.body.insertAdjacentHTML('beforeend', clientModalHtml(client));
-      break;
-    }
-    case 'add-location': {
-      const name = prompt('اسم الموقع الجديد:'); if(!name) return;
-      const {error} = await sb.from('locations').insert({client_id: btn.dataset.client, name});
-      if(error) throw error; toast('تمت الإضافة','ok'); route(); break;
-    }
-    case 'add-contract': {
-      const clientId = btn.dataset.client;
-      document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" id="contract-modal"><div class="modal">
-        <h3>عقد جديد</h3>
-        <form data-form="save-contract">
-          <input type="hidden" name="client_id" value="${clientId}">
-          <label>رقم العقد *</label><input name="contract_no" required>
-          <div class="field-row"><div><label>تاريخ البداية *</label><input type="date" name="start_date" required></div>
-          <div><label>تاريخ النهاية *</label><input type="date" name="end_date" required></div></div>
-          <div class="field-row"><div><label>الدورية (كل كم شهر)</label><input type="number" name="frequency_months" value="3" min="1"></div>
-          <div><label>عدد الزيارات المخطط لها</label><input type="number" name="visits_planned" value="4" min="1"></div></div>
-          <div class="flex gap10" style="margin-top:16px;"><button class="btn btn-primary" type="submit">حفظ</button>
-          <button class="btn" type="button" data-action="close-modal">إلغاء</button></div>
-        </form></div></div>`);
-      break;
-    }
-    case 'add-asset': case 'edit-asset': {
-      const clientId = btn.dataset.client || (await sb.from('assets').select('client_id').eq('id',btn.dataset.id).single()).data?.client_id;
-      const {data:locations} = await sb.from('locations').select('*').eq('client_id',clientId);
-      let asset = null;
-      if(action==='edit-asset'){ const {data} = await sb.from('assets').select('*').eq('id',btn.dataset.id).single(); asset = data; }
-      document.body.insertAdjacentHTML('beforeend', assetModalHtml(clientId, asset, locations));
-      break;
-    }
-    case 'add-asset-field': {
-      const clientId = btn.dataset.client;
-      document.body.insertAdjacentHTML('beforeend', assetModalHtml(clientId, null, []));
-      const form = $('#asset-modal input[name=asset_no]')?.closest('form');
-      form?.insertAdjacentHTML('beforeend', `<input type="hidden" name="field_added" value="1">`);
-      break;
-    }
-    case 'edit-user': {
-      const p = (window.__usersCache||[]).find(x=>x.id===btn.dataset.id);
-      if(p) document.body.insertAdjacentHTML('beforeend', userModalHtml(p, window.__clientsCacheForUsers||[]));
-      break;
-    }
-    case 'run-import': {
-      const mapping = {};
-      $$('[data-map-field]').forEach(s=>{ mapping[s.dataset.mapField] = s.value; });
-      if(mapping.asset_no===''||mapping.name_ar===''||mapping.category===''){ toast('يجب مطابقة الأعمدة الإلزامية على الأقل','err'); return; }
-      const CAT_REVERSE = {'تبريد':'refrigeration','طبخ':'cooking','تكييف':'ac','غسيل':'laundry',
-        'refrigeration':'refrigeration','cooking':'cooking','ac':'ac','laundry':'laundry'};
-      const locCache = {};
-      const {data:existingLocs} = await sb.from('locations').select('*').eq('client_id', importState.clientId);
-      (existingLocs||[]).forEach(l=>locCache[l.name]=l.id);
-
-      const rows = importState.rows;
-      const toInsert = [];
-      for(const row of rows){
-        const get = (k)=> mapping[k]!=='' ? (row[+mapping[k]] ?? '') : '';
-        const asset_no = String(get('asset_no')||'').trim();
-        const name_ar = String(get('name_ar')||'').trim();
-        if(!asset_no || !name_ar) continue;
-        const catRaw = String(get('category')||'').trim();
-        const category = CAT_REVERSE[catRaw] || 'refrigeration';
-        let location_id = null;
-        const locName = String(get('location')||'').trim();
-        if(locName){
-          if(!locCache[locName]){
-            const {data:newLoc} = await sb.from('locations').insert({client_id:importState.clientId, name:locName}).select().single();
-            locCache[locName] = newLoc.id;
-          }
-          location_id = locCache[locName];
-        }
-        toInsert.push({
-          client_id: importState.clientId, asset_no, name_ar,
-          name_en: String(get('name_en')||'')||null, category,
-          brand: String(get('brand')||'')||null, model: String(get('model')||'')||null,
-          serial_no: String(get('serial_no')||'')||null, location_id,
-          created_by: state.session.user.id,
-        });
-      }
-      if(!toInsert.length){ $('#import-result').textContent='لم يُعثر على صفوف صالحة للاستيراد.'; return; }
-      const {error} = await sb.from('assets').insert(toInsert);
-      if(error){ $('#import-result').textContent = 'خطأ: '+error.message; return; }
-      $('#import-result').textContent = `تم استيراد ${toInsert.length} جهازاً بنجاح.`;
-      toast('تم الاستيراد','ok');
-      break;
-    }
-    case 'print-labels': window.print(); break;
-    case 'print-report': window.print(); break;
-    case 'export-parts-report': {
-      const {items} = window.__reportCtx;
-      const rows = items.filter(it=>it.parts_needed_text).map(it=>({
-        'رقم الأصل': it.assets?.asset_no, 'اسم الجهاز': it.assets?.name_ar, 'الموقع': it.assets?.locations?.name,
-        'الحالة': CONDITION_LABELS[it.condition]?.ar, 'القطع المطلوبة': it.parts_needed_text,
-      }));
-      exportRowsToExcel(rows, 'قطع_مطلوبة.xlsx');
-      break;
-    }
-    case 'export-parts-dashboard': {
-      exportRowsToExcel(window.__dashboardPartsFlat||[], 'قطع_مطلوبة_عام.xlsx');
-      break;
-    }
-    case 'copy-share-link': {
-      await navigator.clipboard.writeText(btn.dataset.url);
-      toast('تم نسخ رابط المشاركة','ok');
-      break;
-    }
-    case 'open-scanner': openScannerModal(); break;
-    case 'close-scanner': closeScannerModal(); break;
-    case 'open-asset': openAssetCard(btn.dataset.id); break;
-    case 'start-visit': {
-      const clientId = btn.dataset.client;
-      const today = new Date().toISOString().slice(0,10);
-      let {data:visit} = await sb.from('visits').select('*').eq('client_id',clientId).eq('technician_id', state.session.user.id)
-        .in('status',['draft','rejected']).eq('visit_date', today).limit(1).maybeSingle();
-      if(!visit){
-        const {data:created, error} = await sb.from('visits').insert({client_id:clientId, technician_id:state.session.user.id, check_in:new Date().toISOString()}).select().single();
-        if(error) throw error; visit = created;
-      }
-      navigate(`/technician/visit/${visit.id}`);
-      break;
-    }
-    case 'save-visit-meta': {
-      const id = btn.dataset.id;
-      const general_notes = $('#visit-general-notes').value;
-      const recommendations = $('#visit-recommendations').value;
-      const {error} = await sb.from('visits').update({general_notes, recommendations}).eq('id',id);
-      if(error) throw error; toast('تم الحفظ','ok');
-      break;
-    }
-    case 'finish-visit': {
-      const id = btn.dataset.id;
-      if(!confirm('هل أنهيت فحص جميع الأجهزة المطلوبة؟ سيتم إرسال الزيارة للاعتماد ولن تتمكن من تعديلها بعد ذلك.')) return;
-      const general_notes = $('#visit-general-notes')?.value;
-      const recommendations = $('#visit-recommendations')?.value;
-      const {error} = await sb.from('visits').update({
-        status:'pending_approval', check_out: new Date().toISOString(), general_notes, recommendations, rejection_reason:null
-      }).eq('id',id);
-      if(error) throw error;
-      toast('تم إرسال الزيارة للاعتماد','ok');
-      navigate('/technician');
-      break;
-    }
-    case 'save-visit-notes': {
-      const id = btn.dataset.id;
-      const general_notes = $('#edit-general-notes').value;
-      const recommendations = $('#edit-recommendations').value;
-      const {error} = await sb.from('visits').update({general_notes, recommendations}).eq('id',id);
-      if(error) throw error; toast('تم الحفظ','ok');
-      break;
-    }
-    case 'save-item-notes': {
-      const id = btn.dataset.id;
-      const notesEl = document.querySelector(`[data-item-notes="${id}"]`);
-      const partsEl = document.querySelector(`[data-item-parts="${id}"]`);
-      const payload = {};
-      if(notesEl) payload.technician_notes = notesEl.value;
-      if(partsEl) payload.parts_needed_text = partsEl.value;
-      const {error} = await sb.from('visit_items').update(payload).eq('id',id);
-      if(error) throw error; toast('تم الحفظ','ok');
-      break;
-    }
-    case 'approve-visit': {
-      if(!confirm('اعتماد هذه الزيارة سيجعل تقريرها نهائياً ومرئياً للعميل. متابعة؟')) return;
-      const {error} = await sb.from('visits').update({status:'approved', approved_by: state.session.user.id}).eq('id',btn.dataset.id);
-      if(error) throw error; toast('تم الاعتماد','ok'); navigate(`/report/${btn.dataset.id}`);
-      break;
-    }
-    case 'reject-visit': {
-      const reason = prompt('سبب الرفض (سيظهر للفني):'); if(!reason) return;
-      const {error} = await sb.from('visits').update({status:'rejected', rejection_reason:reason}).eq('id',btn.dataset.id);
-      if(error) throw error; toast('تم رفض الزيارة وإعادتها للفني','ok'); navigate('/approvals');
-      break;
-    }
-  }
-}
-
-async function handleForm(formName, form){
-  const fd = new FormData(form);
-  switch(formName){
-    case 'login': {
-      const email = fd.get('email'), password = fd.get('password');
-      const {error} = await sb.auth.signInWithPassword({email, password});
-      if(error){ toast('بيانات الدخول غير صحيحة: '+error.message, 'err'); return; }
-      toast('تم تسجيل الدخول','ok');
-      await refreshSession();
-      navigate(sessionStorage.getItem('pendingRoute') || '/dashboard');
-      sessionStorage.removeItem('pendingRoute');
-      break;
-    }
-    case 'save-client': {
-      const payload = Object.fromEntries(fd.entries());
-      const id = payload.id; delete payload.id;
-      if(!id){
-        const {error} = await sb.from('clients').insert(payload);
-        if(error) throw error;
-      } else {
-        const {error} = await sb.from('clients').update(payload).eq('id',id);
-        if(error) throw error;
-      }
-      $('#client-modal')?.remove(); toast('تم الحفظ','ok'); route();
-      break;
-    }
-    case 'save-contract': {
-      const payload = Object.fromEntries(fd.entries());
-      payload.frequency_months = +payload.frequency_months || 3;
-      payload.visits_planned = +payload.visits_planned || 4;
-      const {error} = await sb.from('contracts').insert(payload);
-      if(error) throw error;
-      $('#contract-modal')?.remove(); toast('تم إنشاء العقد','ok'); route();
-      break;
-    }
-    case 'save-asset': {
-      const payload = Object.fromEntries(fd.entries());
-      const id = payload.id; delete payload.id;
-      if(!payload.location_id) payload.location_id = null;
-      if(payload.field_added){ payload.field_added = true; } else { delete payload.field_added; }
-      if(!id){
-        payload.created_by = state.session.user.id;
-        const {error} = await sb.from('assets').insert(payload);
-        if(error) throw error;
-      } else {
-        const {error} = await sb.from('assets').update(payload).eq('id',id);
-        if(error) throw error;
-      }
-      $('#asset-modal')?.remove(); toast('تم الحفظ','ok'); route();
-      break;
-    }
-    case 'save-user': {
-      const payload = Object.fromEntries(fd.entries());
-      const id = payload.id; delete payload.id;
-      payload.active = fd.get('active')==='on';
-      if(!payload.client_id) payload.client_id = null;
-      const {error} = await sb.from('profiles').update(payload).eq('id',id);
-      if(error) throw error;
-      $('#user-modal')?.remove(); toast('تم الحفظ','ok'); route();
-      break;
-    }
-    case 'save-visit-item': {
-      const { visit, client, itemsByAsset } = visitCtx;
-      const asset_id = fd.get('asset_id');
-      const item_id = fd.get('item_id') || null;
-      const condition = fd.get('condition');
-      const technician_notes = fd.get('technician_notes') || null;
-      const parts_needed_text = fd.get('parts_needed_text') || null;
-      if(!condition){ toast('اختر حالة الجهاز','err'); return; }
-      const generalFile = fd.get('general_photo');
-      const defectFile = fd.get('defect_photo');
-      const hasExistingGeneral = !!item_id && (await sb.from('photos').select('id',{count:'exact',head:true}).eq('visit_item_id',item_id).eq('type','general')).count>0;
-      if(!hasExistingGeneral && (!generalFile || !generalFile.size)){ toast('الصورة العامة إلزامية','err'); return; }
-      if(condition!=='sound'){
-        const hasExistingDefect = !!item_id && (await sb.from('photos').select('id',{count:'exact',head:true}).eq('visit_item_id',item_id).eq('type','defect')).count>0;
-        if(!hasExistingDefect && (!defectFile || !defectFile.size)){ toast('صورة العيب إلزامية عند وجود عطل','err'); return; }
-      }
-
-      let itemRow;
-      if(item_id){
-        const {data, error} = await sb.from('visit_items').update({condition, technician_notes, parts_needed_text}).eq('id',item_id).select().single();
-        if(error) throw error; itemRow = data;
-      } else {
-        const {data, error} = await sb.from('visit_items').insert({visit_id:visit.id, asset_id, condition, technician_notes, parts_needed_text}).select().single();
-        if(error) throw error; itemRow = data;
-      }
-
-      if(generalFile && generalFile.size){
-        const blob = await compressImage(generalFile);
-        const url = await uploadPhoto(client.id, visit.id, asset_id, blob);
-        await sb.from('photos').insert({visit_item_id:itemRow.id, url, type:'general'});
-      }
-      if(defectFile && defectFile.size){
-        const blob = await compressImage(defectFile);
-        const url = await uploadPhoto(client.id, visit.id, asset_id, blob);
-        await sb.from('photos').insert({visit_item_id:itemRow.id, url, type:'defect'});
-      }
-
-      itemsByAsset[asset_id] = itemRow;
-      toast('تم حفظ بيانات الجهاز','ok');
-      $('#asset-modal-slot').innerHTML='';
-      renderVisitScreen();
-      break;
-    }
-  }
-}
-
-async function handleChange(name, el2){
-  if(name==='import-file'){
-    const file = el2.files[0]; if(!file) return;
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, {type:'array'});
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
-    const headers = rows[0];
-    const dataRows = rows.slice(1).filter(r=>r.some(c=>String(c).trim()!==''));
-    importState.headers = headers; importState.rows = dataRows;
-    $('#import-mapping').innerHTML = importMappingHtml();
-  }
-}
-
-function exportRowsToExcel(rows, filename){
-  if(!rows.length){ toast('لا توجد بيانات للتصدير','err'); return; }
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-  XLSX.writeFile(wb, filename);
-}
-
-/* بدء التطبيق */
-route();
 </script>
 </body>
 </html>
