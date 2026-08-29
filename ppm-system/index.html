@@ -1,0 +1,1471 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>نظام تقارير الصيانة الوقائية — المحتسب</title>
+
+<!-- Supabase JS (auth + database + storage) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<!-- ماسح QR -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<!-- مولّد QR (لطباعة الملصقات) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- قراءة/كتابة ملفات Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+:root{
+  --bg:#f4f6f8; --card:#ffffff; --border:#e2e6ea; --text:#1c2530; --muted:#6b7684;
+  --brand:#0e6e55; --brand-dark:#0a5240; --brand-light:#e6f3ef;
+  --ok:#1a8a4a; --ok-bg:#e6f6ec; --warn:#b8790a; --warn-bg:#fdf1de; --bad:#c0342c; --bad-bg:#fbe7e5; --mut2:#6b7684; --mut2-bg:#eceff2;
+  --radius:10px; --shadow:0 1px 3px rgba(20,30,40,.08), 0 1px 2px rgba(20,30,40,.06);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:"Segoe UI","Tahoma","Cairo",system-ui,Arial,sans-serif;
+  font-size:15px; line-height:1.6;
+}
+a{color:var(--brand);}
+h1,h2,h3,h4{margin:.2em 0 .5em; font-weight:700;}
+.container{max-width:1150px;margin:0 auto;padding:16px;}
+.topbar{
+  background:var(--brand); color:#fff; position:sticky; top:0; z-index:20;
+  box-shadow:var(--shadow);
+}
+.topbar .container{display:flex;align-items:center;gap:18px;padding:10px 16px;flex-wrap:wrap;}
+.brand{font-weight:800;font-size:18px;white-space:nowrap;}
+.brand small{display:block;font-weight:400;font-size:11px;opacity:.85;}
+.nav{display:flex;gap:4px;flex-wrap:wrap;flex:1;}
+.nav a{
+  color:#fff;text-decoration:none;padding:8px 12px;border-radius:8px;font-size:14px;opacity:.9;
+}
+.nav a.active,.nav a:hover{background:rgba(255,255,255,.18);opacity:1;}
+.userbox{display:flex;align-items:center;gap:10px;font-size:13px;white-space:nowrap;}
+.userbox button{margin-inline-start:6px;}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:16px;}
+.card h3{margin-top:0;}
+.grid{display:grid;gap:14px;}
+.grid.cols-2{grid-template-columns:repeat(2,1fr);}
+.grid.cols-3{grid-template-columns:repeat(3,1fr);}
+.grid.cols-4{grid-template-columns:repeat(4,1fr);}
+@media(max-width:800px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr 1fr;}}
+@media(max-width:520px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr;}}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--border);
+  background:#fff;color:var(--text);padding:9px 14px;border-radius:8px;font-size:14px;font-weight:600;
+}
+.btn:hover{background:#f0f2f4;}
+.btn-primary{background:var(--brand);border-color:var(--brand);color:#fff;}
+.btn-primary:hover{background:var(--brand-dark);}
+.btn-danger{background:#fff;border-color:var(--bad);color:var(--bad);}
+.btn-danger:hover{background:var(--bad-bg);}
+.btn-sm{padding:5px 10px;font-size:12.5px;}
+.btn[disabled]{opacity:.5;cursor:not-allowed;}
+.btn-block{width:100%;justify-content:center;}
+
+label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:10px 0 4px;}
+input[type=text],input[type=email],input[type=password],input[type=date],input[type=number],input[type=tel],select,textarea{
+  width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:var(--text);
+}
+textarea{min-height:70px;resize:vertical;}
+.field-row{display:flex;gap:10px;flex-wrap:wrap;}
+.field-row > *{flex:1;min-width:150px;}
+.hint{font-size:12px;color:var(--muted);}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;vertical-align:middle;}
+th{background:#f8f9fb;color:var(--muted);font-weight:700;font-size:12.5px;}
+tr:hover td{background:#fafcfd;}
+.table-wrap{overflow-x:auto;}
+
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;}
+.badge.ok{background:var(--ok-bg);color:var(--ok);}
+.badge.warn{background:var(--warn-bg);color:var(--warn);}
+.badge.bad{background:var(--bad-bg);color:var(--bad);}
+.badge.muted{background:var(--mut2-bg);color:var(--mut2);}
+
+.stat{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;}
+.stat .n{font-size:26px;font-weight:800;}
+.stat .l{font-size:12.5px;color:var(--muted);}
+
+.progressbar{background:#eef0f2;border-radius:20px;overflow:hidden;height:10px;}
+.progressbar > i{display:block;height:100%;background:var(--brand);}
+
+.modal-backdrop{position:fixed;inset:0;background:rgba(20,30,40,.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;}
+.modal{background:#fff;border-radius:var(--radius);padding:20px;max-width:560px;width:100%;max-height:90vh;overflow:auto;}
+.modal-lg{max-width:900px;}
+
+.toastwrap{position:fixed;bottom:16px;inset-inline-end:16px;z-index:200;display:flex;flex-direction:column;gap:8px;}
+.toast{background:#22303c;color:#fff;padding:10px 16px;border-radius:8px;font-size:13.5px;box-shadow:var(--shadow);}
+.toast.err{background:var(--bad);}
+.toast.ok{background:var(--ok);}
+
+.photo-thumb{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border);}
+.photo-thumb.lg{width:100%;height:140px;}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap;}
+
+.asset-card{border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:#fff;}
+.asset-list-item{display:flex;justify-content:space-between;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer;}
+.asset-list-item:hover{background:#fafcfd;}
+.chip{display:inline-block;background:var(--brand-light);color:var(--brand-dark);padding:2px 8px;border-radius:14px;font-size:11.5px;margin-inline-end:4px;}
+
+#qr-reader{width:100%;max-width:340px;margin:0 auto;}
+
+.history-item{border-inline-start:3px solid var(--border);padding:6px 10px;margin-bottom:6px;font-size:13px;}
+.history-item.alert{border-inline-start-color:var(--bad);background:var(--bad-bg);border-radius:6px;}
+
+.center{text-align:center;} .muted{color:var(--muted);} .small{font-size:12.5px;}
+.mt0{margin-top:0;} .flex{display:flex;} .flex-between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.gap6{gap:6px;} .gap10{gap:10px;} .mb10{margin-bottom:10px;}
+
+.labels-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8mm;padding:10mm;}
+.label-box{border:1px dashed #999;border-radius:4px;padding:6px;text-align:center;}
+.label-box .qr-holder{display:flex;justify-content:center;margin:4px 0;}
+.label-box .asset-no{font-weight:800;font-size:13px;}
+.label-box .name{font-size:11px;color:#333;}
+.label-box .co{font-size:10px;color:#666;}
+
+/* التقرير: ترويسة، إحصاءات، جدول ثنائي اللغة */
+.report-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--brand);padding-bottom:12px;margin-bottom:14px;}
+.report-head .co{font-weight:800;font-size:18px;color:var(--brand-dark);}
+.report-head .meta{text-align:end;font-size:13px;color:var(--muted);}
+.bi{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;}
+.bi .en{direction:ltr;text-align:left;color:#444;}
+.bi .ar{direction:rtl;text-align:right;}
+.sig-row{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:40px;}
+.sig-box{border-top:1px solid #999;padding-top:6px;text-align:center;font-size:13px;color:var(--muted);}
+
+@media print{
+  body *{visibility:hidden;}
+  #print-area, #print-area *{visibility:visible;}
+  #print-area{position:absolute;inset-inline-start:0;top:0;width:100%;padding:0;margin:0;}
+  .no-print{display:none !important;}
+  @page{margin:12mm;}
+}
+</style>
+</head>
+<body>
+<div id="topbar-root"></div>
+<div id="app" class="container"></div>
+<div id="print-area" style="display:none"></div>
+<div class="toastwrap" id="toastwrap"></div>
+
+<script>
+/* =====================================================================
+   الإعدادات — عدّل القيمتين التاليتين بعد إنشاء مشروعك في supabase.com
+   (Project Settings → API). هذا المفتاح "anon public" آمن للاستخدام في
+   المتصفح لأن كل الحماية الفعلية مطبّقة عبر سياسات RLS في قاعدة البيانات.
+   ===================================================================== */
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+const PHOTOS_BUCKET = 'ppm-photos';
+const COMPANY_NAME_AR = 'شركة المحتسب';
+const COMPANY_NAME_EN = 'Al-Muhtasib Co.';
+const COMPANY_LOGO_URL = ''; // رابط شعار الشركة (اختياري) — PNG بخلفية شفافة
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ===================== ثوابت وتسميات ثنائية اللغة ===================== */
+const CATEGORY_LABELS = {
+  refrigeration:{ar:'تبريد', en:'Refrigeration'},
+  cooking:{ar:'طبخ', en:'Cooking'},
+  ac:{ar:'تكييف', en:'AC'},
+  laundry:{ar:'غسيل', en:'Laundry'},
+};
+const CONDITION_LABELS = {
+  sound:{ar:'سليم', en:'Sound', cls:'ok'},
+  needs_maintenance:{ar:'يحتاج صيانة', en:'Needs Maintenance', cls:'warn'},
+  needs_parts:{ar:'يحتاج قطع غيار', en:'Needs Parts', cls:'warn'},
+  out_of_service:{ar:'متوقف عن العمل', en:'Out of Service', cls:'bad'},
+  not_accessible:{ar:'غير متاح للفحص', en:'Not Accessible', cls:'muted'},
+};
+const VISIT_STATUS_LABELS = {
+  draft:{ar:'مسودة', en:'Draft'},
+  pending_approval:{ar:'بانتظار الاعتماد', en:'Pending Approval'},
+  approved:{ar:'معتمدة', en:'Approved'},
+  rejected:{ar:'مرفوضة', en:'Rejected'},
+};
+const ROLE_LABELS = {branch_admin:'مشرف فرع', technician:'فني ميداني', client:'عميل (اطلاع)'};
+
+/* ============================ حالة عامة ============================ */
+const state = { session:null, profile:null, clientsCache:null };
+
+/* ============================== أدوات ============================== */
+const $ = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+function h(strings,...vals){ // مجرد وسم لتوضيح القالب، بلا معالجة خاصة
+  return strings.reduce((acc,s,i)=>acc+s+(vals[i]??''),'');
+}
+function esc(str){
+  return String(str??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmtDate(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('ar-SA'); }
+function fmtDateTime(d){ if(!d) return '—'; return new Date(d).toLocaleString('ar-SA'); }
+function toast(msg, type=''){
+  const t = document.createElement('div');
+  t.className = 'toast '+type;
+  t.textContent = msg;
+  $('#toastwrap').appendChild(t);
+  setTimeout(()=>t.remove(), 4000);
+}
+function navigate(hash){ location.hash = hash; }
+function currentHash(){ return location.hash.replace(/^#/,'') || '/login'; }
+function qparam(name, def=null){
+  const parts = currentHash().split('?');
+  if(parts.length<2) return def;
+  const p = new URLSearchParams(parts[1]);
+  return p.has(name) ? p.get(name) : def;
+}
+
+/* ضغط الصورة في المتصفح: تصغير أطول ضلع إلى 1600px بجودة 0.7 */
+function compressImage(file, maxDim=1600, quality=0.7){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = ()=>{
+      img.onerror = reject;
+      img.onload = ()=>{
+        let {width,height} = img;
+        if(width>height && width>maxDim){ height=Math.round(height*maxDim/width); width=maxDim; }
+        else if(height>maxDim){ width=Math.round(width*maxDim/height); height=maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width=width; canvas.height=height;
+        canvas.getContext('2d').drawImage(img,0,0,width,height);
+        canvas.toBlob(blob=>resolve(blob), 'image/jpeg', quality);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadPhoto(clientId, visitId, assetId, blob){
+  const path = `${clientId}/${visitId}/${assetId}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.jpg`;
+  const {error} = await sb.storage.from(PHOTOS_BUCKET).upload(path, blob, {contentType:'image/jpeg', upsert:false});
+  if(error) throw error;
+  const {data} = sb.storage.from(PHOTOS_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/* ============================ المصادقة ============================ */
+async function refreshSession(){
+  const {data:{session}} = await sb.auth.getSession();
+  state.session = session;
+  if(session){
+    const {data, error} = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+    if(!error) state.profile = data;
+  } else {
+    state.profile = null;
+  }
+}
+sb.auth.onAuthStateChange((_evt, session)=>{ state.session = session; });
+
+function requireAuth(){
+  if(!state.session){
+    sessionStorage.setItem('pendingRoute', currentHash());
+    navigate('/login');
+    return false;
+  }
+  if(state.profile && state.profile.active === false){
+    renderApp('<div class="card"><h3>الحساب موقوف</h3><p class="muted">تم إيقاف حسابك من قبل مشرف الفرع. راجع إدارة الفرع.</p></div>');
+    return false;
+  }
+  return true;
+}
+function requireRole(...roles){
+  if(!requireAuth()) return false;
+  if(!state.profile || !roles.includes(state.profile.role)){
+    renderApp('<div class="card"><h3>غير مصرح</h3><p class="muted">لا تملك صلاحية الوصول لهذه الصفحة.</p></div>');
+    return false;
+  }
+  return true;
+}
+
+/* ============================ الواجهة العامة ============================ */
+function renderApp(htmlStr){ $('#app').innerHTML = htmlStr; }
+function renderTopbar(){
+  const root = $('#topbar-root');
+  if(!state.session || !state.profile){ root.innerHTML=''; return; }
+  const r = state.profile.role;
+  let links = [];
+  if(r==='branch_admin'){
+    links = [
+      ['/dashboard','لوحة المتابعة'],
+      ['/clients','العملاء'],
+      ['/approvals','الاعتمادات'],
+      ['/users','إدارة المستخدمين'],
+    ];
+  } else if(r==='technician'){
+    links = [
+      ['/technician','عملائي'],
+      ['/technician/history','زياراتي'],
+    ];
+  } else if(r==='client'){
+    links = [
+      ['/portal','أجهزتي'],
+      ['/portal/reports','تقاريري'],
+    ];
+  }
+  const cur = '/'+currentHash().split('?')[0].replace(/^\//,'');
+  root.innerHTML = `
+  <div class="topbar"><div class="container">
+    <div class="brand">${esc(COMPANY_NAME_AR)}<small>نظام تقارير الصيانة الوقائية</small></div>
+    <div class="nav">${links.map(([href,label])=>`<a href="#${href}" class="${cur===href?'active':''}">${label}</a>`).join('')}</div>
+    <div class="userbox">
+      <span>${esc(state.profile.full_name||state.session.user.email)} · ${ROLE_LABELS[r]||''}</span>
+      <button class="btn btn-sm" data-action="logout">خروج</button>
+    </div>
+  </div></div>`;
+}
+
+/* ======================= جلب بيانات مساعد عام ======================= */
+async function fetchClientsList(){
+  const {data, error} = await sb.from('clients').select('*').order('name_ar');
+  if(error){ toast(error.message,'err'); return []; }
+  return data||[];
+}
+async function fetchClient(id){
+  const {data} = await sb.from('clients').select('*').eq('id',id).single();
+  return data;
+}
+
+/* =============================================================
+   المُوجِّه (Router)
+   ============================================================= */
+const ROUTES = [
+  [/^\/login$/, viewLogin],
+  [/^\/dashboard$/, viewDashboard],
+  [/^\/clients$/, viewClients],
+  [/^\/clients\/([\w-]+)$/, (m)=>viewClientDetail(m[1])],
+  [/^\/clients\/([\w-]+)\/import$/, (m)=>viewImport(m[1])],
+  [/^\/labels\/([\w-]+)$/, (m)=>viewLabels(m[1])],
+  [/^\/users$/, viewUsers],
+  [/^\/approvals$/, viewApprovals],
+  [/^\/approvals\/([\w-]+)$/, (m)=>viewApprovalDetail(m[1])],
+  [/^\/technician$/, viewTechnicianHome],
+  [/^\/technician\/history$/, viewTechnicianHistory],
+  [/^\/technician\/visit\/([\w-]+)$/, (m)=>viewVisit(m[1])],
+  [/^\/portal$/, viewPortal],
+  [/^\/portal\/reports$/, viewPortalReports],
+  [/^\/report\/([\w-]+)$/, (m)=>viewReport(m[1])],
+  [/^\/share\/([\w-]+)$/, (m)=>viewShare(m[1])],
+  [/^\/scan\/([\w-]+)$/, (m)=>viewScan(m[1])],
+];
+
+async function route(){
+  await refreshSession();
+  renderTopbar();
+  const path = currentHash().split('?')[0];
+  if(path==='/' || path===''){ navigate(state.session?'/dashboard':'/login'); return; }
+  for(const [re, fn] of ROUTES){
+    const m = path.match(re);
+    if(m){ try{ await fn(m); }catch(e){ console.error(e); renderApp(`<div class="card">تعذّر تحميل الصفحة: ${esc(e.message||e)}</div>`);} return; }
+  }
+  renderApp('<div class="card">الصفحة غير موجودة</div>');
+}
+window.addEventListener('hashchange', route);
+window.addEventListener('load', route);
+
+/* تفويض الأحداث */
+document.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('[data-action]');
+  if(!btn) return;
+  const action = btn.dataset.action;
+  try{ await handleAction(action, btn, e); }
+  catch(err){ console.error(err); toast(err.message||String(err), 'err'); }
+});
+document.addEventListener('submit', async (e)=>{
+  const form = e.target.closest('form[data-form]');
+  if(!form) return;
+  e.preventDefault();
+  try{ await handleForm(form.dataset.form, form, e); }
+  catch(err){ console.error(err); toast(err.message||String(err), 'err'); }
+});
+document.addEventListener('change', async (e)=>{
+  const el2 = e.target.closest('[data-change]');
+  if(!el2) return;
+  try{ await handleChange(el2.dataset.change, el2, e); }
+  catch(err){ console.error(err); toast(err.message||String(err), 'err'); }
+});
+
+/* =============================================================
+   شاشة الدخول
+   ============================================================= */
+function viewLogin(){
+  if(state.session){ navigate(sessionStorage.getItem('pendingRoute')||'/dashboard'); return; }
+  renderApp(`
+  <div class="card" style="max-width:380px;margin:60px auto;">
+    <h2 class="center">تسجيل الدخول</h2>
+    <p class="muted center small">نظام تقارير الصيانة الوقائية — ${esc(COMPANY_NAME_AR)}</p>
+    <form data-form="login">
+      <label>البريد الإلكتروني</label>
+      <input type="email" name="email" required autocomplete="username" />
+      <label>كلمة المرور</label>
+      <input type="password" name="password" required autocomplete="current-password" />
+      <button class="btn btn-primary btn-block" style="margin-top:16px;" type="submit">دخول</button>
+    </form>
+  </div>`);
+}
+
+/* =============================================================
+   لوحة المتابعة (مشرف الفرع)
+   ============================================================= */
+async function viewDashboard(){
+  if(!requireRole('branch_admin')) return;
+  renderApp('<div class="card">جارِ التحميل…</div>');
+
+  const {data: pending} = await sb.from('visits')
+    .select('id, visit_date, check_in, client_id, clients(name_ar)')
+    .eq('status','pending_approval').order('check_in',{ascending:true});
+
+  const {data: partsItems} = await sb.from('visit_items')
+    .select('id, parts_needed_text, condition, asset_id, assets(asset_no,name_ar,client_id,clients(name_ar))')
+    .eq('condition','needs_parts').not('parts_needed_text','is', null);
+
+  const {data: contracts} = await sb.from('contracts')
+    .select('*, clients(name_ar)');
+  const {data: approvedVisits} = await sb.from('visits').select('contract_id, status').eq('status','approved');
+
+  const byContract = {};
+  (approvedVisits||[]).forEach(v=>{ if(v.contract_id){ byContract[v.contract_id]=(byContract[v.contract_id]||0)+1; } });
+
+  const partsByClient = {};
+  (partsItems||[]).forEach(it=>{
+    const cname = it.assets?.clients?.name_ar || '—';
+    (partsByClient[cname] ||= []).push(it);
+  });
+
+  renderApp(`
+  <h2>لوحة المتابعة</h2>
+
+  <div class="card">
+    <h3>زيارات بانتظار اعتمادك (${(pending||[]).length})</h3>
+    ${(pending||[]).length ? `<div class="table-wrap"><table><thead><tr><th>العميل</th><th>تاريخ الزيارة</th><th>منذ الإرسال</th><th></th></tr></thead><tbody>
+      ${pending.map(v=>{
+        const days = v.check_in ? Math.floor((Date.now()-new Date(v.check_in).getTime())/86400000) : 0;
+        return `<tr><td>${esc(v.clients?.name_ar||'—')}</td><td>${fmtDate(v.visit_date)}</td><td>${days} يوم</td>
+          <td><a class="btn btn-sm btn-primary" href="#/approvals/${v.id}">مراجعة</a></td></tr>`;
+      }).join('')}
+    </tbody></table></div>` : '<p class="muted">لا توجد زيارات بانتظار الاعتماد.</p>'}
+  </div>
+
+  <div class="card">
+    <div class="flex-between"><h3 class="mt0">أجهزة تحتاج قطع غيار الآن (${(partsItems||[]).length})</h3>
+      <button class="btn btn-sm" data-action="export-parts-dashboard">تصدير الكل Excel</button></div>
+    ${Object.keys(partsByClient).length ? Object.entries(partsByClient).map(([cname, items])=>`
+      <h4>${esc(cname)} <span class="muted small">(${items.length})</span></h4>
+      <ul>${items.map(it=>`<li>${esc(it.assets?.asset_no)} — ${esc(it.assets?.name_ar)}: ${esc(it.parts_needed_text)}</li>`).join('')}</ul>
+    `).join('') : '<p class="muted">لا توجد قطع مطلوبة حالياً.</p>'}
+  </div>
+
+  <div class="card">
+    <h3>التزام العقود</h3>
+    <div class="table-wrap"><table><thead><tr><th>العميل</th><th>رقم العقد</th><th>الإنجاز</th><th>نهاية العقد</th><th>الحالة</th></tr></thead><tbody>
+      ${(contracts||[]).map(c=>{
+        const done = byContract[c.id]||0;
+        const total = c.visits_planned||0;
+        const daysLeft = Math.floor((new Date(c.end_date).getTime()-Date.now())/86400000);
+        let status = `<span class="badge ok">ضمن الخطة</span>`;
+        if(daysLeft<0) status = `<span class="badge bad">العقد منتهٍ</span>`;
+        else if(daysLeft<30 && done<total) status = `<span class="badge warn">قارب الانتهاء</span>`;
+        else if(total>0 && done>=total) status = `<span class="badge ok">مكتمل</span>`;
+        return `<tr><td>${esc(c.clients?.name_ar||'—')}</td><td>${esc(c.contract_no)}</td>
+          <td>زيارة ${done} من ${total}</td><td>${fmtDate(c.end_date)}</td><td>${status}</td></tr>`;
+      }).join('')}
+    </tbody></table></div>
+  </div>
+  `);
+
+  window.__dashboardPartsFlat = (partsItems||[]).map(it=>({
+    'رقم الأصل':it.assets?.asset_no, 'اسم الجهاز':it.assets?.name_ar, 'العميل':it.assets?.clients?.name_ar, 'القطع المطلوبة':it.parts_needed_text
+  }));
+}
+
+/* =============================================================
+   إدارة العملاء
+   ============================================================= */
+async function viewClients(){
+  if(!requireRole('branch_admin')) return;
+  const clients = await fetchClientsList();
+  renderApp(`
+  <div class="flex-between"><h2>العملاء</h2><button class="btn btn-primary" data-action="open-client-modal">+ عميل جديد</button></div>
+  <div class="card">
+    <div class="table-wrap"><table><thead><tr><th>الاسم</th><th>النوع</th><th>المدينة</th><th>جهة الاتصال</th><th></th></tr></thead><tbody>
+    ${clients.map(c=>`<tr>
+      <td><a href="#/clients/${c.id}">${esc(c.name_ar)}</a><div class="muted small">${esc(c.name_en||'')}</div></td>
+      <td>${esc(c.type||'—')}</td><td>${esc(c.city||'—')}</td>
+      <td>${esc(c.contact_name||'—')} ${c.contact_phone?('· '+esc(c.contact_phone)):''}</td>
+      <td><a class="btn btn-sm" href="#/clients/${c.id}">فتح</a></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted center">لا يوجد عملاء بعد</td></tr>'}
+    </tbody></table></div>
+  </div>`);
+}
+
+function clientModalHtml(client){
+  const c = client||{};
+  return `<div class="modal-backdrop" id="client-modal"><div class="modal">
+    <h3>${client?'تعديل عميل':'عميل جديد'}</h3>
+    <form data-form="save-client">
+      <input type="hidden" name="id" value="${c.id||''}" />
+      <div class="field-row"><div><label>الاسم بالعربية *</label><input name="name_ar" required value="${esc(c.name_ar||'')}"></div>
+      <div><label>Name (English)</label><input name="name_en" value="${esc(c.name_en||'')}"></div></div>
+      <div class="field-row"><div><label>النوع</label><input name="type" placeholder="مستشفى / فندق / مصنع" value="${esc(c.type||'')}"></div>
+      <div><label>المدينة</label><input name="city" value="${esc(c.city||'')}"></div></div>
+      <div class="field-row"><div><label>الفرع *</label><input name="branch" required value="${esc(c.branch|| state.profile.branch||'')}"></div></div>
+      <div class="field-row"><div><label>اسم جهة الاتصال</label><input name="contact_name" value="${esc(c.contact_name||'')}"></div>
+      <div><label>جوال جهة الاتصال</label><input name="contact_phone" value="${esc(c.contact_phone||'')}"></div></div>
+      <label>رابط شعار العميل (اختياري)</label><input name="logo_url" value="${esc(c.logo_url||'')}">
+      <div class="flex gap10" style="margin-top:16px;">
+        <button class="btn btn-primary" type="submit">حفظ</button>
+        <button class="btn" type="button" data-action="close-modal">إلغاء</button>
+      </div>
+    </form>
+  </div></div>`;
+}
+
+async function viewClientDetail(id){
+  if(!requireRole('branch_admin','technician')) return;
+  const client = await fetchClient(id);
+  if(!client){ renderApp('<div class="card">العميل غير موجود</div>'); return; }
+  const {data:locations} = await sb.from('locations').select('*').eq('client_id',id).order('name');
+  const {data:assets} = await sb.from('assets').select('*, locations(name)').eq('client_id',id).order('asset_no');
+  const {data:contracts} = await sb.from('contracts').select('*').eq('client_id',id).order('start_date',{ascending:false});
+  const isAdmin = state.profile.role==='branch_admin';
+
+  renderApp(`
+  <div class="flex-between">
+    <h2>${esc(client.name_ar)} <span class="muted small">${esc(client.name_en||'')}</span></h2>
+    ${isAdmin?`<div class="flex gap6"><a class="btn" href="#/labels/${id}">طباعة ملصقات QR</a>
+      <a class="btn" href="#/clients/${id}/import">استيراد Excel</a>
+      <button class="btn" data-action="open-client-modal" data-id="${id}">تعديل بيانات العميل</button></div>`:''}
+  </div>
+
+  <div class="grid cols-3">
+    <div class="card"><div class="stat"><div class="n">${(assets||[]).length}</div><div class="l">إجمالي الأجهزة</div></div></div>
+    <div class="card"><div class="stat"><div class="n">${(locations||[]).length}</div><div class="l">المواقع</div></div></div>
+    <div class="card"><div class="stat"><div class="n">${(contracts||[]).length}</div><div class="l">العقود</div></div></div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between"><h3 class="mt0">المواقع</h3>${isAdmin?'<button class="btn btn-sm" data-action="add-location" data-client="'+id+'">+ إضافة موقع</button>':''}</div>
+    <div class="thumbs">${(locations||[]).map(l=>`<span class="chip">${esc(l.name)}</span>`).join('') || '<span class="muted">لا توجد مواقع</span>'}</div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between"><h3 class="mt0">العقود</h3>${isAdmin?'<button class="btn btn-sm" data-action="add-contract" data-client="'+id+'">+ عقد جديد</button>':''}</div>
+    <div class="table-wrap"><table><thead><tr><th>رقم العقد</th><th>البداية</th><th>النهاية</th><th>الدورية</th><th>الزيارات المخططة</th></tr></thead><tbody>
+    ${(contracts||[]).map(c=>`<tr><td>${esc(c.contract_no)}</td><td>${fmtDate(c.start_date)}</td><td>${fmtDate(c.end_date)}</td>
+      <td>كل ${c.frequency_months} شهر</td><td>${c.visits_planned}</td></tr>`).join('') || '<tr><td colspan="5" class="muted center">لا توجد عقود</td></tr>'}
+    </tbody></table></div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between"><h3 class="mt0">الأجهزة</h3>${isAdmin?'<button class="btn btn-sm" data-action="add-asset" data-client="'+id+'">+ جهاز جديد</button>':''}</div>
+    <div class="table-wrap"><table><thead><tr><th>رقم الأصل</th><th>الاسم</th><th>الفئة</th><th>الموقع</th><th>الماركة/الموديل</th><th></th></tr></thead><tbody>
+    ${(assets||[]).map(a=>`<tr><td>${esc(a.asset_no)}</td><td>${esc(a.name_ar)} ${a.field_added?'<span class="badge warn">مضاف ميدانياً</span>':''}</td>
+      <td>${CATEGORY_LABELS[a.category]?.ar||a.category}</td><td>${esc(a.locations?.name||'—')}</td>
+      <td>${esc(a.brand||'')} ${esc(a.model||'')}</td>
+      <td>${isAdmin?`<button class="btn btn-sm" data-action="edit-asset" data-id="${a.id}">تعديل</button>`:''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted center">لا توجد أجهزة بعد</td></tr>'}
+    </tbody></table></div>
+  </div>
+  `);
+}
+
+function assetModalHtml(clientId, asset, locations){
+  const a = asset||{};
+  return `<div class="modal-backdrop" id="asset-modal"><div class="modal">
+    <h3>${asset?'تعديل جهاز':'جهاز جديد'}</h3>
+    <form data-form="save-asset">
+      <input type="hidden" name="id" value="${a.id||''}"/>
+      <input type="hidden" name="client_id" value="${clientId}"/>
+      <div class="field-row"><div><label>رقم الأصل *</label><input name="asset_no" required value="${esc(a.asset_no||'')}"></div>
+      <div><label>الموقع</label><select name="location_id"><option value="">—</option>${(locations||[]).map(l=>`<option value="${l.id}" ${a.location_id===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select></div></div>
+      <div class="field-row"><div><label>الاسم بالعربية *</label><input name="name_ar" required value="${esc(a.name_ar||'')}"></div>
+      <div><label>Name (English)</label><input name="name_en" value="${esc(a.name_en||'')}"></div></div>
+      <div class="field-row"><div><label>الفئة *</label><select name="category" required>
+        ${Object.entries(CATEGORY_LABELS).map(([k,v])=>`<option value="${k}" ${a.category===k?'selected':''}>${v.ar}</option>`).join('')}
+      </select></div></div>
+      <div class="field-row"><div><label>الماركة</label><input name="brand" value="${esc(a.brand||'')}"></div>
+      <div><label>الموديل</label><input name="model" value="${esc(a.model||'')}"></div></div>
+      <label>الرقم التسلسلي</label><input name="serial_no" value="${esc(a.serial_no||'')}">
+      <div class="flex gap10" style="margin-top:16px;">
+        <button class="btn btn-primary" type="submit">حفظ</button>
+        <button class="btn" type="button" data-action="close-modal">إلغاء</button>
+      </div>
+    </form>
+  </div></div>`;
+}
+
+/* =============================================================
+   استيراد الأجهزة من Excel
+   ============================================================= */
+let importState = null;
+async function viewImport(clientId){
+  if(!requireRole('branch_admin')) return;
+  const client = await fetchClient(clientId);
+  importState = {clientId, rows:null, headers:null};
+  renderApp(`
+  <h2>استيراد أجهزة: ${esc(client?.name_ar||'')}</h2>
+  <div class="card">
+    <p class="hint">اختر ملف Excel الحالي لديك (asset_no, الاسم، الفئة، الماركة، الموديل، الرقم التسلسلي، الموقع...) وسيتم عرض الأعمدة لمطابقتها.</p>
+    <input type="file" id="import-file" accept=".xlsx,.xls,.csv" data-change="import-file" />
+    <div id="import-mapping"></div>
+  </div>`);
+}
+
+function importMappingHtml(){
+  const fields = [
+    ['asset_no','رقم الأصل *', true], ['name_ar','الاسم بالعربية *', true], ['name_en','Name (English)', false],
+    ['category','الفئة (تبريد/طبخ/تكييف/غسيل) *', true], ['brand','الماركة', false], ['model','الموديل', false],
+    ['serial_no','الرقم التسلسلي', false], ['location','اسم الموقع', false],
+  ];
+  const headers = importState.headers;
+  return `
+  <h4>مطابقة الأعمدة (${importState.rows.length} صف مكتشف)</h4>
+  <div class="grid cols-2">
+  ${fields.map(([key,label,req])=>`
+    <div><label>${label}</label>
+      <select data-map-field="${key}">
+        <option value="">— بدون —</option>
+        ${headers.map((hh,i)=>`<option value="${i}">${esc(hh)}</option>`).join('')}
+      </select>
+    </div>`).join('')}
+  </div>
+  <button class="btn btn-primary" style="margin-top:14px;" data-action="run-import">استيراد الآن</button>
+  <div id="import-result" class="small muted" style="margin-top:10px;"></div>
+  `;
+}
+
+/* =============================================================
+   طباعة ملصقات QR
+   ============================================================= */
+async function viewLabels(clientId){
+  if(!requireRole('branch_admin')) return;
+  const client = await fetchClient(clientId);
+  const {data:assets} = await sb.from('assets').select('*').eq('client_id',clientId).eq('active',true).order('asset_no');
+  renderApp(`
+  <div class="flex-between no-print"><h2>ملصقات QR: ${esc(client?.name_ar||'')}</h2>
+    <button class="btn btn-primary" data-action="print-labels">طباعة (A4)</button></div>
+  <p class="muted small no-print">شبكة 3×N قابلة للقص على ورق A4. يفتح مسح الرمز رابط الجهاز مباشرة في النظام.</p>
+  <div class="card" id="labels-preview"><div class="labels-grid" id="labels-grid"></div></div>
+  `);
+  const grid = $('#labels-grid');
+  (assets||[]).forEach(a=>{
+    const box = document.createElement('div');
+    box.className='label-box';
+    box.innerHTML = `<div class="co">${esc(COMPANY_NAME_AR)}</div><div class="qr-holder"></div>
+      <div class="asset-no">${esc(a.asset_no)}</div><div class="name">${esc(a.name_ar)}</div>`;
+    grid.appendChild(box);
+    const url = `${location.origin}${location.pathname}#/scan/${a.qr_code}`;
+    new QRCode(box.querySelector('.qr-holder'), {text:url, width:90, height:90, correctLevel: QRCode.CorrectLevel.M});
+  });
+}
+
+/* =============================================================
+   إدارة المستخدمين
+   ============================================================= */
+async function viewUsers(){
+  if(!requireRole('branch_admin')) return;
+  const {data:profiles} = await sb.from('profiles').select('*, clients(name_ar)').order('created_at',{ascending:false});
+  const clients = await fetchClientsList();
+  renderApp(`
+  <h2>إدارة المستخدمين</h2>
+  <p class="hint card">لإنشاء حساب فني أو عميل جديد: أضف المستخدم أولاً من لوحة Supabase (Authentication → Add user) بالبريد الإلكتروني المطلوب، ثم يظهر هنا تلقائياً لتعيين اسمه ودوره وفرعه.</p>
+  <div class="card">
+    <div class="table-wrap"><table><thead><tr><th>الاسم</th><th>الدور</th><th>الفرع</th><th>العميل المرتبط</th><th>الحالة</th><th></th></tr></thead><tbody>
+    ${(profiles||[]).map(p=>`<tr>
+      <td>${esc(p.full_name||'(بلا اسم)')}</td>
+      <td>${ROLE_LABELS[p.role]||p.role}</td>
+      <td>${esc(p.branch||'—')}</td>
+      <td>${esc(p.clients?.name_ar||'—')}</td>
+      <td>${p.active?'<span class="badge ok">مفعّل</span>':'<span class="badge bad">موقوف</span>'}</td>
+      <td><button class="btn btn-sm" data-action="edit-user" data-id="${p.id}">تعديل</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>
+  </div>`);
+  window.__usersCache = profiles; window.__clientsCacheForUsers = clients;
+}
+
+function userModalHtml(p, clients){
+  return `<div class="modal-backdrop" id="user-modal"><div class="modal">
+    <h3>تعديل مستخدم</h3>
+    <form data-form="save-user">
+      <input type="hidden" name="id" value="${p.id}"/>
+      <label>الاسم الكامل</label><input name="full_name" value="${esc(p.full_name||'')}">
+      <label>الدور</label><select name="role">
+        ${Object.entries(ROLE_LABELS).map(([k,v])=>`<option value="${k}" ${p.role===k?'selected':''}>${v}</option>`).join('')}
+      </select>
+      <label>الفرع</label><input name="branch" value="${esc(p.branch||state.profile.branch||'')}">
+      <label>العميل المرتبط (لدور "عميل" فقط)</label>
+      <select name="client_id"><option value="">—</option>${(clients||[]).map(c=>`<option value="${c.id}" ${p.client_id===c.id?'selected':''}>${esc(c.name_ar)}</option>`).join('')}</select>
+      <label>الجوال</label><input name="phone" value="${esc(p.phone||'')}">
+      <label class="flex gap6" style="align-items:center;"><input type="checkbox" name="active" style="width:auto" ${p.active?'checked':''}> مفعّل</label>
+      <div class="flex gap10" style="margin-top:16px;">
+        <button class="btn btn-primary" type="submit">حفظ</button>
+        <button class="btn" type="button" data-action="close-modal">إلغاء</button>
+      </div>
+    </form>
+  </div></div>`;
+}
+
+/* =============================================================
+   الاعتماد (مشرف الفرع)
+   ============================================================= */
+async function viewApprovals(){
+  if(!requireRole('branch_admin')) return;
+  const {data:visits} = await sb.from('visits').select('*, clients(name_ar), profiles!technician_id(full_name)')
+    .in('status',['pending_approval']).order('check_in',{ascending:true});
+  renderApp(`
+  <h2>زيارات بانتظار الاعتماد</h2>
+  <div class="card"><div class="table-wrap"><table><thead><tr><th>العميل</th><th>الفني</th><th>التاريخ</th><th>منذ الإرسال</th><th></th></tr></thead><tbody>
+  ${(visits||[]).map(v=>{
+    const days = v.check_in ? Math.floor((Date.now()-new Date(v.check_in).getTime())/86400000) : 0;
+    return `<tr><td>${esc(v.clients?.name_ar)}</td><td>${esc(v.profiles?.full_name)}</td><td>${fmtDate(v.visit_date)}</td><td>${days} يوم</td>
+      <td><a class="btn btn-sm btn-primary" href="#/approvals/${v.id}">مراجعة</a></td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="muted center">لا توجد زيارات بانتظار الاعتماد</td></tr>'}
+  </tbody></table></div></div>`);
+}
+
+async function loadVisitFull(visitId){
+  const {data:visit} = await sb.from('visits').select('*, clients(*), profiles!technician_id(full_name)').eq('id',visitId).single();
+  const {data:items} = await sb.from('visit_items').select('*, assets(*, locations(name))').eq('visit_id',visitId).order('created_at');
+  for(const it of (items||[])){
+    const {data:photos} = await sb.from('photos').select('*').eq('visit_item_id',it.id);
+    it.photos = photos||[];
+  }
+  return {visit, items: items||[]};
+}
+
+async function viewApprovalDetail(visitId){
+  if(!requireRole('branch_admin')) return;
+  const {visit, items} = await loadVisitFull(visitId);
+  if(!visit){ renderApp('<div class="card">الزيارة غير موجودة</div>'); return; }
+  renderApp(`
+  <div class="flex-between"><h2>مراجعة زيارة: ${esc(visit.clients?.name_ar)}</h2>
+    <span class="badge ${visit.status==='approved'?'ok':(visit.status==='rejected'?'bad':'warn')}">${VISIT_STATUS_LABELS[visit.status]?.ar}</span></div>
+  <p class="muted">الفني: ${esc(visit.profiles?.full_name)} · دخول: ${fmtDateTime(visit.check_in)} · خروج: ${fmtDateTime(visit.check_out)}</p>
+
+  <div class="card">
+    <label>الملاحظات العامة</label>
+    <textarea id="edit-general-notes">${esc(visit.general_notes||'')}</textarea>
+    <label>التوصيات</label>
+    <textarea id="edit-recommendations">${esc(visit.recommendations||'')}</textarea>
+    <button class="btn btn-sm" style="margin-top:8px;" data-action="save-visit-notes" data-id="${visit.id}">حفظ الصياغة</button>
+  </div>
+
+  ${items.map(it=>`
+  <div class="card">
+    <div class="flex-between">
+      <b>${esc(it.assets?.asset_no)} — ${esc(it.assets?.name_ar)}</b>
+      <span class="badge ${CONDITION_LABELS[it.condition]?.cls}">${CONDITION_LABELS[it.condition]?.ar}</span>
+    </div>
+    <p class="small muted">${esc(it.assets?.locations?.name||'')}</p>
+    <label>ملاحظات الفني (قابلة للتعديل قبل ظهورها للعميل)</label>
+    <textarea data-item-notes="${it.id}">${esc(it.technician_notes||'')}</textarea>
+    ${it.condition!=='sound'?`<label>القطع المطلوبة</label><textarea data-item-parts="${it.id}">${esc(it.parts_needed_text||'')}</textarea>`:''}
+    <button class="btn btn-sm" data-action="save-item-notes" data-id="${it.id}">حفظ</button>
+    <div class="thumbs" style="margin-top:8px;">${it.photos.map(p=>`<a href="${p.url}" target="_blank"><img class="photo-thumb" src="${p.url}"></a>`).join('') || '<span class="muted small">لا صور</span>'}</div>
+  </div>`).join('')}
+
+  <div class="card flex gap10">
+    <button class="btn btn-primary" data-action="approve-visit" data-id="${visit.id}">اعتماد الزيارة</button>
+    <button class="btn btn-danger" data-action="reject-visit" data-id="${visit.id}">رفض وإعادة للفني</button>
+  </div>`);
+}
+
+/* =============================================================
+   الفني: اختيار العميل وبدء زيارة
+   ============================================================= */
+async function viewTechnicianHome(){
+  if(!requireRole('technician')) return;
+  const clients = await fetchClientsList();
+  renderApp(`
+  <h2>عملائي</h2>
+  <div class="grid cols-3">
+  ${clients.map(c=>`<div class="card">
+    <h3 class="mt0">${esc(c.name_ar)}</h3>
+    <p class="muted small">${esc(c.city||'')}</p>
+    <button class="btn btn-primary btn-block" data-action="start-visit" data-client="${c.id}">بدء زيارة</button>
+  </div>`).join('') || '<p class="muted">لا يوجد عملاء في فرعك.</p>'}
+  </div>`);
+}
+
+async function viewTechnicianHistory(){
+  if(!requireRole('technician')) return;
+  const {data:visits} = await sb.from('visits').select('*, clients(name_ar)').eq('technician_id', state.session.user.id).order('visit_date',{ascending:false});
+  renderApp(`
+  <h2>زياراتي</h2>
+  <div class="card"><div class="table-wrap"><table><thead><tr><th>العميل</th><th>التاريخ</th><th>الحالة</th><th></th></tr></thead><tbody>
+  ${(visits||[]).map(v=>`<tr><td>${esc(v.clients?.name_ar)}</td><td>${fmtDate(v.visit_date)}</td>
+    <td><span class="badge ${v.status==='approved'?'ok':(v.status==='rejected'?'bad':'warn')}">${VISIT_STATUS_LABELS[v.status]?.ar}</span>
+      ${v.status==='rejected'&&v.rejection_reason?`<div class="small muted">${esc(v.rejection_reason)}</div>`:''}</td>
+    <td>${v.status==='draft'||v.status==='rejected'?`<a class="btn btn-sm btn-primary" href="#/technician/visit/${v.id}">متابعة</a>`:`<a class="btn btn-sm" href="#/report/${v.id}">${v.status==='approved'?'عرض التقرير':'عرض'}</a>`}</td>
+  </tr>`).join('') || '<tr><td colspan="4" class="muted center">لا توجد زيارات</td></tr>'}
+  </tbody></table></div></div>`);
+}
+
+/* =============================================================
+   شاشة الزيارة الميدانية (لُبّ النظام)
+   ============================================================= */
+let visitCtx = null; // {visit, client, assets, items(byAssetId), openAssetId}
+
+async function viewVisit(visitId){
+  if(!requireRole('technician')) return;
+  const {data:visit} = await sb.from('visits').select('*').eq('id',visitId).single();
+  if(!visit){ renderApp('<div class="card">الزيارة غير موجودة</div>'); return; }
+  if(visit.technician_id !== state.session.user.id){ renderApp('<div class="card">غير مصرح لك بهذه الزيارة</div>'); return; }
+  const client = await fetchClient(visit.client_id);
+  const {data:assets} = await sb.from('assets').select('*, locations(name)').eq('client_id', visit.client_id).eq('active',true).order('asset_no');
+  const {data:items} = await sb.from('visit_items').select('*').eq('visit_id', visitId);
+  const itemsByAsset = {}; (items||[]).forEach(it=>itemsByAsset[it.asset_id]=it);
+
+  visitCtx = {visit, client, assets: assets||[], itemsByAsset, openAssetId: qparam('asset')};
+  renderVisitScreen();
+  if(visitCtx.openAssetId) openAssetCard(visitCtx.openAssetId);
+}
+
+function renderVisitScreen(){
+  const {visit, client, assets, itemsByAsset} = visitCtx;
+  const total = assets.length;
+  const done = Object.keys(itemsByAsset).length;
+  const pct = total ? Math.round(done*100/total) : 0;
+  const locked = visit.status!=='draft' && visit.status!=='rejected';
+
+  renderApp(`
+  <div class="flex-between"><h2>زيارة: ${esc(client.name_ar)}</h2>
+    <span class="badge ${visit.status==='approved'?'ok':(visit.status==='rejected'?'bad':'warn')}">${VISIT_STATUS_LABELS[visit.status]?.ar}</span></div>
+  <p class="muted small">دخول: ${fmtDateTime(visit.check_in)} ${visit.rejection_reason?(' · سبب الرفض السابق: '+esc(visit.rejection_reason)):''}</p>
+
+  <div class="card">
+    <div class="flex-between"><b>فُحص ${done} من ${total} جهازاً</b><span>${pct}%</span></div>
+    <div class="progressbar"><i style="width:${pct}%"></i></div>
+    ${!locked?`<div class="flex gap10" style="margin-top:12px;">
+      <button class="btn btn-primary" data-action="open-scanner">📷 مسح QR</button>
+      <button class="btn" data-action="add-asset-field" data-client="${client.id}">+ جهاز غير مسجّل</button>
+    </div>`:''}
+  </div>
+
+  <div class="card">
+    <label>ملاحظات عامة على الزيارة</label>
+    <textarea id="visit-general-notes" ${locked?'disabled':''}>${esc(visit.general_notes||'')}</textarea>
+    <label>توصيات عامة</label>
+    <textarea id="visit-recommendations" ${locked?'disabled':''}>${esc(visit.recommendations||'')}</textarea>
+    ${!locked?`<button class="btn btn-sm" style="margin-top:8px;" data-action="save-visit-meta" data-id="${visit.id}">حفظ</button>`:''}
+  </div>
+
+  <div class="card">
+    <h3 class="mt0">الأجهزة (${total})</h3>
+    <input type="text" placeholder="بحث برقم الأصل أو الاسم…" id="asset-search" style="margin-bottom:10px;">
+    <div id="asset-list">
+    ${assets.map(a=>{
+      const it = itemsByAsset[a.id];
+      const badge = it ? `<span class="badge ${CONDITION_LABELS[it.condition]?.cls}">${CONDITION_LABELS[it.condition]?.ar}</span>` : `<span class="badge muted">لم يُفحص</span>`;
+      return `<div class="asset-list-item" data-asset-row data-search="${esc((a.asset_no+' '+a.name_ar).toLowerCase())}" data-action="open-asset" data-id="${a.id}">
+        <span>${esc(a.asset_no)} — ${esc(a.name_ar)} ${a.field_added?'<span class=\"chip\">ميداني</span>':''}</span>${badge}
+      </div>`;
+    }).join('') || '<p class="muted">لا توجد أجهزة مسجّلة لهذا العميل بعد.</p>'}
+    </div>
+  </div>
+
+  ${!locked?`<div class="card"><button class="btn btn-primary btn-block" data-action="finish-visit" data-id="${visit.id}">إنهاء الزيارة وإرسالها للاعتماد</button></div>`
+    : `<div class="card"><a class="btn btn-block" href="#/report/${visit.id}">عرض التقرير</a></div>`}
+
+  <div id="asset-modal-slot"></div>
+  <div id="scanner-modal-slot"></div>
+  `);
+
+  $('#asset-search')?.addEventListener('input', (e)=>{
+    const q = e.target.value.trim().toLowerCase();
+    $$('[data-asset-row]').forEach(row=>{ row.style.display = row.dataset.search.includes(q) ? '' : 'none'; });
+  });
+}
+
+async function openAssetCard(assetId){
+  const {visit, client, assets, itemsByAsset} = visitCtx;
+  const asset = assets.find(a=>a.id===assetId);
+  if(!asset){ toast('الجهاز غير موجود ضمن قائمة هذا العميل','err'); return; }
+  const existing = itemsByAsset[assetId];
+  const locked = visit.status!=='draft' && visit.status!=='rejected';
+
+  let history = [];
+  try{
+    const {data} = await sb.rpc('rpc_asset_history', {p_asset_id: assetId});
+    history = data||[];
+  }catch(e){ /* تجاهل إن لم تُنشأ الدالة بعد */ }
+
+  const lastBad = history.find(hI=>hI.condition && hI.condition!=='sound');
+  const cond = existing?.condition || '';
+
+  $('#asset-modal-slot').innerHTML = `
+  <div class="modal-backdrop" id="asset-check-modal"><div class="modal modal-lg">
+    <div class="flex-between"><h3 class="mt0">${esc(asset.asset_no)} — ${esc(asset.name_ar)}</h3>
+      <button class="btn btn-sm" data-action="close-asset-modal">✕</button></div>
+    <p class="muted small">${esc(asset.locations?.name||'')} · ${esc(asset.brand||'')} ${esc(asset.model||'')} · تسلسلي: ${esc(asset.serial_no||'—')}</p>
+    ${asset.base_photo_url?`<img src="${asset.base_photo_url}" class="photo-thumb lg" style="margin-bottom:8px;">`:''}
+
+    ${lastBad?`<div class="history-item alert">⚠️ تكرار عطل محتمل: آخر حالة مسجّلة لهذا الجهاز كانت "${CONDITION_LABELS[lastBad.condition]?.ar}" بتاريخ ${fmtDate(lastBad.visit_date)}${lastBad.parts_needed_text?(' — قطع سابقة: '+esc(lastBad.parts_needed_text)):''}</div>`:''}
+
+    <details ${history.length?'':'style="display:none"'}>
+      <summary class="small muted">السجل السابق (${history.length})</summary>
+      ${history.map(hI=>`<div class="history-item"><b>${fmtDate(hI.visit_date)}</b> — ${CONDITION_LABELS[hI.condition]?.ar||'—'}
+        ${hI.technician_notes?(' — '+esc(hI.technician_notes)):''} ${hI.parts_needed_text?(' — قطع: '+esc(hI.parts_needed_text)):''}
+        <div class="thumbs">${(hI.photos||[]).map(p=>`<img class="photo-thumb" src="${p.url}">`).join('')}</div>
+      </div>`).join('')}
+    </details>
+
+    <form data-form="save-visit-item" id="asset-check-form">
+      <input type="hidden" name="asset_id" value="${asset.id}">
+      <input type="hidden" name="item_id" value="${existing?.id||''}">
+      <label>حالة الجهاز *</label>
+      <select name="condition" id="condition-select" required ${locked?'disabled':''}>
+        <option value="">— اختر —</option>
+        ${Object.entries(CONDITION_LABELS).map(([k,v])=>`<option value="${k}" ${cond===k?'selected':''}>${v.ar}</option>`).join('')}
+      </select>
+
+      <label>صورة عامة للجهاز * (إلزامية)</label>
+      <input type="file" accept="image/*" capture="environment" name="general_photo" ${locked?'disabled':''}>
+      <div class="thumbs" id="existing-general-photos"></div>
+
+      <div id="defect-fields" style="display:${cond&&cond!=='sound'?'block':'none'}">
+        <label>صورة العيب * (إلزامية عند وجود عطل)</label>
+        <input type="file" accept="image/*" capture="environment" name="defect_photo" ${locked?'disabled':''}>
+        <div class="thumbs" id="existing-defect-photos"></div>
+        <label>القطع المطلوبة</label>
+        <textarea name="parts_needed_text" ${locked?'disabled':''}>${esc(existing?.parts_needed_text||'')}</textarea>
+      </div>
+
+      <label>ملاحظات الفني</label>
+      <textarea name="technician_notes" ${locked?'disabled':''}>${esc(existing?.technician_notes||'')}</textarea>
+
+      ${!locked?'<button class="btn btn-primary btn-block" type="submit" style="margin-top:12px;">حفظ بيانات الجهاز</button>':'<p class="muted small">لا يمكن التعديل بعد إرسال الزيارة.</p>'}
+    </form>
+  </div></div>`;
+
+  $('#condition-select')?.addEventListener('change', (e)=>{
+    $('#defect-fields').style.display = (e.target.value && e.target.value!=='sound') ? 'block' : 'none';
+  });
+
+  if(existing){
+    const {data:photos} = await sb.from('photos').select('*').eq('visit_item_id', existing.id);
+    (photos||[]).forEach(p=>{
+      const target = p.type==='defect' ? '#existing-defect-photos' : '#existing-general-photos';
+      const box = $(target); if(box) box.innerHTML += `<img class="photo-thumb" src="${p.url}">`;
+    });
+  }
+}
+
+/* =============================================================
+   ماسح QR (نافذة الكاميرا)
+   ============================================================= */
+let html5QrInstance = null;
+function openScannerModal(){
+  $('#scanner-modal-slot').innerHTML = `
+  <div class="modal-backdrop" id="scanner-modal"><div class="modal center">
+    <h3>وجّه الكاميرا نحو ملصق QR</h3>
+    <div id="qr-reader"></div>
+    <p class="muted small">تعذّر المسح؟ اختر الجهاز من القائمة مباشرة.</p>
+    <button class="btn" data-action="close-scanner">إغلاق</button>
+  </div></div>`;
+  html5QrInstance = new Html5Qrcode("qr-reader");
+  html5QrInstance.start({facingMode:"environment"}, {fps:10, qrbox:230}, onScanDecoded, ()=>{})
+    .catch(err=>toast('تعذّر تشغيل الكاميرا: '+err,'err'));
+}
+async function closeScannerModal(){
+  if(html5QrInstance){ try{ await html5QrInstance.stop(); await html5QrInstance.clear(); }catch(e){} html5QrInstance=null; }
+  $('#scanner-modal-slot').innerHTML='';
+}
+async function onScanDecoded(text){
+  let code = text.trim();
+  const m = code.match(/#\/scan\/([\w-]+)/);
+  if(m) code = m[1];
+  await closeScannerModal();
+  const asset = visitCtx?.assets.find(a=>a.qr_code===code);
+  if(asset){ openAssetCard(asset.id); }
+  else { toast('لم يُعثر على جهاز بهذا الرمز ضمن أجهزة هذا العميل','err'); }
+}
+
+/* =============================================================
+   بوابة العميل (اطلاع فقط)
+   ============================================================= */
+async function viewPortal(){
+  if(!requireRole('client')) return;
+  const cid = state.profile.client_id;
+  if(!cid){ renderApp('<div class="card">لم يُربط حسابك بعد بعميل. راجع مشرف الفرع.</div>'); return; }
+  const {data:assets} = await sb.from('assets').select('*, locations(name)').eq('client_id',cid).eq('active',true).order('asset_no');
+  renderApp(`
+  <h2>أجهزتي</h2>
+  <div class="card"><div class="table-wrap"><table><thead><tr><th>رقم الأصل</th><th>الاسم</th><th>الفئة</th><th>الموقع</th></tr></thead><tbody>
+  ${(assets||[]).map(a=>`<tr><td>${esc(a.asset_no)}</td><td>${esc(a.name_ar)}</td><td>${CATEGORY_LABELS[a.category]?.ar||''}</td><td>${esc(a.locations?.name||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted center">لا توجد أجهزة</td></tr>'}
+  </tbody></table></div></div>`);
+}
+async function viewPortalReports(){
+  if(!requireRole('client')) return;
+  const cid = state.profile.client_id;
+  if(!cid){ renderApp('<div class="card">لم يُربط حسابك بعد بعميل. راجع مشرف الفرع.</div>'); return; }
+  const {data:visits} = await sb.from('visits').select('*').eq('client_id',cid).eq('status','approved').order('visit_date',{ascending:false});
+  renderApp(`
+  <h2>تقاريري</h2>
+  <div class="card"><div class="table-wrap"><table><thead><tr><th>رقم التقرير</th><th>تاريخ الزيارة</th><th></th></tr></thead><tbody>
+  ${(visits||[]).map(v=>`<tr><td>${esc(v.report_no||'—')}</td><td>${fmtDate(v.visit_date)}</td><td><a class="btn btn-sm" href="#/report/${v.id}">عرض</a></td></tr>`).join('') || '<tr><td colspan="3" class="muted center">لا توجد تقارير معتمدة بعد</td></tr>'}
+  </tbody></table></div></div>`);
+}
+
+/* =============================================================
+   تقرير الزيارة (ثنائي اللغة) + طباعة + تصدير Excel + مشاركة
+   ============================================================= */
+async function viewReport(visitId){
+  if(!requireAuth()) return;
+  const {visit, items} = await loadVisitFull(visitId);
+  if(!visit){ renderApp('<div class="card">الزيارة غير موجودة</div>'); return; }
+  renderApp(reportToolbarHtml(visit) + buildReportHtml(visit, items));
+  $('#print-area').innerHTML = buildReportHtml(visit, items, true);
+  window.__reportCtx = {visit, items};
+}
+
+function reportToolbarHtml(visit){
+  const shareUrl = `${location.origin}${location.pathname}#/share/${visit.share_token}`;
+  return `
+  <div class="card no-print">
+    <div class="flex gap10" style="flex-wrap:wrap;">
+      <button class="btn btn-primary" data-action="print-report">🖨️ طباعة / PDF</button>
+      <button class="btn" data-action="export-parts-report" data-id="${visit.id}">تصدير Excel (القطع المطلوبة)</button>
+      ${visit.status==='approved'?`<button class="btn" data-action="copy-share-link" data-url="${esc(shareUrl)}">نسخ رابط المشاركة</button>
+      <a class="btn" target="_blank" href="https://wa.me/?text=${encodeURIComponent('تقرير زيارة الصيانة: '+shareUrl)}">مشاركة واتساب</a>`:''}
+    </div>
+  </div>`;
+}
+
+function buildReportHtml(visit, items, forPrint){
+  const c = visit.clients||{};
+  const counts = {}; Object.keys(CONDITION_LABELS).forEach(k=>counts[k]=0);
+  items.forEach(it=>{ if(it.condition) counts[it.condition]=(counts[it.condition]||0)+1; });
+  const total = items.length || 1;
+  const soundPct = Math.round((counts.sound||0)*100/total);
+
+  return `
+  <div class="card" id="report-body">
+    <div class="report-head">
+      <div>
+        ${COMPANY_LOGO_URL?`<img src="${COMPANY_LOGO_URL}" style="height:46px;">`:''}
+        <div class="co">${esc(COMPANY_NAME_AR)} <span class="muted" style="font-weight:400;">/ ${esc(COMPANY_NAME_EN)}</span></div>
+        <div>${esc(c.name_ar||'')} — ${esc(c.name_en||'')}</div>
+        <div class="muted small">${esc(c.city||'')}</div>
+      </div>
+      <div class="meta">
+        <div>رقم التقرير / Report No: <b>${esc(visit.report_no||'—')}</b></div>
+        <div>تاريخ الزيارة / Visit Date: <b>${fmtDate(visit.visit_date)}</b></div>
+        <div>الحالة / Status: <b>${VISIT_STATUS_LABELS[visit.status]?.ar} / ${VISIT_STATUS_LABELS[visit.status]?.en}</b></div>
+      </div>
+    </div>
+
+    <div class="grid cols-4">
+      ${Object.entries(CONDITION_LABELS).map(([k,v])=>`<div class="stat"><div class="n">${counts[k]||0}</div><div class="l">${v.ar} / ${v.en}</div></div>`).join('')}
+    </div>
+    <p class="center"><b>نسبة الأجهزة السليمة / Sound Rate: ${soundPct}%</b></p>
+
+    <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>رقم الأصل<br><span class="muted">Asset No</span></th>
+        <th>الجهاز<br><span class="muted">Equipment</span></th>
+        <th>الموقع<br><span class="muted">Location</span></th>
+        <th>الماركة/الموديل<br><span class="muted">Brand/Model</span></th>
+        <th>الحالة<br><span class="muted">Condition</span></th>
+        <th>القطع المطلوبة<br><span class="muted">Parts Needed</span></th>
+        <th>صورة<br><span class="muted">Photo</span></th>
+      </tr></thead>
+      <tbody>
+      ${items.map(it=>{
+        const a = it.assets||{};
+        const photo = (it.photos||[])[0];
+        return `<tr>
+          <td>${esc(a.asset_no)}</td>
+          <td class="bi"><span class="ar">${esc(a.name_ar)}</span><span class="en">${esc(a.name_en||'')}</span></td>
+          <td>${esc(a.locations?.name||'')}</td>
+          <td>${esc(a.brand||'')} ${esc(a.model||'')}</td>
+          <td><span class="badge ${CONDITION_LABELS[it.condition]?.cls}">${CONDITION_LABELS[it.condition]?.ar||'—'}</span></td>
+          <td>${esc(it.parts_needed_text||'—')}</td>
+          <td>${photo?`<img class="photo-thumb" src="${photo.url}">`:'—'}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+    </div>
+
+    <div class="card" style="background:#fafbfc;">
+      <b>التوصيات العامة / General Recommendations</b>
+      <p>${esc(visit.recommendations||'—')}</p>
+    </div>
+
+    <div class="sig-row">
+      <div class="sig-box">ممثل ${esc(COMPANY_NAME_AR)}<br><span class="muted">Company Representative</span></div>
+      <div class="sig-box">ممثل العميل<br><span class="muted">Client Representative</span></div>
+    </div>
+  </div>`;
+}
+
+/* رابط مشاركة عام بلا تسجيل دخول */
+async function viewShare(token){
+  renderApp('<div class="card">جارِ التحميل…</div>');
+  const {data, error} = await sb.rpc('rpc_public_report', {p_token: token});
+  if(error || !data){ renderApp('<div class="card">هذا الرابط غير صالح أو لم يُعتمد التقرير بعد.</div>'); return; }
+  const visit = {...data.visit, clients: data.client};
+  const items = (data.items||[]).map(x=>({...x.item, assets:{...x.asset, locations:x.location}, photos:x.photos}));
+  renderApp(`<div class="no-print center" style="margin-bottom:10px;"><button class="btn btn-primary" data-action="print-report">🖨️ طباعة / PDF</button></div>` + buildReportHtml(visit, items));
+  $('#print-area').innerHTML = buildReportHtml(visit, items, true);
+}
+
+/* رابط مسح QR مباشر (من ملصق) */
+async function viewScan(code){
+  if(!state.session){ sessionStorage.setItem('pendingRoute', currentHash()); navigate('/login'); return; }
+  const {data:asset} = await sb.from('assets').select('*').eq('qr_code', code).single();
+  if(!asset){ renderApp('<div class="card">رمز غير معروف</div>'); return; }
+  if(state.profile.role==='technician'){
+    const today = new Date().toISOString().slice(0,10);
+    let {data:visit} = await sb.from('visits').select('*').eq('client_id', asset.client_id).eq('technician_id', state.session.user.id)
+      .in('status',['draft','rejected']).eq('visit_date', today).limit(1).maybeSingle();
+    if(!visit){
+      const {data:created, error} = await sb.from('visits').insert({client_id:asset.client_id, technician_id:state.session.user.id, check_in:new Date().toISOString()}).select().single();
+      if(error){ toast(error.message,'err'); return; }
+      visit = created;
+    }
+    navigate(`/technician/visit/${visit.id}?asset=${asset.id}`);
+  } else {
+    navigate(`/clients/${asset.client_id}`);
+  }
+}
+
+/* =============================================================
+   معالجات النماذج/الأزرار (Actions & Forms)
+   ============================================================= */
+async function handleAction(action, btn, e){
+  switch(action){
+    case 'logout': {
+      await sb.auth.signOut(); state.profile=null; navigate('/login'); break;
+    }
+    case 'close-modal': {
+      const modal = btn.closest('.modal-backdrop'); modal?.remove(); break;
+    }
+    case 'close-asset-modal': {
+      $('#asset-modal-slot').innerHTML=''; break;
+    }
+    case 'open-client-modal': {
+      let client = null;
+      if(btn.dataset.id){ client = await fetchClient(btn.dataset.id); }
+      document.body.insertAdjacentHTML('beforeend', clientModalHtml(client));
+      break;
+    }
+    case 'add-location': {
+      const name = prompt('اسم الموقع الجديد:'); if(!name) return;
+      const {error} = await sb.from('locations').insert({client_id: btn.dataset.client, name});
+      if(error) throw error; toast('تمت الإضافة','ok'); route(); break;
+    }
+    case 'add-contract': {
+      const clientId = btn.dataset.client;
+      document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" id="contract-modal"><div class="modal">
+        <h3>عقد جديد</h3>
+        <form data-form="save-contract">
+          <input type="hidden" name="client_id" value="${clientId}">
+          <label>رقم العقد *</label><input name="contract_no" required>
+          <div class="field-row"><div><label>تاريخ البداية *</label><input type="date" name="start_date" required></div>
+          <div><label>تاريخ النهاية *</label><input type="date" name="end_date" required></div></div>
+          <div class="field-row"><div><label>الدورية (كل كم شهر)</label><input type="number" name="frequency_months" value="3" min="1"></div>
+          <div><label>عدد الزيارات المخطط لها</label><input type="number" name="visits_planned" value="4" min="1"></div></div>
+          <div class="flex gap10" style="margin-top:16px;"><button class="btn btn-primary" type="submit">حفظ</button>
+          <button class="btn" type="button" data-action="close-modal">إلغاء</button></div>
+        </form></div></div>`);
+      break;
+    }
+    case 'add-asset': case 'edit-asset': {
+      const clientId = btn.dataset.client || (await sb.from('assets').select('client_id').eq('id',btn.dataset.id).single()).data?.client_id;
+      const {data:locations} = await sb.from('locations').select('*').eq('client_id',clientId);
+      let asset = null;
+      if(action==='edit-asset'){ const {data} = await sb.from('assets').select('*').eq('id',btn.dataset.id).single(); asset = data; }
+      document.body.insertAdjacentHTML('beforeend', assetModalHtml(clientId, asset, locations));
+      break;
+    }
+    case 'add-asset-field': {
+      const clientId = btn.dataset.client;
+      document.body.insertAdjacentHTML('beforeend', assetModalHtml(clientId, null, []));
+      const form = $('#asset-modal input[name=asset_no]')?.closest('form');
+      form?.insertAdjacentHTML('beforeend', `<input type="hidden" name="field_added" value="1">`);
+      break;
+    }
+    case 'edit-user': {
+      const p = (window.__usersCache||[]).find(x=>x.id===btn.dataset.id);
+      if(p) document.body.insertAdjacentHTML('beforeend', userModalHtml(p, window.__clientsCacheForUsers||[]));
+      break;
+    }
+    case 'run-import': {
+      const mapping = {};
+      $$('[data-map-field]').forEach(s=>{ mapping[s.dataset.mapField] = s.value; });
+      if(mapping.asset_no===''||mapping.name_ar===''||mapping.category===''){ toast('يجب مطابقة الأعمدة الإلزامية على الأقل','err'); return; }
+      const CAT_REVERSE = {'تبريد':'refrigeration','طبخ':'cooking','تكييف':'ac','غسيل':'laundry',
+        'refrigeration':'refrigeration','cooking':'cooking','ac':'ac','laundry':'laundry'};
+      const locCache = {};
+      const {data:existingLocs} = await sb.from('locations').select('*').eq('client_id', importState.clientId);
+      (existingLocs||[]).forEach(l=>locCache[l.name]=l.id);
+
+      const rows = importState.rows;
+      const toInsert = [];
+      for(const row of rows){
+        const get = (k)=> mapping[k]!=='' ? (row[+mapping[k]] ?? '') : '';
+        const asset_no = String(get('asset_no')||'').trim();
+        const name_ar = String(get('name_ar')||'').trim();
+        if(!asset_no || !name_ar) continue;
+        const catRaw = String(get('category')||'').trim();
+        const category = CAT_REVERSE[catRaw] || 'refrigeration';
+        let location_id = null;
+        const locName = String(get('location')||'').trim();
+        if(locName){
+          if(!locCache[locName]){
+            const {data:newLoc} = await sb.from('locations').insert({client_id:importState.clientId, name:locName}).select().single();
+            locCache[locName] = newLoc.id;
+          }
+          location_id = locCache[locName];
+        }
+        toInsert.push({
+          client_id: importState.clientId, asset_no, name_ar,
+          name_en: String(get('name_en')||'')||null, category,
+          brand: String(get('brand')||'')||null, model: String(get('model')||'')||null,
+          serial_no: String(get('serial_no')||'')||null, location_id,
+          created_by: state.session.user.id,
+        });
+      }
+      if(!toInsert.length){ $('#import-result').textContent='لم يُعثر على صفوف صالحة للاستيراد.'; return; }
+      const {error} = await sb.from('assets').insert(toInsert);
+      if(error){ $('#import-result').textContent = 'خطأ: '+error.message; return; }
+      $('#import-result').textContent = `تم استيراد ${toInsert.length} جهازاً بنجاح.`;
+      toast('تم الاستيراد','ok');
+      break;
+    }
+    case 'print-labels': window.print(); break;
+    case 'print-report': window.print(); break;
+    case 'export-parts-report': {
+      const {items} = window.__reportCtx;
+      const rows = items.filter(it=>it.parts_needed_text).map(it=>({
+        'رقم الأصل': it.assets?.asset_no, 'اسم الجهاز': it.assets?.name_ar, 'الموقع': it.assets?.locations?.name,
+        'الحالة': CONDITION_LABELS[it.condition]?.ar, 'القطع المطلوبة': it.parts_needed_text,
+      }));
+      exportRowsToExcel(rows, 'قطع_مطلوبة.xlsx');
+      break;
+    }
+    case 'export-parts-dashboard': {
+      exportRowsToExcel(window.__dashboardPartsFlat||[], 'قطع_مطلوبة_عام.xlsx');
+      break;
+    }
+    case 'copy-share-link': {
+      await navigator.clipboard.writeText(btn.dataset.url);
+      toast('تم نسخ رابط المشاركة','ok');
+      break;
+    }
+    case 'open-scanner': openScannerModal(); break;
+    case 'close-scanner': closeScannerModal(); break;
+    case 'open-asset': openAssetCard(btn.dataset.id); break;
+    case 'start-visit': {
+      const clientId = btn.dataset.client;
+      const today = new Date().toISOString().slice(0,10);
+      let {data:visit} = await sb.from('visits').select('*').eq('client_id',clientId).eq('technician_id', state.session.user.id)
+        .in('status',['draft','rejected']).eq('visit_date', today).limit(1).maybeSingle();
+      if(!visit){
+        const {data:created, error} = await sb.from('visits').insert({client_id:clientId, technician_id:state.session.user.id, check_in:new Date().toISOString()}).select().single();
+        if(error) throw error; visit = created;
+      }
+      navigate(`/technician/visit/${visit.id}`);
+      break;
+    }
+    case 'save-visit-meta': {
+      const id = btn.dataset.id;
+      const general_notes = $('#visit-general-notes').value;
+      const recommendations = $('#visit-recommendations').value;
+      const {error} = await sb.from('visits').update({general_notes, recommendations}).eq('id',id);
+      if(error) throw error; toast('تم الحفظ','ok');
+      break;
+    }
+    case 'finish-visit': {
+      const id = btn.dataset.id;
+      if(!confirm('هل أنهيت فحص جميع الأجهزة المطلوبة؟ سيتم إرسال الزيارة للاعتماد ولن تتمكن من تعديلها بعد ذلك.')) return;
+      const general_notes = $('#visit-general-notes')?.value;
+      const recommendations = $('#visit-recommendations')?.value;
+      const {error} = await sb.from('visits').update({
+        status:'pending_approval', check_out: new Date().toISOString(), general_notes, recommendations, rejection_reason:null
+      }).eq('id',id);
+      if(error) throw error;
+      toast('تم إرسال الزيارة للاعتماد','ok');
+      navigate('/technician');
+      break;
+    }
+    case 'save-visit-notes': {
+      const id = btn.dataset.id;
+      const general_notes = $('#edit-general-notes').value;
+      const recommendations = $('#edit-recommendations').value;
+      const {error} = await sb.from('visits').update({general_notes, recommendations}).eq('id',id);
+      if(error) throw error; toast('تم الحفظ','ok');
+      break;
+    }
+    case 'save-item-notes': {
+      const id = btn.dataset.id;
+      const notesEl = document.querySelector(`[data-item-notes="${id}"]`);
+      const partsEl = document.querySelector(`[data-item-parts="${id}"]`);
+      const payload = {};
+      if(notesEl) payload.technician_notes = notesEl.value;
+      if(partsEl) payload.parts_needed_text = partsEl.value;
+      const {error} = await sb.from('visit_items').update(payload).eq('id',id);
+      if(error) throw error; toast('تم الحفظ','ok');
+      break;
+    }
+    case 'approve-visit': {
+      if(!confirm('اعتماد هذه الزيارة سيجعل تقريرها نهائياً ومرئياً للعميل. متابعة؟')) return;
+      const {error} = await sb.from('visits').update({status:'approved', approved_by: state.session.user.id}).eq('id',btn.dataset.id);
+      if(error) throw error; toast('تم الاعتماد','ok'); navigate(`/report/${btn.dataset.id}`);
+      break;
+    }
+    case 'reject-visit': {
+      const reason = prompt('سبب الرفض (سيظهر للفني):'); if(!reason) return;
+      const {error} = await sb.from('visits').update({status:'rejected', rejection_reason:reason}).eq('id',btn.dataset.id);
+      if(error) throw error; toast('تم رفض الزيارة وإعادتها للفني','ok'); navigate('/approvals');
+      break;
+    }
+  }
+}
+
+async function handleForm(formName, form){
+  const fd = new FormData(form);
+  switch(formName){
+    case 'login': {
+      const email = fd.get('email'), password = fd.get('password');
+      const {error} = await sb.auth.signInWithPassword({email, password});
+      if(error){ toast('بيانات الدخول غير صحيحة: '+error.message, 'err'); return; }
+      toast('تم تسجيل الدخول','ok');
+      await refreshSession();
+      navigate(sessionStorage.getItem('pendingRoute') || '/dashboard');
+      sessionStorage.removeItem('pendingRoute');
+      break;
+    }
+    case 'save-client': {
+      const payload = Object.fromEntries(fd.entries());
+      const id = payload.id; delete payload.id;
+      if(!id){
+        const {error} = await sb.from('clients').insert(payload);
+        if(error) throw error;
+      } else {
+        const {error} = await sb.from('clients').update(payload).eq('id',id);
+        if(error) throw error;
+      }
+      $('#client-modal')?.remove(); toast('تم الحفظ','ok'); route();
+      break;
+    }
+    case 'save-contract': {
+      const payload = Object.fromEntries(fd.entries());
+      payload.frequency_months = +payload.frequency_months || 3;
+      payload.visits_planned = +payload.visits_planned || 4;
+      const {error} = await sb.from('contracts').insert(payload);
+      if(error) throw error;
+      $('#contract-modal')?.remove(); toast('تم إنشاء العقد','ok'); route();
+      break;
+    }
+    case 'save-asset': {
+      const payload = Object.fromEntries(fd.entries());
+      const id = payload.id; delete payload.id;
+      if(!payload.location_id) payload.location_id = null;
+      if(payload.field_added){ payload.field_added = true; } else { delete payload.field_added; }
+      if(!id){
+        payload.created_by = state.session.user.id;
+        const {error} = await sb.from('assets').insert(payload);
+        if(error) throw error;
+      } else {
+        const {error} = await sb.from('assets').update(payload).eq('id',id);
+        if(error) throw error;
+      }
+      $('#asset-modal')?.remove(); toast('تم الحفظ','ok'); route();
+      break;
+    }
+    case 'save-user': {
+      const payload = Object.fromEntries(fd.entries());
+      const id = payload.id; delete payload.id;
+      payload.active = fd.get('active')==='on';
+      if(!payload.client_id) payload.client_id = null;
+      const {error} = await sb.from('profiles').update(payload).eq('id',id);
+      if(error) throw error;
+      $('#user-modal')?.remove(); toast('تم الحفظ','ok'); route();
+      break;
+    }
+    case 'save-visit-item': {
+      const { visit, client, itemsByAsset } = visitCtx;
+      const asset_id = fd.get('asset_id');
+      const item_id = fd.get('item_id') || null;
+      const condition = fd.get('condition');
+      const technician_notes = fd.get('technician_notes') || null;
+      const parts_needed_text = fd.get('parts_needed_text') || null;
+      if(!condition){ toast('اختر حالة الجهاز','err'); return; }
+      const generalFile = fd.get('general_photo');
+      const defectFile = fd.get('defect_photo');
+      const hasExistingGeneral = !!item_id && (await sb.from('photos').select('id',{count:'exact',head:true}).eq('visit_item_id',item_id).eq('type','general')).count>0;
+      if(!hasExistingGeneral && (!generalFile || !generalFile.size)){ toast('الصورة العامة إلزامية','err'); return; }
+      if(condition!=='sound'){
+        const hasExistingDefect = !!item_id && (await sb.from('photos').select('id',{count:'exact',head:true}).eq('visit_item_id',item_id).eq('type','defect')).count>0;
+        if(!hasExistingDefect && (!defectFile || !defectFile.size)){ toast('صورة العيب إلزامية عند وجود عطل','err'); return; }
+      }
+
+      let itemRow;
+      if(item_id){
+        const {data, error} = await sb.from('visit_items').update({condition, technician_notes, parts_needed_text}).eq('id',item_id).select().single();
+        if(error) throw error; itemRow = data;
+      } else {
+        const {data, error} = await sb.from('visit_items').insert({visit_id:visit.id, asset_id, condition, technician_notes, parts_needed_text}).select().single();
+        if(error) throw error; itemRow = data;
+      }
+
+      if(generalFile && generalFile.size){
+        const blob = await compressImage(generalFile);
+        const url = await uploadPhoto(client.id, visit.id, asset_id, blob);
+        await sb.from('photos').insert({visit_item_id:itemRow.id, url, type:'general'});
+      }
+      if(defectFile && defectFile.size){
+        const blob = await compressImage(defectFile);
+        const url = await uploadPhoto(client.id, visit.id, asset_id, blob);
+        await sb.from('photos').insert({visit_item_id:itemRow.id, url, type:'defect'});
+      }
+
+      itemsByAsset[asset_id] = itemRow;
+      toast('تم حفظ بيانات الجهاز','ok');
+      $('#asset-modal-slot').innerHTML='';
+      renderVisitScreen();
+      break;
+    }
+  }
+}
+
+async function handleChange(name, el2){
+  if(name==='import-file'){
+    const file = el2.files[0]; if(!file) return;
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array'});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+    const headers = rows[0];
+    const dataRows = rows.slice(1).filter(r=>r.some(c=>String(c).trim()!==''));
+    importState.headers = headers; importState.rows = dataRows;
+    $('#import-mapping').innerHTML = importMappingHtml();
+  }
+}
+
+function exportRowsToExcel(rows, filename){
+  if(!rows.length){ toast('لا توجد بيانات للتصدير','err'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  XLSX.writeFile(wb, filename);
+}
+
+/* بدء التطبيق */
+route();
+</script>
+</body>
+</html>
