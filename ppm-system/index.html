@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Zain:wght@700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -489,14 +489,14 @@ async function labelsPage(id){
   const box = $("#sheet");
   for(const a of assets){
     const url = location.origin+location.pathname+"#/scan/"+a.qr_code;
-    const img = await QRCode.toDataURL(url,{margin:1,width:220});
     const d = document.createElement("div");
     d.style.cssText="border:1px solid #cbd5e1;border-radius:8px;padding:8px;text-align:center;break-inside:avoid;background:#fff";
     d.innerHTML = `<img src="${LOGO}" style="height:22px"><br>
-      <img src="${img}" style="width:100%;max-width:118px"><br>
+      <div class="qrbox" style="display:flex;justify-content:center;margin:4px 0"></div>
       <b style="font-size:12px">${esc(a.asset_no)}</b>
       <div style="font-size:10.5px;color:#475569;line-height:1.3">${esc(a.name_ar)}</div>`;
     box.appendChild(d);
+    new QRCode(d.querySelector(".qrbox"), {text:url, width:118, height:118, correctLevel:QRCode.CorrectLevel.M});
   }
 }
 
