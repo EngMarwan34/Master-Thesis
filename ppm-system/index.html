@@ -187,8 +187,10 @@ function cfg(){
   const c = cfg();
   if(!c) return setupScreen();
   sb = window.supabase.createClient(c.u, c.k);
+  const isRecovery = location.hash.includes("type=recovery");
   const {data} = await sb.auth.getSession();
   session = data.session;
+  if(isRecovery && session) return resetPasswordScreen();
   if(!session) return loginScreen();
   const {data:p} = await sb.from("profiles").select("*").eq("id",session.user.id).single();
   if(!p){ await sb.auth.signOut(); return loginScreen("لا يوجد ملف صلاحيات لهذا الحساب. راجع مشرف النظام."); }
@@ -226,6 +228,8 @@ function loginScreen(msg){
       <label>كلمة المرور</label><input id="p" type="password" autocomplete="current-password">
       <div style="height:14px"></div>
       <button class="btn" style="width:100%" onclick="doLogin()">دخول</button>
+      <p class="muted" style="text-align:center;margin-top:12px">
+        <a href="#" onclick="doForgotPassword();return false">نسيت كلمة المرور؟</a></p>
     </div></div>`;
   $("#p").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
 }
@@ -235,7 +239,38 @@ async function doLogin(){
   if(error) return toast("تعذر الدخول: تحقق من البريد وكلمة المرور");
   location.reload();
 }
+async function doForgotPassword(){
+  const email = ($("#e")?.value||"").trim() || prompt("أدخل بريدك الإلكتروني المسجَّل بالنظام");
+  if(!email) return;
+  const {error} = await sb.auth.resetPasswordForEmail(email, {redirectTo: location.origin+location.pathname});
+  if(error) return toast("تعذر إرسال رابط الاستعادة: "+error.message);
+  toast("أُرسل رابط استعادة كلمة المرور إلى بريدك — تفقّد الوارد أو الـSpam", 4500);
+}
 async function logout(){ await sb.auth.signOut(); location.hash=""; location.reload(); }
+
+/* ---------------------- تعيين كلمة مرور جديدة (رابط الاستعادة) ---------------------- */
+function resetPasswordScreen(){
+  app.innerHTML = `<div class="center">
+    <img src="${LOGO}" alt="المحتسب">
+    <div class="card">
+      <h2>تعيين كلمة مرور جديدة</h2>
+      <p class="muted">أدخل كلمة المرور الجديدة لحسابك ثم سجّل دخولك بها.</p>
+      <label>كلمة المرور الجديدة</label><input id="np1" type="password" autocomplete="new-password">
+      <label>تأكيد كلمة المرور</label><input id="np2" type="password" autocomplete="new-password">
+      <div style="height:14px"></div>
+      <button class="btn" style="width:100%" onclick="doResetPassword()">حفظ كلمة المرور</button>
+    </div></div>`;
+}
+async function doResetPassword(){
+  const p1=$("#np1").value, p2=$("#np2").value;
+  if(!p1||p1.length<6) return toast("كلمة المرور يجب ألا تقل عن 6 أحرف");
+  if(p1!==p2) return toast("كلمتا المرور غير متطابقتين");
+  const {error} = await sb.auth.updateUser({password:p1});
+  if(error) return toast("تعذر الحفظ: "+error.message);
+  toast("تم تعيين كلمة المرور بنجاح");
+  location.hash="";
+  setTimeout(()=>location.reload(), 1200);
+}
 
 /* ---------------------- الهيكل العام ---------------------- */
 function shell(title, html, bar=""){
