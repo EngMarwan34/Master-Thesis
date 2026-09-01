@@ -10,8 +10,9 @@ ppm-system/
 ├── index.html                      ← التطبيق كاملاً
 ├── sql/schema.sql                  ← الجداول + سياسات RLS + الدوال + Storage
 └── seed/
-    ├── hotel_nozol_royal.sql       ← بيانات العميل التجريبي (79 جهازاً من ملف الجرد)
-    └── technicians_template.sql    ← قالب جاهز لإضافة حسابَي الفنيين
+    ├── hotel_nozol_royal.sql       ← فندق نُزُل رويال (79 جهازاً)
+    ├── maden_hotels.sql            ← 3 فنادق إضافية من العقد: مادن الأساسي/الروضة/طيبة (361 جهازاً)
+    └── technicians_template.sql    ← قالب جاهز لإضافة حسابات الفنيين
 ```
 
 ## خطوات التشغيل (مرة واحدة)
