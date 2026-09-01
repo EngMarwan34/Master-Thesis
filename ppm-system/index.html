@@ -401,6 +401,7 @@ async function clientPage(id){
         ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}" alt="">`:""}
         <span class="body"><span class="t">${esc(a.name_ar)}</span>
         <span class="s">${esc(a.asset_no)} · ${esc(a.category)} ${a.brand?"· "+esc(a.brand):""} ${a.location_text?"· "+esc(a.location_text):""}</span></span>
+        ${staff?`<button class="btn quiet sm" onclick="uploadAssetPhoto('${a.id}')" title="الصورة المرجعية">📷</button>`:""}
       </div>`).join("")}</div>` : `<p class="empty">لا توجد أجهزة. ابدأ باستيراد ملف Excel.</p>`}</div>`;
 
   body += `<div class="card"><h3>الزيارات</h3>
@@ -527,11 +528,17 @@ async function visitPage(id){
   if(v.status==="rejected") body += `<div class="card" style="border-color:var(--down)">
     <h3 style="color:var(--down)">أُعيدت الزيارة للتعديل</h3><p>${esc(v.reject_reason||"")}</p></div>`;
 
+  const canEditCrm = me.role==="supervisor" || (me.role==="technician" && !readOnly);
   body += `<div class="card"><h3>${esc(v.clients.name_ar)}</h3>
     <p class="muted">زيارة ${fmt(v.visit_date)} · بدأت ${time(v.check_in)}</p>
     <div class="mosaic">${assets.map(a=>{const it=done.get(a.id);
       return `<i style="background:${it?`var(${stateOf(it.condition).v})`:"#CBD5E1"}"></i>`}).join("")}</div>
-    <div class="rail"><span style="width:${pct}%"></span></div></div>`;
+    <div class="rail"><span style="width:${pct}%"></span></div>
+    ${me.role!=="client"?`<div class="row" style="margin-top:10px;flex-wrap:wrap">
+      <span class="pill">تذكرة CRM: ${esc(v.crm_ticket_no||"—")}</span>
+      ${v.quote_url?`<a class="pill" href="${v.quote_url}" target="_blank" rel="noopener">عرض السعر ↗</a>`:""}
+      ${canEditCrm?`<button class="btn quiet sm" onclick="editCrmInfo()">تعديل بيانات CRM</button>`:""}
+    </div>`:""}</div>`;
 
   if(!readOnly) body += `<div class="card"><div class="spread"><h3>مسح ملصق الجهاز</h3>
     <button class="btn ghost sm" onclick="toggleScan()">فتح الكاميرا</button></div>
@@ -575,6 +582,52 @@ async function toggleScan(){
 
 async function addAssetInVisit(){ window._client = window._v.clients; await addAsset(); location.hash="#/visit/"+window._v.id; route(); }
 
+/* ---------------------- بيانات تذكرة CRM وعرض السعر ---------------------- */
+function editCrmInfo(){
+  const v = window._v;
+  openSheet(`
+    <div class="spread"><h3>بيانات تذكرة CRM</h3><button class="btn quiet sm" onclick="closeSheet()">إغلاق</button></div>
+    <p class="muted">رقم التذكرة يُنسخ يدوياً من نظام CRM المعتمد بالشركة. التقرير نفسه يبقى من هذا النظام.</p>
+    <label>رقم التذكرة</label>
+    <input id="crmNo" value="${esc(v.crm_ticket_no||"")}" placeholder="مثال: TCK-10234">
+    <label>عرض السعر (صورة أو PDF)</label>
+    <div class="row" id="crmQuoteRow" style="align-items:center">
+      ${v.quote_url?`<a href="${v.quote_url}" target="_blank" rel="noopener" class="pill">الملف الحالي ↗</a>`:`<span class="muted">لا يوجد ملف مرفق</span>`}
+      <button class="btn quiet sm" onclick="pickQuoteFile()">${v.quote_url?"استبدال الملف":"إرفاق ملف"}</button>
+    </div>
+    <div style="height:16px"></div>
+    <button class="btn" style="width:100%" onclick="saveCrmInfo()">حفظ</button>
+  `);
+  window._crmDraft = { quote_url: v.quote_url||null };
+}
+function pickQuoteFile(){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*,application/pdf";
+  inp.onchange=async()=>{
+    const f=inp.files[0]; if(!f) return;
+    toast("جارٍ رفع الملف…");
+    try{
+      const ext = (f.name.split(".").pop()||"pdf").toLowerCase();
+      const path = `quotes/${window._v.id}-${Date.now()}.${ext}`;
+      const {error} = await sb.storage.from("visit-photos").upload(path,f,{contentType:f.type||"application/octet-stream"});
+      if(error) throw error;
+      const {data} = sb.storage.from("visit-photos").getPublicUrl(path);
+      window._crmDraft.quote_url = data.publicUrl;
+      const row = $("#crmQuoteRow");
+      if(row) row.innerHTML = `<a href="${data.publicUrl}" target="_blank" rel="noopener" class="pill">الملف الجديد ↗</a>
+        <button class="btn quiet sm" onclick="pickQuoteFile()">استبدال الملف</button>`;
+      toast("تم رفع الملف — اضغط حفظ لإتمام الحفظ");
+    }catch(e){ toast("تعذر رفع الملف: "+(e.message||"")); }
+  };
+  inp.click();
+}
+async function saveCrmInfo(){
+  const crm_ticket_no = $("#crmNo").value.trim()||null;
+  const {quote_url} = window._crmDraft;
+  const {error} = await sb.from("visits").update({crm_ticket_no,quote_url}).eq("id",window._v.id);
+  if(error) return toast("تعذر الحفظ: "+error.message);
+  closeSheet(); toast("تم حفظ بيانات CRM"); route();
+}
+
 /* ---------------------- بطاقة فحص الجهاز ---------------------- */
 function openSheet(html){
   const d=document.createElement("div"); d.className="sheet noprint"; d.id="sheetEl";
@@ -593,7 +646,7 @@ async function openAsset(assetId){
   const {data:hist=[]} = await sb.from("visit_items")
     .select("condition,technician_notes,parts_needed_text,photos(url,type),visits!inner(visit_date,status,id)")
     .eq("asset_id",assetId).neq("visit_id",window._v.id)
-    .order("id",{ascending:false}).limit(4);
+    .order("id",{ascending:false}).limit(10);
   const repeated = item ? false : hist.some(h=>h.condition!=="سليم" && h.condition!=="غير متاح للفحص");
 
   window._draft = { assetId, condition:item?.condition||null, itemId:item?.id||null,
@@ -602,18 +655,25 @@ async function openAsset(assetId){
 
   openSheet(`
     <div class="spread"><h3>${esc(a.name_ar)}</h3><button class="btn quiet sm" onclick="closeSheet()">إغلاق</button></div>
+    <div style="text-align:center;margin:6px 0 10px">
+      ${a.base_photo_url?`<img src="${a.base_photo_url}" alt="الصورة المرجعية" style="max-width:200px;max-height:200px;border-radius:10px;border:1px solid var(--line);object-fit:cover">`
+        :`<p class="muted" style="margin:0 0 6px">لا توجد صورة مرجعية لهذا الجهاز بعد — أضِفها للتأكد من هوية الجهاز عند كل زيارة.</p>`}
+      <div style="margin-top:6px">
+        <button class="btn quiet sm" onclick="uploadAssetPhoto('${a.id}')">${a.base_photo_url?"تغيير الصورة المرجعية":"إضافة صورة مرجعية"}</button>
+      </div>
+    </div>
     <p class="muted">${esc(a.asset_no)} · ${esc(a.category)} ${a.brand?"· "+esc(a.brand):""} ${a.model?"· "+esc(a.model):""}
       ${a.serial_no?"<br>الرقم التسلسلي: "+esc(a.serial_no):""} ${a.location_text?"<br>الموقع: "+esc(a.location_text):""}</p>
     ${repeated?`<div class="card" style="background:#FEF6E7;border-color:var(--maint);padding:11px">
       <b style="color:var(--maint)">تنبيه:</b> سُجّلت ملاحظات على هذا الجهاز في زيارة سابقة.</div>`:""}
-    ${hist.length?`<details style="margin:10px 0"><summary style="cursor:pointer;font-weight:600">سجل الزيارات السابقة (${hist.length})</summary>
+    ${hist.length?`<details open style="margin:10px 0"><summary style="cursor:pointer;font-weight:600">سجل الصيانات السابقة (${hist.length})</summary>
       ${hist.map(h=>`<div style="border-top:1px solid var(--line);padding:9px 0">
         <div class="row"><span class="dot ${stateOf(h.condition)?.c}"></span><b>${esc(h.condition)}</b>
           <span class="muted">${fmt(h.visits.visit_date)}</span></div>
         ${h.parts_needed_text?`<div class="muted">القطع: ${esc(h.parts_needed_text)}</div>`:""}
         ${h.technician_notes?`<div class="muted">${esc(h.technician_notes)}</div>`:""}
         <div class="photos">${(h.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
-      </div>`).join("")}</details>`:`<p class="muted">لا يوجد سجل سابق لهذا الجهاز.</p>`}
+      </div>`).join("")}</details>`:`<p class="muted">لا يوجد سجل صيانة سابق لهذا الجهاز.</p>`}
 
     <label>حالة الجهاز</label>
     <div class="states" id="states">${STATES.map(s=>`
@@ -625,6 +685,29 @@ async function openAsset(assetId){
       <button class="btn" style="width:100%" onclick="saveItem()">حفظ الجهاز</button>`}
   `);
   renderExtra();
+}
+
+/* ---------------------- الصورة المرجعية للجهاز ---------------------- */
+function uploadAssetPhoto(assetId){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*"; inp.capture="environment";
+  inp.onchange=async()=>{
+    const f=inp.files[0]; if(!f) return;
+    toast("جارٍ رفع الصورة…");
+    try{
+      const blob = await compress(f);
+      const path = `assets/${assetId}-${Date.now()}.jpg`;
+      const {error:upErr} = await sb.storage.from("visit-photos").upload(path,blob,{contentType:"image/jpeg"});
+      if(upErr) throw upErr;
+      const {data:pub} = sb.storage.from("visit-photos").getPublicUrl(path);
+      const {error} = await sb.rpc("set_asset_base_photo",{p_asset_id:assetId,p_photo_url:pub.publicUrl});
+      if(error) throw error;
+      toast("تم حفظ الصورة المرجعية");
+      (window._assets||[]).forEach(a=>{ if(a.id===assetId) a.base_photo_url = pub.publicUrl; });
+      if(window._draft && window._draft.assetId===assetId){ closeSheet(); openAsset(assetId); }
+      else route();
+    }catch(e){ toast("تعذر رفع الصورة: "+(e.message||"")); }
+  };
+  inp.click();
 }
 
 function pickState(k){
@@ -740,21 +823,29 @@ async function finishVisit(){
 async function reviewPage(id){
   if(me.role!=="supervisor") return visitPage(id);
   const {v,assets,items} = await loadVisit(id);
+  window._v = v; window._items = items;
   const map = new Map(assets.map(a=>[a.id,a]));
   let body = `<div class="spread" style="margin-bottom:12px">${back("#/")}
     <span class="pill">${items.length} جهازاً</span></div>
   <div class="card"><h3>${esc(v.clients.name_ar)}</h3>
     <p class="muted">زيارة ${fmt(v.visit_date)} · من ${time(v.check_in)} إلى ${time(v.check_out)}</p>
+    <div class="row" style="margin:8px 0;flex-wrap:wrap">
+      <span class="pill">تذكرة CRM: ${esc(v.crm_ticket_no||"—")}</span>
+      ${v.quote_url?`<a class="pill" href="${v.quote_url}" target="_blank" rel="noopener">عرض السعر ↗</a>`:""}
+      <button class="btn quiet sm" onclick="editCrmInfo()">تعديل بيانات CRM</button>
+    </div>
     <label>التوصيات العامة</label><textarea id="rec">${esc(v.recommendations||"")}</textarea></div>`;
 
-  body += `<div class="card"><h3>البنود</h3><div class="list" style="margin-top:10px">
+  body += `<div class="card"><h3>البنود</h3><p class="muted">يمكنك تصحيح ملاحظة الفني (مثل الأخطاء الإملائية) قبل الاعتماد.</p>
+    <div class="list" style="margin-top:10px">
     ${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
       return `<div class="item" style="align-items:flex-start">
         <span class="edge" style="background:var(${s.v})"></span>
-        <span class="body"><span class="t">${esc(a.name_ar||"")}</span>
+        <span class="body" style="width:100%"><span class="t">${esc(a.name_ar||"")}</span>
           <span class="s">${esc(a.asset_no||"")} · ${esc(i.condition)}</span>
           ${i.parts_needed_text?`<div style="font-size:13px">القطع: ${esc(i.parts_needed_text)}</div>`:""}
-          ${i.technician_notes?`<div class="muted">${esc(i.technician_notes)}</div>`:""}
+          <label style="margin-top:8px">ملاحظة الفني</label>
+          <textarea id="note_${i.id}" style="min-height:56px">${esc(i.technician_notes||"")}</textarea>
           <div class="photos">${(i.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
         </span></div>`;}).join("")}</div></div>`;
 
@@ -765,6 +856,15 @@ async function reviewPage(id){
 
 async function approveVisit(id){
   const rec = $("#rec")?.value||"";
+  // احفظ أي تصحيح كتبه المشرف على ملاحظات الفنيين قبل الاعتماد
+  for(const i of (window._items||[])){
+    const ta = $("#note_"+i.id); if(!ta) continue;
+    const val = ta.value.trim()||null;
+    if(val !== (i.technician_notes||null)){
+      const {error:ne} = await sb.from("visit_items").update({technician_notes:val}).eq("id",i.id);
+      if(ne) return toast("تعذر حفظ تعديل الملاحظة: "+ne.message);
+    }
+  }
   const {error} = await sb.from("visits").update({status:"approved",approved_by:me.id,recommendations:rec}).eq("id",id);
   if(error) return toast("تعذر الاعتماد: "+error.message);
   location.hash = "#/report/"+id;
