@@ -163,6 +163,7 @@ const STATES = [
 const stateOf = k => STATES.find(s=>s.k===k);
 const CATS = ["تبريد","طبخ","تكييف","غسيل","أخرى"];
 const CAT_EN = {"تبريد":"Refrigeration","طبخ":"Cooking","تكييف":"HVAC","غسيل":"Laundry","أخرى":"Other"};
+const VTYPE = {preventive:{ar:"وقائية",en:"Preventive"}, emergency:{ar:"طارئة",en:"Emergency"}};
 
 let sb=null, me=null, session=null, scanner=null;
 const $ = s => document.querySelector(s);
@@ -292,9 +293,23 @@ async function homePage(){
   const {data:clients=[]} = await sb.from("clients").select("*").order("name_ar");
   let body = "";
 
+  if(me.role==="technician"){
+    const {data:myOpen=[]} = await sb.from("visits")
+      .select("id,status,visit_type,client_id,clients(name_ar),target_asset:assets!target_asset_id(name_ar,asset_no)")
+      .eq("technician_id",me.id).in("status",["draft","rejected"]).order("created_at",{ascending:false});
+    body += `<div class="card"><h3>مهامي المفتوحة</h3>
+      ${myOpen.length?`<div class="list" style="margin-top:10px">${myOpen.map(v=>`
+        <button class="item" onclick="location.hash='#/visit/${v.id}'">
+          <span class="edge" style="background:${v.visit_type==="emergency"?"var(--down)":"var(--brand)"}"></span>
+          <span class="body"><span class="t">${v.visit_type==="emergency"?"⚡ طارئة — ":""}${esc(v.clients?.name_ar||"")}</span>
+          <span class="s">${v.visit_type==="emergency"?esc(v.target_asset?.name_ar||"")+" · ":""}${v.status==="rejected"?"أُعيدت للتعديل":"قيد التنفيذ"}</span></span>
+          <span class="pill">متابعة</span></button>`).join("")}</div>`
+        : `<p class="empty">لا توجد مهام مفتوحة حالياً.</p>`}</div>`;
+  }
+
   if(me.role==="supervisor"){
     const {data:pending=[]} = await sb.from("visits")
-      .select("id,visit_date,client_id,check_out,clients(name_ar)").eq("status","submitted").order("check_out");
+      .select("id,visit_date,client_id,check_out,visit_type,clients(name_ar)").eq("status","submitted").order("check_out");
     const {data:parts=[]} = await sb.from("visit_items")
       .select("id,condition,parts_needed_text,assets(name_ar,asset_no),visits!inner(id,client_id,status,visit_date,clients(name_ar))")
       .in("condition",["يحتاج قطع غيار","يحتاج صيانة","متوقف عن العمل"])
@@ -308,8 +323,8 @@ async function homePage(){
     body += `<div class="card"><h3>زيارات بانتظار الاعتماد</h3>
       ${pending.length?`<div class="list" style="margin-top:10px">${pending.map(v=>`
         <button class="item" onclick="location.hash='#/review/${v.id}'">
-          <span class="edge" style="background:var(--maint)"></span>
-          <span class="body"><span class="t">${esc(v.clients?.name_ar||"")}</span>
+          <span class="edge" style="background:var(${v.visit_type==="emergency"?"--down":"--maint"})"></span>
+          <span class="body"><span class="t">${v.visit_type==="emergency"?"⚡ طارئة — ":""}${esc(v.clients?.name_ar||"")}</span>
           <span class="s">زيارة ${fmt(v.visit_date)} · أُرسلت ${fmt(v.check_out)}</span></span>
           <span class="pill">مراجعة</span></button>`).join("")}</div>`
         : `<p class="empty">لا توجد زيارات بانتظارك.</p>`}</div>`;
@@ -384,10 +399,14 @@ async function clientPage(id){
   const byCat = CATS.map(k=>[k,assets.filter(a=>a.category===k).length]).filter(x=>x[1]);
   const staff = me.role!=="client";
 
+  const isSup = me.role==="supervisor";
   let body = `<div class="spread" style="margin-bottom:12px">${back("#/")}
     ${staff?`<div class="row">
       <button class="btn ghost sm" onclick="location.hash='#/labels/${id}'">ملصقات QR</button>
-      <button class="btn ghost sm" onclick="importExcel()">استيراد Excel</button></div>`:""}</div>`;
+      <button class="btn ghost sm" onclick="importExcel()">استيراد Excel</button>
+      ${isSup?`<button class="btn quiet sm" onclick="editClient()">تعديل العميل</button>
+      <button class="btn quiet sm" style="color:var(--down)" onclick="deleteClient('${id}')">حذف العميل</button>`:""}
+      </div>`:""}</div>`;
 
   body += `<div class="card"><h2>${esc(c.name_ar)}</h2>
     <p class="muted">${esc(c.name_en||"")} ${c.type?"· "+esc(c.type):""} ${c.city?"· "+esc(c.city):""}</p>
@@ -402,6 +421,9 @@ async function clientPage(id){
         <span class="body"><span class="t">${esc(a.name_ar)}</span>
         <span class="s">${esc(a.asset_no)} · ${esc(a.category)} ${a.brand?"· "+esc(a.brand):""} ${a.location_text?"· "+esc(a.location_text):""}</span></span>
         ${staff?`<button class="btn quiet sm" onclick="uploadAssetPhoto('${a.id}')" title="الصورة المرجعية">📷</button>`:""}
+        ${isSup?`<button class="btn quiet sm" onclick="editAsset('${a.id}')" title="تعديل">✏️</button>
+        <button class="btn quiet sm" onclick="requestEmergency('${a.id}')" title="طلب صيانة طارئة">⚡</button>
+        <button class="btn quiet sm" style="color:var(--down)" onclick="deleteAsset('${a.id}')" title="حذف">🗑</button>`:""}
       </div>`).join("")}</div>` : `<p class="empty">لا توجد أجهزة. ابدأ باستيراد ملف Excel.</p>`}</div>`;
 
   body += `<div class="card"><h3>الزيارات</h3>
@@ -410,11 +432,14 @@ async function clientPage(id){
                 approved:["معتمدة","--ok"],rejected:["مُعادة للفني","--down"]}[v.status];
       const target = v.status==="approved" ? `#/report/${v.id}`
         : (me.role==="supervisor" && v.status==="submitted" ? `#/review/${v.id}` : `#/visit/${v.id}`);
-      return `<button class="item" onclick="location.hash='${target}'">
+      const label = (v.visit_type==="emergency"?"⚡ طارئة — ":"")+"زيارة "+fmt(v.visit_date);
+      return `<div class="item">
         <span class="edge" style="background:var(${st[1]})"></span>
-        <span class="body"><span class="t">زيارة ${fmt(v.visit_date)}</span>
+        <span class="body" style="cursor:pointer" onclick="location.hash='${target}'"><span class="t">${label}</span>
         <span class="s">${st[0]}${v.report_no?" · "+esc(v.report_no):""}</span></span>
-        <span class="muted">›</span></button>`;}).join("")}</div>`
+        <span class="muted" style="cursor:pointer" onclick="location.hash='${target}'">›</span>
+        ${isSup?`<button class="btn quiet sm" style="color:var(--down)" onclick="deleteVisit('${v.id}')" title="حذف">🗑</button>`:""}
+        </div>`;}).join("")}</div>`
       : `<p class="empty">لا توجد زيارات.</p>`}</div>`;
 
   const bar = staff && assets.length ? `<button class="btn" onclick="startVisit('${id}')">بدء زيارة جديدة</button>` : "";
@@ -431,6 +456,88 @@ async function addAsset(){
     category:CATS.includes(category)?category:"أخرى",location_text,field_added:me.role==="technician"});
   if(error) return toast("تعذر الحفظ: "+error.message);
   route();
+}
+
+/* ---------------------- تعديل/حذف العميل ---------------------- */
+async function editClient(){
+  const c = window._client; if(!c) return;
+  const name_ar = prompt("اسم العميل بالعربية", c.name_ar); if(!name_ar) return;
+  const name_en = prompt("الاسم بالإنجليزية (كما يظهر في التقرير)", c.name_en||"")||"";
+  const type = prompt("النوع: فندق / مستشفى / مطعم", c.type||"")||"";
+  const city = prompt("المدينة", c.city||"")||"";
+  const {error} = await sb.from("clients").update({name_ar,name_en,type,city}).eq("id",c.id);
+  if(error) return toast("تعذر الحفظ: "+error.message);
+  toast("تم تحديث بيانات العميل"); route();
+}
+async function deleteClient(id){
+  const c = window._client;
+  if(!confirm(`سيُحذف عميل "${c?.name_ar||""}" وكل أجهزته وزياراته وصوره نهائياً ولا يمكن التراجع عن هذا. متابعة؟`)) return;
+  if(prompt('للتأكيد النهائي، اكتب كلمة "حذف" بالضبط:') !== "حذف") return toast("أُلغيت العملية");
+  const {error} = await sb.from("clients").delete().eq("id",id);
+  if(error) return toast("تعذر الحذف: "+error.message);
+  toast("تم حذف العميل"); location.hash="#/";
+}
+
+/* ---------------------- تعديل/حذف الجهاز ---------------------- */
+async function editAsset(assetId){
+  const a = (window._assets||[]).find(x=>x.id===assetId); if(!a) return;
+  const name_ar = prompt("اسم الجهاز", a.name_ar); if(!name_ar) return;
+  const asset_no = prompt("رقم الأصل", a.asset_no) || a.asset_no;
+  const category = prompt("التصنيف: "+CATS.join(" / "), a.category) || a.category;
+  const brand = prompt("الماركة", a.brand||"") ?? (a.brand||"");
+  const model = prompt("الموديل", a.model||"") ?? (a.model||"");
+  const serial_no = prompt("الرقم التسلسلي", a.serial_no||"") ?? (a.serial_no||"");
+  const location_text = prompt("الموقع داخل المنشأة", a.location_text||"") ?? (a.location_text||"");
+  const {error} = await sb.from("assets").update({
+    name_ar, asset_no, category: CATS.includes(category)?category:a.category,
+    brand: brand||null, model: model||null, serial_no: serial_no||null, location_text: location_text||null
+  }).eq("id",assetId);
+  if(error) return toast("تعذر الحفظ: "+error.message);
+  toast("تم تحديث بيانات الجهاز"); route();
+}
+async function deleteAsset(assetId){
+  const a = (window._assets||[]).find(x=>x.id===assetId); if(!a) return;
+  if(!confirm(`سيُحذف الجهاز "${a.name_ar}" (${a.asset_no}) وكل سجل صياناته وصوره نهائياً. متابعة؟`)) return;
+  const {error} = await sb.from("assets").delete().eq("id",assetId);
+  if(error) return toast("تعذر الحذف: "+error.message);
+  toast("تم حذف الجهاز"); route();
+}
+
+/* ---------------------- حذف زيارة ---------------------- */
+async function deleteVisit(visitId){
+  if(!confirm("سيُحذف سجل هذه الزيارة (وأي تقرير صادر عنها وصوره) نهائياً ولا يمكن التراجع. متابعة؟")) return;
+  const {error} = await sb.from("visits").delete().eq("id",visitId);
+  if(error) return toast("تعذر الحذف: "+error.message);
+  toast("تم حذف الزيارة"); route();
+}
+
+/* ---------------------- طلب صيانة طارئة على جهاز محدَّد ---------------------- */
+async function requestEmergency(assetId){
+  const a = (window._assets||[]).find(x=>x.id===assetId); if(!a) return;
+  const {data:techs=[]} = await sb.from("profiles").select("id,full_name")
+    .eq("role","technician").eq("branch",me.branch).eq("active",true).order("full_name");
+  if(!techs.length) return toast("لا يوجد فنيون مفعّلون مسجَّلون بفرعك");
+  openSheet(`
+    <div class="spread"><h3>طلب صيانة طارئة</h3><button class="btn quiet sm" onclick="closeSheet()">إغلاق</button></div>
+    <p class="muted">الجهاز: <b>${esc(a.name_ar)}</b> (${esc(a.asset_no)})</p>
+    <label>الفني المكلَّف</label>
+    <select id="emgTech">${techs.map(t=>`<option value="${t.id}">${esc(t.full_name)}</option>`).join("")}</select>
+    <label>وصف الحالة / سبب الطلب (اختياري)</label>
+    <textarea id="emgNote" placeholder="مثال: صوت غريب من الجهاز منذ الصباح"></textarea>
+    <div style="height:16px"></div>
+    <button class="btn" style="width:100%" onclick="createEmergencyVisit('${assetId}')">إنشاء الطلب</button>
+  `);
+}
+async function createEmergencyVisit(assetId){
+  const a = (window._assets||[]).find(x=>x.id===assetId); if(!a) return;
+  const technician_id = $("#emgTech").value;
+  const general_notes = $("#emgNote").value.trim()||null;
+  const {error} = await sb.from("visits").insert({
+    client_id:a.client_id, technician_id, visit_type:"emergency",
+    target_asset_id:assetId, general_notes
+  });
+  if(error) return toast("تعذر إنشاء الطلب: "+error.message);
+  closeSheet(); toast("تم إرسال طلب الصيانة الطارئة للفني"); route();
 }
 
 /* ---------------------- استيراد Excel ---------------------- */
@@ -516,14 +623,20 @@ async function loadVisit(id){
 }
 
 async function visitPage(id){
-  const {v,assets,items} = await loadVisit(id);
+  const {v,assets:allAssets,items} = await loadVisit(id);
+  const isEmergency = v.visit_type==="emergency";
+  const assets = isEmergency ? allAssets.filter(a=>a.id===v.target_asset_id) : allAssets;
   window._v = v; window._assets = assets; window._items = items;
   const done = new Map(items.map(i=>[i.asset_id,i]));
   const pct = assets.length ? Math.round(done.size/assets.length*100) : 0;
   const readOnly = !(v.status==="draft"||v.status==="rejected") || me.role==="client";
 
   let body = `<div class="spread" style="margin-bottom:12px">${back("#/client/"+v.client_id)}
-    <span class="pill">${done.size} من ${assets.length}</span></div>`;
+    <span class="pill">${isEmergency?"⚡ طارئة":done.size+" من "+assets.length}</span></div>`;
+
+  if(isEmergency) body += `<div class="card" style="border-color:var(--parts)">
+    <h3 style="color:var(--parts)">⚡ طلب صيانة طارئة</h3>
+    ${v.general_notes?`<p>${esc(v.general_notes)}</p>`:`<p class="muted">لا يوجد وصف إضافي — افتح الجهاز أدناه وسجّل حالته.</p>`}</div>`;
 
   if(v.status==="rejected") body += `<div class="card" style="border-color:var(--down)">
     <h3 style="color:var(--down)">أُعيدت الزيارة للتعديل</h3><p>${esc(v.reject_reason||"")}</p></div>`;
@@ -555,9 +668,10 @@ async function visitPage(id){
     }).join("")}</div></div>`;
 
   const bar = readOnly ? "" :
-    `<button class="btn quiet" onclick="addAssetInVisit()">جهاز غير مسجّل</button>
-     <button class="btn" onclick="finishVisit()">إنهاء الزيارة</button>`;
-  shell("زيارة صيانة وقائية", body, bar);
+    (isEmergency ? `<button class="btn" onclick="finishVisit()">إنهاء الطلب</button>`
+      : `<button class="btn quiet" onclick="addAssetInVisit()">جهاز غير مسجّل</button>
+     <button class="btn" onclick="finishVisit()">إنهاء الزيارة</button>`);
+  shell(isEmergency?"صيانة طارئة":"زيارة صيانة وقائية", body, bar);
   window._client = v.clients;
 
   const pendingAsset = sessionStorage.getItem("openAssetAfterLoad");
@@ -897,8 +1011,8 @@ async function reportPage(id){
     <div class="rhead">
       <img src="${LOGO}" alt="AL-MOHTASEB">
       <div style="flex:1">
-        <h2 style="margin:0">تقرير زيارة صيانة وقائية</h2>
-        <div class="bi">Preventive Maintenance Visit Report</div>
+        <h2 style="margin:0">${v.visit_type==="emergency"?"تقرير صيانة طارئة":"تقرير زيارة صيانة وقائية"}</h2>
+        <div class="bi">${v.visit_type==="emergency"?"Emergency Maintenance Report":"Preventive Maintenance Visit Report"}</div>
         <div style="margin-top:6px;font-weight:600">${esc(v.clients.name_ar)}</div>
         <div class="bi">${esc(v.clients.name_en||"")}</div>
       </div>
