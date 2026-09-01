@@ -41,7 +41,7 @@ ppm-system/
 2. انسخ الـ UUID الظاهر، وشغّل في **SQL Editor**:
 ```sql
 insert into profiles (id, full_name, role, branch)
-values ('PASTE_UUID', 'اسم المشرف', 'supervisor', 'جدة');
+values ('PASTE_UUID', 'اسم المشرف', 'supervisor', 'المدينة المنورة');
 ```
 3. سجّل الدخول بهذا الحساب من `index.html`.
 

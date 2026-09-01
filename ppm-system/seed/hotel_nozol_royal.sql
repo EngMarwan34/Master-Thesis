@@ -5,7 +5,7 @@
 -- =====================================================================
 
 insert into clients (id, name_ar, name_en, type, branch, city)
-values ('e9c1a2b0-1111-4a2a-9b1a-000000000001', 'فندق نُزُل رويال', 'Hotel Nozol Royal', 'فندق', 'جدة', 'جدة')
+values ('e9c1a2b0-1111-4a2a-9b1a-000000000001', 'فندق نُزُل رويال', 'Hotel Nozol Royal', 'فندق', 'المدينة المنورة', 'المدينة المنورة')
 on conflict (id) do nothing;
 
 insert into assets (client_id, asset_no, name_ar, name_en, category, brand, model, serial_no, location_text) values

@@ -6,7 +6,7 @@
 
 -- ---------------- فندق مادن - الأساسي ----------------
 insert into clients (id, name_ar, name_en, type, branch, city)
-values ('e9c1a2b0-2222-4a2a-9b1a-000000000002', 'فندق مادن - الأساسي', 'Maadin Al-Asasi Hotel', 'فندق', 'جدة', null)
+values ('e9c1a2b0-2222-4a2a-9b1a-000000000002', 'فندق مادن - الأساسي', 'Maadin Al-Asasi Hotel', 'فندق', 'المدينة المنورة', 'المدينة المنورة')
 on conflict (id) do nothing;
 
 insert into assets (client_id, asset_no, name_ar, name_en, category, brand, model, serial_no, location_text) values
@@ -133,7 +133,7 @@ insert into assets (client_id, asset_no, name_ar, name_en, category, brand, mode
 
 -- ---------------- فندق مادن - الروضة ----------------
 insert into clients (id, name_ar, name_en, type, branch, city)
-values ('e9c1a2b0-3333-4a2a-9b1a-000000000003', 'فندق مادن - الروضة', 'Maadin Al-Rawdah Hotel', 'فندق', 'جدة', null)
+values ('e9c1a2b0-3333-4a2a-9b1a-000000000003', 'فندق مادن - الروضة', 'Maadin Al-Rawdah Hotel', 'فندق', 'المدينة المنورة', 'المدينة المنورة')
 on conflict (id) do nothing;
 
 insert into assets (client_id, asset_no, name_ar, name_en, category, brand, model, serial_no, location_text) values
@@ -270,7 +270,7 @@ insert into assets (client_id, asset_no, name_ar, name_en, category, brand, mode
 
 -- ---------------- فندق مادن - طيبة ----------------
 insert into clients (id, name_ar, name_en, type, branch, city)
-values ('e9c1a2b0-4444-4a2a-9b1a-000000000004', 'فندق مادن - طيبة', 'Maadin Taibah Hotel', 'فندق', 'جدة', null)
+values ('e9c1a2b0-4444-4a2a-9b1a-000000000004', 'فندق مادن - طيبة', 'Maadin Taibah Hotel', 'فندق', 'المدينة المنورة', 'المدينة المنورة')
 on conflict (id) do nothing;
 
 insert into assets (client_id, asset_no, name_ar, name_en, category, brand, model, serial_no, location_text) values
