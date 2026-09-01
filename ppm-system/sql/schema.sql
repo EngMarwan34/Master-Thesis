@@ -86,6 +86,8 @@ create table if not exists visits (
   recommendations text,
   reject_reason   text,
   report_no       text,
+  crm_ticket_no   text,             -- رقم التذكرة في نظام CRM المعتمد (يُدخل يدوياً)
+  quote_url       text,             -- رابط عرض السعر المُرفق للصيانة (صورة/PDF)
   approved_by     uuid references profiles(id),
   approved_at     timestamptz,
   created_at      timestamptz default now()
@@ -143,6 +145,20 @@ $$ language sql stable security definer;
 create or replace function is_staff() returns boolean as $$
   select coalesce(my_role() in ('supervisor','technician'), false);
 $$ language sql stable security definer;
+
+-- تحديث "الصورة المرجعية" لجهاز فقط (بدون فتح صلاحية تعديل بقية بيانات الجهاز
+-- للفني) — يستخدمها الفني أو المشرف لتأكيد هوية الجهاز عند الفحص الميداني
+create or replace function set_asset_base_photo(p_asset_id uuid, p_photo_url text) returns void as $$
+begin
+  if not (is_staff() and exists (
+    select 1 from assets a where a.id = p_asset_id and can_see_client(a.client_id)
+  )) then
+    raise exception 'not authorized';
+  end if;
+  update assets set base_photo_url = p_photo_url where id = p_asset_id;
+end; $$ language plpgsql security definer;
+
+grant execute on function set_asset_base_photo(uuid, text) to authenticated;
 
 -- العميل مرئي لي؟ (موظف في نفس الفرع، أو حساب العميل نفسه)
 create or replace function can_see_client(cid uuid) returns boolean as $$
