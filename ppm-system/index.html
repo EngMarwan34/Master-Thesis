@@ -676,7 +676,7 @@ async function visitPage(id){
   if(v.status==="rejected") body += `<div class="card" style="border-color:var(--down)">
     <h3 style="color:var(--down)">أُعيدت الزيارة للتعديل</h3><p>${esc(v.reject_reason||"")}</p></div>`;
 
-  const canEditCrm = me.role==="supervisor" || (me.role==="technician" && !readOnly);
+  const canEditCrm = me.role==="supervisor"; // الفني لا يتعامل مع تذكرة CRM ولا عرض السعر — هذا للمشرف فقط
   body += `<div class="card"><h3>${esc(v.clients.name_ar)}</h3>
     <p class="muted">زيارة ${fmt(v.visit_date)} · بدأت ${time(v.check_in)}</p>
     <div class="mosaic">${assets.map(a=>{const it=done.get(a.id);
@@ -985,14 +985,18 @@ async function reviewPage(id){
     </div>
     <label>التوصيات العامة</label><textarea id="rec">${esc(v.recommendations||"")}</textarea></div>`;
 
-  body += `<div class="card"><h3>البنود</h3><p class="muted">يمكنك تصحيح ملاحظة الفني (مثل الأخطاء الإملائية) قبل الاعتماد.</p>
+  body += `<div class="card"><div class="spread"><h3>البنود</h3>
+      <button class="btn ghost sm" id="aiFixBtn" onclick="aiFixReport('${id}')">✨ صحّح الكشف إملائياً بالذكاء الاصطناعي</button></div>
+    <p class="muted">تقدر تعدّل كتابة الفني كاملة (الملاحظات والقطع المطلوبة) قبل الاعتماد — يدوياً أو بزر التصحيح أعلاه، ثم راجعها قبل الحفظ.</p>
     <div class="list" style="margin-top:10px">
     ${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
+      const showParts = i.condition!=="سليم" || i.parts_needed_text;
       return `<div class="item" style="align-items:flex-start">
         <span class="edge" style="background:var(${s.v})"></span>
         <span class="body" style="width:100%"><span class="t">${esc(a.name_ar||"")}</span>
           <span class="s">${esc(a.asset_no||"")} · ${esc(i.condition)}</span>
-          ${i.parts_needed_text?`<div style="font-size:13px">القطع: ${esc(i.parts_needed_text)}</div>`:""}
+          ${showParts?`<label style="margin-top:8px">القطع المطلوبة</label>
+          <textarea id="parts_${i.id}" style="min-height:44px">${esc(i.parts_needed_text||"")}</textarea>`:""}
           <label style="margin-top:8px">ملاحظة الفني</label>
           <textarea id="note_${i.id}" style="min-height:56px">${esc(i.technician_notes||"")}</textarea>
           <div class="photos">${(i.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
@@ -1003,15 +1007,51 @@ async function reviewPage(id){
      <button class="btn" onclick="approveVisit('${id}')">اعتماد وإصدار التقرير</button>`);
 }
 
+/* ---------------------- تصحيح إملائي بالذكاء الاصطناعي ---------------------- */
+async function aiFixReport(visitId){
+  const btn = $("#aiFixBtn");
+  const fields = [];
+  const recTa = $("#rec");
+  if(recTa && recTa.value.trim()) fields.push({id:"rec", text:recTa.value});
+  for(const i of (window._items||[])){
+    const noteTa = $("#note_"+i.id);
+    if(noteTa && noteTa.value.trim()) fields.push({id:"note_"+i.id, text:noteTa.value});
+    const partsTa = $("#parts_"+i.id);
+    if(partsTa && partsTa.value.trim()) fields.push({id:"parts_"+i.id, text:partsTa.value});
+  }
+  if(!fields.length) return toast("لا يوجد نص لتصحيحه");
+  btn.disabled = true; const oldLabel = btn.textContent; btn.textContent = "جارٍ التصحيح…";
+  try{
+    const {data,error} = await sb.functions.invoke("fix-arabic-text",{body:{items:fields}});
+    if(error) throw error;
+    const byId = new Map((data?.items||[]).map(x=>[x.id,x.corrected]));
+    let changed = 0;
+    for(const f of fields){
+      const corrected = byId.get(f.id);
+      if(corrected==null) continue;
+      const el = $("#"+f.id);
+      if(el && corrected !== el.value){ el.value = corrected; changed++; }
+    }
+    toast(changed ? `تم تصحيح ${changed} حقلاً — راجعها قبل الاعتماد` : "لم يحتَج النص أي تصحيح");
+  }catch(e){
+    toast("تعذر التصحيح التلقائي: "+(e.message||"تحقق من نشر دالة fix-arabic-text"));
+  }finally{
+    btn.disabled = false; btn.textContent = oldLabel;
+  }
+}
+
 async function approveVisit(id){
   const rec = $("#rec")?.value||"";
-  // احفظ أي تصحيح كتبه المشرف على ملاحظات الفنيين قبل الاعتماد
+  // احفظ أي تصحيح كتبه المشرف (يدوياً أو بالذكاء الاصطناعي) على كتابة الفنيين قبل الاعتماد
   for(const i of (window._items||[])){
-    const ta = $("#note_"+i.id); if(!ta) continue;
-    const val = ta.value.trim()||null;
-    if(val !== (i.technician_notes||null)){
-      const {error:ne} = await sb.from("visit_items").update({technician_notes:val}).eq("id",i.id);
-      if(ne) return toast("تعذر حفظ تعديل الملاحظة: "+ne.message);
+    const patch = {};
+    const noteTa = $("#note_"+i.id);
+    if(noteTa){ const val = noteTa.value.trim()||null; if(val !== (i.technician_notes||null)) patch.technician_notes = val; }
+    const partsTa = $("#parts_"+i.id);
+    if(partsTa){ const val = partsTa.value.trim()||null; if(val !== (i.parts_needed_text||null)) patch.parts_needed_text = val; }
+    if(Object.keys(patch).length){
+      const {error:ne} = await sb.from("visit_items").update(patch).eq("id",i.id);
+      if(ne) return toast("تعذر حفظ التعديل: "+ne.message);
     }
   }
   const {error} = await sb.from("visits").update({status:"approved",approved_by:me.id,recommendations:rec}).eq("id",id);
