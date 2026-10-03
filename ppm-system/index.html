@@ -80,8 +80,10 @@ label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:12p
   border-radius:12px;padding:12px 13px;text-align:start;width:100%}
 .item .edge{width:5px;align-self:stretch;border-radius:99px;background:#CBD5E1;flex:none}
 .item .body{flex:1;min-width:0}
-.item .t{font-weight:600}
-.item .s{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .t{font-weight:600;display:block}
+.item .s{display:block;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .muted{font-size:12.5px}
+html,body{overflow-x:hidden}
 .thumb{width:48px;height:48px;border-radius:9px;object-fit:cover;background:var(--surface);flex:none}
 
 /* ---------- شاشة الحالة ---------- */
@@ -127,13 +129,13 @@ th{color:var(--muted);font-size:12px;font-weight:600}
 .rhead img{height:76px}
 .bi{font-size:12px;color:#444}
 .sum{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
-.sum div{border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:96px}
+.sum > div{border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:96px}
 .sum .n{font-family:"Zain";font-size:24px;font-weight:800;line-height:1.1}
 .rtable th{background:#F1F5F9;color:#000;font-size:11.5px}
 .rtable td{font-size:12px}
 .rtable img{width:74px;height:56px;object-fit:cover;border-radius:6px}
 .sign{display:flex;gap:40px;margin-top:34px}
-.sign div{flex:1;border-top:1px solid #000;padding-top:7px;font-size:12px}
+.sign > div{flex:1;border-top:1px solid #000;padding-top:7px;font-size:12px}
 @media print{
   @page{size:A4;margin:12mm}
   .noprint{display:none!important}
@@ -201,6 +203,23 @@ const esc = s => (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;
 const fmt = d => d ? "\u2066"+new Date(d).toLocaleDateString("en-GB",{year:"numeric",month:"2-digit",day:"2-digit"})+"\u2069" : "—";
 const time = d => d ? "\u2066"+new Date(d).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",hourCycle:"h23"})+"\u2069" : "—";
 
+/* بحث فوري داخل قوائم الأجهزة: يطابق الاسم بالعربي/الإنجليزي ورقم الأصل والموقع */
+const searchKey = a => [a.name_ar,a.name_en,a.asset_no,a.location_text,a.brand].filter(Boolean).join(" ").toLowerCase();
+function filterList(listId){
+  const q = ($("#q_"+listId)?.value||"").trim().toLowerCase();
+  const onlyTodo = $("#todo_"+listId)?.classList.contains("on");
+  let shown = 0;
+  document.querySelectorAll(`#${listId} > [data-q]`).forEach(el=>{
+    const ok = (!q || el.dataset.q.includes(q)) && (!onlyTodo || el.dataset.done!=="1");
+    el.style.display = ok ? "" : "none"; if(ok) shown++;
+  });
+  const c = $("#cnt_"+listId); if(c) c.textContent = shown;
+}
+const searchBox = (listId, todo=false) => `<div class="row" style="margin-top:10px;flex-wrap:nowrap">
+  <input id="q_${listId}" type="search" placeholder="${L("بحث بالاسم أو رقم الأصل أو الموقع","Search name, asset no., location")}" oninput="filterList('${listId}')">
+  ${todo?`<button class="btn quiet sm" id="todo_${listId}" style="white-space:nowrap" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'var(--brand-soft)':'';filterList('${listId}')">${T("غير المفحوص","Unchecked")}</button>`:""}
+  <span class="pill" id="cnt_${listId}"></span></div>`;
+
 function toast(msg,ms=2600){
   const t=document.createElement("div"); t.className="toast noprint"; t.textContent=msg;
   document.body.appendChild(t); setTimeout(()=>t.remove(),ms);
@@ -222,7 +241,8 @@ function cfg(){
   const {data} = await sb.auth.getSession();
   session = data.session;
   if(isRecovery && session) return resetPasswordScreen();
-  if(!session) return loginScreen();
+  const scanCode = (location.hash.match(/^#\/scan\/([^/?#]+)/)||[])[1];
+  if(!session) return scanCode ? publicRequestPage(decodeURIComponent(scanCode)) : loginScreen();
   const {data:p} = await sb.from("profiles").select("*").eq("id",session.user.id).single();
   if(!p){ await sb.auth.signOut(); return loginScreen(L("لا يوجد ملف صلاحيات لهذا الحساب. راجع مشرف النظام.","This account has no profile. Contact your supervisor.")); }
   me = p;
@@ -340,7 +360,7 @@ async function scanPage(code){
   code = decodeURIComponent(code||"");
   const {data:a} = await sb.from("assets").select("*").eq("qr_code",code).maybeSingle();
   if(!a){ toast(L("هذا الرمز غير معروف أو لا يخص فرعك","Unknown code or not in your branch")); return location.hash="#/"; }
-  if(me.role==="client"){ return location.hash="#/client/"+a.client_id; }
+  if(me.role==="client") return publicRequestPage(code);
 
   // فني/مشرف: افتح زيارة اليوم المفتوحة لهذا العميل أو ابدأ واحدة، ثم افتح بطاقة الجهاز مباشرة
   const today = new Date().toISOString().slice(0,10);
@@ -353,7 +373,81 @@ async function scanPage(code){
     v = nv;
   }
   sessionStorage.setItem("openAssetAfterLoad", a.id);
+  sessionStorage.setItem("openAssetScanned", "1");   // فُتح بمسح الملصق فعلاً (إثبات حضور)
   location.hash = "#/visit/"+v.id;
+}
+
+/* ---------------------- طلب صيانة من العميل (مسح الملصق بلا حساب) ---------------------- */
+async function publicRequestPage(code){
+  const {data:rows,error} = await sb.rpc("public_asset_info",{p_code:code});
+  const a = (rows||[])[0];
+  const head = `<img src="${LOGO}" alt="AL-MOHTASEB" style="width:110px;display:block;margin:0 auto 14px">`;
+  if(error || !a){
+    app.innerHTML = `<div class="center">${head}<div class="card" style="text-align:center">
+      <h3>${T("لم يُعثر على هذا الجهاز","Equipment not found")}</h3>
+      <p class="muted">${T("للمساعدة اتصل بنا","For help, call us")}</p>
+      <a href="tel:${SUPPORT_PHONE}" style="font-size:22px;font-weight:700;direction:ltr;display:block">☎ ${SUPPORT_PHONE}</a></div></div>`;
+    return;
+  }
+  window._reqCode = code; window._reqPhoto = null;
+  app.innerHTML = `<div class="center" style="max-width:520px">${head}
+    <div class="card">
+      <h2>${T("طلب صيانة","Maintenance request")}</h2>
+      <div style="margin-top:10px;padding:10px 12px;background:var(--brand-soft);border-radius:10px">
+        <b>${esc(a.name_ar)}</b>${a.name_en&&a.name_en!==a.name_ar?`<span class="en">${esc(a.name_en)}</span>`:""}
+        <div class="muted" style="direction:ltr;text-align:end">${esc(a.asset_no)}${a.location_text?" · "+esc(a.location_text):""}</div>
+        <div class="muted">${esc(a.client_name_ar||"")}</div>
+      </div>
+      <label>${T("وصف المشكلة *","Describe the problem *")}</label>
+      <textarea id="rqDesc" maxlength="1500" placeholder="${L("مثال: الثلاجة لا تبرد منذ الصباح","e.g. not cooling since this morning")}"></textarea>
+      <label>${T("صورة (اختياري)","Photo (optional)")}</label>
+      <div class="photos" id="rqPhotoBox"><button class="addphoto" onclick="pickRequestPhoto()">${T("+ صورة","+ Photo")}</button></div>
+      <div class="grid2">
+        <div><label>${T("الاسم","Name")}</label><input id="rqName" maxlength="120" value="${esc(me?.full_name||"")}"></div>
+        <div><label>${T("رقم الجوال","Mobile")}</label><input id="rqPhone" type="tel" maxlength="30" style="direction:ltr" value="${esc(me?.phone||"")}"></div>
+      </div>
+      <div style="height:16px"></div>
+      <button class="btn" id="rqSend" style="width:100%" onclick="sendRequest()">${T("إرسال الطلب","Send request")}</button>
+      <p class="muted" style="text-align:center;margin:14px 0 0">${T("أو اتصل بنا مباشرة","Or call us directly")}
+        <a href="tel:${SUPPORT_PHONE}" style="display:block;font-size:20px;font-weight:700;direction:ltr">☎ ${SUPPORT_PHONE}</a></p>
+    </div>
+    ${me?`<p style="text-align:center"><a href="#/">${L("الرئيسية","Home")}</a></p>`
+       :`<p style="text-align:center"><a href="#" onclick="loginScreen();return false">${L("دخول الموظفين","Staff sign in")}</a></p>`}
+  </div>`;
+}
+function pickRequestPhoto(){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*"; inp.capture="environment";
+  inp.onchange=async()=>{
+    const f=inp.files[0]; if(!f) return;
+    toast(L("جارٍ رفع الصورة…","Uploading photo…"));
+    try{
+      const blob = await compress(f);
+      const path = `requests/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+      const {error} = await sb.storage.from("visit-photos").upload(path,blob,{contentType:"image/jpeg"});
+      if(error) throw error;
+      window._reqPhoto = sb.storage.from("visit-photos").getPublicUrl(path).data.publicUrl;
+      $("#rqPhotoBox").innerHTML = `<img src="${window._reqPhoto}"><button class="addphoto" onclick="pickRequestPhoto()">${T("تغيير","Change")}</button>`;
+    }catch(e){ toast(L("تعذر رفع الصورة","Photo upload failed")+": "+(e.message||"")); }
+  };
+  inp.click();
+}
+async function sendRequest(){
+  const desc = $("#rqDesc").value.trim();
+  if(desc.length<3) return toast(L("اكتب وصف المشكلة","Please describe the problem"));
+  const btn = $("#rqSend"); btn.disabled = true;
+  const {error} = await sb.rpc("submit_service_request",{p_code:window._reqCode, p_name:$("#rqName").value,
+    p_phone:$("#rqPhone").value, p_description:desc, p_photo_url:window._reqPhoto});
+  if(error){
+    btn.disabled = false;
+    return toast(/too_many/.test(error.message)
+      ? L("وصلتنا طلبات كثيرة لهذا الجهاز مؤخراً — اتصل بنا مباشرة","Too many recent requests for this equipment — please call us")
+      : L("تعذر إرسال الطلب","Could not send request")+": "+error.message, 4500);
+  }
+  app.querySelector(".card").innerHTML = `<div style="text-align:center;padding:10px 0">
+    <div style="font-size:46px;color:var(--ok)">✓</div>
+    <h2>${T("تم استلام طلبك","Request received")}</h2>
+    <p class="muted">${T("سيتواصل معك فريق الصيانة قريباً.","Our maintenance team will contact you soon.")}</p>
+    <a href="tel:${SUPPORT_PHONE}" style="font-size:20px;font-weight:700;direction:ltr;display:block">☎ ${SUPPORT_PHONE}</a></div>`;
 }
 
 /* ---------------------- الرئيسية ---------------------- */
@@ -385,10 +479,36 @@ async function homePage(){
       .in("condition",["يحتاج قطع غيار","يحتاج صيانة","متوقف عن العمل"])
       .in("visits.status",["submitted","approved"]).order("id",{ascending:false}).limit(60);
 
-    body += `<div class="kpi">
+    const {data:reqs=[]} = await sb.from("service_requests")
+      .select("*,assets(name_ar,name_en,asset_no,location_text),clients(name_ar)")
+      .in("status",["new","assigned"]).order("created_at",{ascending:false}).limit(50);
+    window._reqs = reqs || [];
+    const newReqs = window._reqs.filter(r=>r.status==="new").length;
+
+    body += `<div class="kpi" style="grid-template-columns:repeat(3,1fr)">
+      <div class="b" style="${newReqs?"border-color:var(--down)":""}"><div class="n" style="${newReqs?"color:var(--down)":""}">${newReqs}</div><div class="muted">${T("طلب صيانة جديد","New requests")}</div></div>
       <div class="b"><div class="n">${pending.length}</div><div class="muted">${T("زيارة بانتظار اعتمادك","Visits awaiting approval")}</div></div>
       <div class="b"><div class="n">${parts.length}</div><div class="muted">${T("جهاز يحتاج تدخّلاً","Equipment needing action")}</div></div>
     </div><div style="height:14px"></div>`;
+
+    body += `<div class="card"><h3>${T("طلبات صيانة من العملاء","Client maintenance requests")}</h3>
+      ${window._reqs.length?`<div class="list" style="margin-top:10px">${window._reqs.map(r=>`
+        <div class="item" style="align-items:flex-start">
+          <span class="edge" style="background:var(${r.status==="new"?"--down":"--maint"})"></span>
+          ${r.photo_url?`<a href="${r.photo_url}" target="_blank" rel="noopener"><img class="thumb" src="${r.photo_url}"></a>`:""}
+          <span class="body"><span class="t">${esc(r.clients?.name_ar||"")} — ${esc(r.assets?.name_ar||"")}</span>
+            <span class="s">${esc(r.assets?.asset_no||"")}${r.assets?.location_text?" · "+esc(r.assets.location_text):""} · ${fmt(r.created_at)} ${time(r.created_at)}</span>
+            <div style="margin:4px 0">${esc(r.description)}</div>
+            <span class="s">${esc(r.requester_name||L("بدون اسم","No name"))}${r.requester_phone?` · <a href="tel:${esc(r.requester_phone)}" style="direction:ltr">${esc(r.requester_phone)}</a>`:""}</span>
+            <div class="row" style="margin-top:8px">
+              ${r.status==="new"?`<span class="pill" style="background:#FDE8EC;color:var(--down)">${L("جديد","New")}</span>
+                <button class="btn sm" onclick="assignRequest('${r.id}')">⚡ ${T("تكليف فني","Assign technician")}</button>`
+               :`<span class="pill">${L("مُكلَّف","Assigned")}</span>
+                ${r.visit_id?`<button class="btn quiet sm" onclick="location.hash='#/visit/${r.visit_id}'">${T("فتح الزيارة","Open visit")}</button>`:""}`}
+              <button class="btn quiet sm" onclick="closeRequest('${r.id}')">✓ ${T("إغلاق","Close")}</button>
+              <button class="btn quiet sm" style="color:var(--down)" onclick="deleteRequest('${r.id}')" title="${L("حذف","Delete")}">🗑</button>
+            </div></span></div>`).join("")}</div>`
+        : `<p class="empty">${T("لا توجد طلبات مفتوحة.","No open requests.")}</p>`}</div>`;
 
     body += `<div class="card"><h3>${T("زيارات بانتظار الاعتماد","Visits awaiting approval")}</h3>
       ${pending.length?`<div class="list" style="margin-top:10px">${pending.map(v=>`
@@ -427,7 +547,17 @@ async function homePage(){
 
 async function clientHome(){
   const {data:visits=[]} = await sb.from("visits").select("*").eq("status","approved").order("visit_date",{ascending:false});
-  const body = `<div class="card"><h3>${T("تقارير الصيانة","Maintenance reports")}</h3>
+  const {data:reqs=[]} = await sb.from("service_requests").select("*,assets(name_ar,asset_no)")
+    .order("created_at",{ascending:false}).limit(20);
+  const rst = {new:[L("مستلم","Received"),"--down"],assigned:[L("جارٍ العمل عليه","In progress"),"--maint"],closed:[L("مُنجز","Done"),"--ok"]};
+  const body = `<div class="card"><h3>${T("طلبات الصيانة","Maintenance requests")}</h3>
+    <p class="muted">${T("لطلب صيانة جديد امسح الملصق الموجود على الجهاز.","To request maintenance, scan the label on the equipment.")}</p>
+    ${(reqs||[]).length?`<div class="list" style="margin-top:10px">${reqs.map(r=>`
+      <div class="item"><span class="edge" style="background:var(${rst[r.status][1]})"></span>
+        <span class="body"><span class="t">${esc(r.assets?.name_ar||"")}</span>
+        <span class="s">${fmt(r.created_at)} · ${esc(r.description)}</span></span>
+        <span class="pill">${rst[r.status][0]}</span></div>`).join("")}</div>`:""}</div>
+  <div class="card"><h3>${T("تقارير الصيانة","Maintenance reports")}</h3>
     ${visits.length?`<div class="list" style="margin-top:10px">${visits.map(v=>`
       <button class="item" onclick="location.hash='#/report/${v.id}'">
         <span class="edge" style="background:var(--ok)"></span>
@@ -485,8 +615,9 @@ async function clientPage(id){
 
   body += `<div class="card"><div class="spread"><h3>${T("الأجهزة","Equipment")}</h3>
       ${staff?`<button class="btn quiet sm" onclick="addAsset()">${T("إضافة جهاز","Add equipment")}</button>`:""}</div>
-    ${assets.length?`<div class="list" style="margin-top:10px">${assets.map(a=>`
-      <div class="item"><span class="edge" style="background:var(--brand)"></span>
+    ${assets.length>6?searchBox("clist"):""}
+    ${assets.length?`<div class="list" id="clist" style="margin-top:10px">${assets.map(a=>`
+      <div class="item" data-q="${esc(searchKey(a))}"><span class="edge" style="background:var(--brand)"></span>
         ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}" alt="">`:""}
         <span class="body"><span class="t">${assetName(a)}</span>
         <span class="s">${esc(a.asset_no)} · ${L(esc(a.category),CAT_EN[a.category]||"")} ${a.brand?"· "+esc(a.brand):""} ${a.location_text?"· "+esc(a.location_text):""}</span></span>
@@ -576,11 +707,12 @@ async function deleteAsset(assetId){
 }
 
 /* ---------------------- حذف زيارة ---------------------- */
-async function deleteVisit(visitId){
+async function deleteVisit(visitId, backToClient){
   if(!confirm("سيُحذف سجل هذه الزيارة (وأي تقرير صادر عنها وصوره) نهائياً ولا يمكن التراجع. متابعة؟\n\nThis visit (and its report and photos) will be permanently deleted. Continue?")) return;
   const {error} = await sb.from("visits").delete().eq("id",visitId);
   if(error) return toast(L("تعذر الحذف","Delete failed")+": "+error.message);
-  toast(L("تم حذف الزيارة","Visit deleted")); route();
+  toast(L("تم حذف الزيارة","Visit deleted"));
+  if(backToClient) location.hash = "#/client/"+backToClient; else route();
 }
 
 /* ---------------------- طلب صيانة طارئة على جهاز محدَّد ---------------------- */
@@ -610,6 +742,48 @@ async function createEmergencyVisit(assetId){
   });
   if(error) return toast(L("تعذر إنشاء الطلب","Could not create request")+": "+error.message);
   closeSheet(); toast(L("تم إرسال طلب الصيانة الطارئة للفني","Emergency request sent to technician")); route();
+}
+
+/* ---------------------- إدارة طلبات العملاء (المشرف) ---------------------- */
+async function assignRequest(reqId){
+  const r = (window._reqs||[]).find(x=>x.id===reqId); if(!r) return;
+  const {data:techs=[]} = await sb.from("profiles").select("id,full_name")
+    .eq("role","technician").eq("branch",me.branch).eq("active",true).order("full_name");
+  if(!techs.length) return toast(L("لا يوجد فنيون مفعّلون مسجَّلون بفرعك","No active technicians in your branch"));
+  const note = `${L("طلب من العميل","Client request")}: ${r.description}`
+    + (r.requester_name||r.requester_phone ? `\n${r.requester_name||""} ${r.requester_phone||""}`.trimEnd() : "");
+  openSheet(`
+    <div class="spread"><h3>${T("تكليف فني بالطلب","Assign technician")}</h3><button class="btn quiet sm" onclick="closeSheet()">${T("إغلاق","Close")}</button></div>
+    <p class="muted">${esc(r.clients?.name_ar||"")} — <b>${esc(r.assets?.name_ar||"")}</b> (${esc(r.assets?.asset_no||"")})</p>
+    <label>${T("الفني المكلَّف","Assigned technician")}</label>
+    <select id="rqTech">${techs.map(t=>`<option value="${t.id}">${esc(t.full_name)}</option>`).join("")}</select>
+    <label>${T("وصف الحالة للفني","Description for technician")}</label>
+    <textarea id="rqNote">${esc(note)}</textarea>
+    <div style="height:16px"></div>
+    <button class="btn" style="width:100%" onclick="doAssignRequest('${reqId}')">${T("إنشاء طلب صيانة طارئة","Create emergency job")}</button>`);
+}
+async function doAssignRequest(reqId){
+  const r = (window._reqs||[]).find(x=>x.id===reqId); if(!r) return;
+  const {data:v,error} = await sb.from("visits").insert({
+    client_id:r.client_id, technician_id:$("#rqTech").value, visit_type:"emergency",
+    target_asset_id:r.asset_id, general_notes:$("#rqNote").value.trim()||null
+  }).select().single();
+  if(error) return toast(L("تعذر إنشاء الطلب","Could not create job")+": "+error.message);
+  const {error:e2} = await sb.from("service_requests").update({status:"assigned",visit_id:v.id}).eq("id",reqId);
+  if(e2) return toast(L("تعذر الحفظ","Save failed")+": "+e2.message);
+  closeSheet(); toast(L("تم تكليف الفني","Technician assigned")); route();
+}
+async function closeRequest(reqId){
+  if(!confirm(L("إغلاق هذا الطلب؟","Close this request?"))) return;
+  const {error} = await sb.from("service_requests").update({status:"closed"}).eq("id",reqId);
+  if(error) return toast(L("تعذر الحفظ","Save failed")+": "+error.message);
+  toast(L("أُغلق الطلب","Request closed")); route();
+}
+async function deleteRequest(reqId){
+  if(!confirm(L("حذف هذا الطلب نهائياً؟","Delete this request permanently?"))) return;
+  const {error} = await sb.from("service_requests").delete().eq("id",reqId);
+  if(error) return toast(L("تعذر الحذف","Delete failed")+": "+error.message);
+  toast(L("حُذف الطلب","Request deleted")); route();
 }
 
 /* ---------------------- استيراد Excel ---------------------- */
@@ -707,6 +881,8 @@ async function loadVisit(id){
   const {data:v} = await sb.from("visits").select("*,clients(*)").eq("id",id).single();
   const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",v.client_id).eq("active",true).order("asset_no");
   const {data:items=[]} = await sb.from("visit_items").select("*,photos(*)").eq("visit_id",id);
+  const order = new Map((assets||[]).map((a,i)=>[a.id,i]));
+  (items||[]).sort((x,y)=>(order.get(x.asset_id)??1e9)-(order.get(y.asset_id)??1e9));
   return {v,assets,items};
 }
 
@@ -749,14 +925,17 @@ async function visitPage(id){
         onkeydown="if(event.key==='Enter')manualOpen()">
       <button class="btn quiet sm" onclick="manualOpen()">${T("فتح","Open")}</button></div></div>`;
 
-  body += `<div class="card"><h3>${T("الأجهزة","Equipment")}</h3><div class="list" style="margin-top:10px">
+  body += `<div class="card"><h3>${T("الأجهزة","Equipment")}</h3>
+    ${assets.length>6?searchBox("vlist",true):""}
+    <div class="list" id="vlist" style="margin-top:10px">
     ${assets.map(a=>{ const it=done.get(a.id); const s=it?stateOf(it.condition):null;
-      return `<button class="item" onclick="openAsset('${a.id}')">
+      return `<button class="item" data-q="${esc(searchKey(a))}" data-done="${it?1:0}" onclick="openAsset('${a.id}')">
         <span class="edge" style="background:${s?`var(${s.v})`:"#CBD5E1"}"></span>
         ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}">`:""}
         <span class="body"><span class="t">${assetName(a)}</span>
         <span class="s">${esc(a.asset_no)} ${a.location_text?"· "+esc(a.location_text):""}</span></span>
-        <span style="font-size:12.5px;color:var(--muted);text-align:end">${it?T(esc(it.condition),condEn(it.condition)):T("لم يُفحص","Not checked")}</span></button>`;
+        <span style="font-size:12.5px;color:var(--muted);text-align:end">${it?T(esc(it.condition),condEn(it.condition)):T("لم يُفحص","Not checked")}
+          ${it?.scanned?`<span style="display:block;color:var(--ok);font-weight:700;direction:ltr">✓ QR</span>`:""}</span></button>`;
     }).join("")}</div></div>`;
 
   const bar = readOnly ? "" :
@@ -767,9 +946,11 @@ async function visitPage(id){
   window._client = v.clients;
 
   const pendingAsset = sessionStorage.getItem("openAssetAfterLoad");
+  const viaScan = sessionStorage.getItem("openAssetScanned")==="1";
+  sessionStorage.removeItem("openAssetScanned");
   if(pendingAsset){
     sessionStorage.removeItem("openAssetAfterLoad");
-    if(assets.some(x=>x.id===pendingAsset)) openAsset(pendingAsset);
+    if(assets.some(x=>x.id===pendingAsset)) openAsset(pendingAsset, viaScan);
   }
 }
 
@@ -781,7 +962,7 @@ async function toggleScan(){
       const code = codeFrom(txt);
       const a = window._assets.find(x=>x.qr_code===code);
       scanner.stop().then(()=>{scanner=null;});
-      if(a) openAsset(a.id); else toast(L("هذا الملصق لا يخص أجهزة هذا العميل","This label is not for this client's equipment"));
+      if(a) openAsset(a.id, true); else toast(L("هذا الملصق لا يخص أجهزة هذا العميل","This label is not for this client's equipment"));
     }, ()=>{});
   }catch(e){ scanner=null; toast(L("تعذر فتح الكاميرا. اختر الجهاز من القائمة.","Camera unavailable. Pick the equipment from the list.")); }
 }
@@ -806,6 +987,7 @@ function editCrmInfo(){
     <div class="row" id="crmQuoteRow" style="align-items:center">
       ${v.quote_url?`<a href="${v.quote_url}" target="_blank" rel="noopener" class="pill">${L("الملف الحالي","Current file")} ↗</a>`:`<span class="muted">${T("لا يوجد ملف مرفق","No file attached")}</span>`}
       <button class="btn quiet sm" onclick="pickQuoteFile()">${v.quote_url?T("استبدال الملف","Replace file"):T("إرفاق ملف","Attach file")}</button>
+      ${v.quote_url?`<button class="btn quiet sm" style="color:var(--down)" onclick="window._crmDraft.quote_url=null;$('#crmQuoteRow').innerHTML='<span class=muted>${L("سيُحذف الملف عند الحفظ","File will be removed on save")}</span>'">🗑 ${T("حذف الملف","Remove file")}</button>`:""}
     </div>
     <div style="height:16px"></div>
     <button class="btn" style="width:100%" onclick="saveCrmInfo()">${T("حفظ","Save")}</button>
@@ -849,7 +1031,8 @@ function openSheet(html){
 }
 function closeSheet(){ $("#sheetEl")?.remove(); }
 
-async function openAsset(assetId){
+// scanned=true فقط عند فتح الجهاز بمسح ملصقه (كاميرا التطبيق أو كاميرا الجوال) — وليس من القائمة أو الإدخال اليدوي
+async function openAsset(assetId, scanned=false){
   const a = window._assets.find(x=>x.id===assetId);
   const item = window._items.find(i=>i.asset_id===assetId);
   const readOnly = !(window._v.status==="draft"||window._v.status==="rejected");
@@ -858,24 +1041,33 @@ async function openAsset(assetId){
   const {data:hist=[]} = await sb.from("visit_items")
     .select("condition,technician_notes,parts_needed_text,photos(url,type),visits!inner(visit_date,status,id)")
     .eq("asset_id",assetId).neq("visit_id",window._v.id)
-    .order("id",{ascending:false}).limit(10);
+    .order("created_at",{ascending:false}).limit(10);
+  // طلبات العميل المفتوحة على هذا الجهاز — يراها الفني قبل الفحص
+  const {data:openReqs=[]} = await sb.from("service_requests").select("description,created_at,photo_url")
+    .eq("asset_id",assetId).neq("status","closed").order("created_at",{ascending:false}).limit(5);
   const repeated = item ? false : hist.some(h=>h.condition!=="سليم" && h.condition!=="غير متاح للفحص");
 
   window._draft = { assetId, condition:item?.condition||null, itemId:item?.id||null,
+    scanned: !!(item?.scanned || scanned), scanned_at: item?.scanned_at || (scanned ? new Date().toISOString() : null),
     notes:item?.technician_notes||"", parts:item?.parts_needed_text||"",
     photos:(item?.photos||[]).map(p=>({url:p.url,type:p.type})) };
 
   openSheet(`
-    <div class="spread"><h3>${assetName(a)}</h3><button class="btn quiet sm" onclick="closeSheet()">${T("إغلاق","Close")}</button></div>
+    <div class="spread"><h3>${assetName(a)} ${window._draft.scanned?`<span class="pill" style="background:#E3F4EF;color:var(--ok)">✓ QR</span>`:""}</h3><button class="btn quiet sm" onclick="closeSheet()">${T("إغلاق","Close")}</button></div>
     <div style="text-align:center;margin:6px 0 10px">
       ${a.base_photo_url?`<img src="${a.base_photo_url}" alt="${L("الصورة المرجعية","Reference photo")}" style="max-width:200px;max-height:200px;border-radius:10px;border:1px solid var(--line);object-fit:cover">`
         :`<p class="muted" style="margin:0 0 6px">${T("لا توجد صورة مرجعية لهذا الجهاز بعد — أضِفها للتأكد من هوية الجهاز عند كل زيارة.","No reference photo yet — add one to identify this equipment on every visit.")}</p>`}
       <div style="margin-top:6px">
         <button class="btn quiet sm" onclick="uploadAssetPhoto('${a.id}')">${a.base_photo_url?T("تغيير الصورة المرجعية","Change reference photo"):T("إضافة صورة مرجعية","Add reference photo")}</button>
+        ${a.base_photo_url&&me.role==="supervisor"?`<button class="btn quiet sm" style="color:var(--down)" onclick="removeAssetPhoto('${a.id}')">🗑 ${T("حذف الصورة","Delete photo")}</button>`:""}
       </div>
     </div>
     <p class="muted">${esc(a.asset_no)} · ${L(esc(a.category),CAT_EN[a.category]||"")} ${a.brand?"· "+esc(a.brand):""} ${a.model?"· "+esc(a.model):""}
       ${a.serial_no?"<br>"+L("الرقم التسلسلي","Serial No.")+": "+esc(a.serial_no):""} ${a.location_text?"<br>"+L("الموقع","Location")+": "+esc(a.location_text):""}</p>
+    ${(openReqs||[]).length?`<div class="card" style="background:#FDE8EC;border-color:var(--down);padding:11px">
+      <b style="color:var(--down)">${L("بلاغ من العميل","Client report")}:</b>
+      ${openReqs.map(r=>`<div style="margin-top:4px">${esc(r.description)} <span class="muted">${fmt(r.created_at)}</span>
+        ${r.photo_url?`<div class="photos"><img src="${r.photo_url}"></div>`:""}</div>`).join("")}</div>`:""}
     ${repeated?`<div class="card" style="background:#FEF6E7;border-color:var(--maint);padding:11px">
       <b style="color:var(--maint)">${L("تنبيه","Warning")}:</b> ${T("سُجّلت ملاحظات على هذا الجهاز في زيارة سابقة.","Issues were recorded on this equipment in a previous visit.")}</div>`:""}
     ${hist.length?`<details open style="margin:10px 0"><summary style="cursor:pointer;font-weight:600">${L("سجل الصيانات السابقة","Maintenance history")} (${hist.length})</summary>
@@ -920,6 +1112,15 @@ function uploadAssetPhoto(assetId){
     }catch(e){ toast(L("تعذر رفع الصورة","Photo upload failed")+": "+(e.message||"")); }
   };
   inp.click();
+}
+
+async function removeAssetPhoto(assetId){
+  if(!confirm(L("حذف الصورة المرجعية لهذا الجهاز؟","Delete this equipment's reference photo?"))) return;
+  const {error} = await sb.from("assets").update({base_photo_url:null}).eq("id",assetId);
+  if(error) return toast(L("تعذر الحذف","Delete failed")+": "+error.message);
+  (window._assets||[]).forEach(a=>{ if(a.id===assetId) a.base_photo_url = null; });
+  toast(L("حُذفت الصورة المرجعية","Reference photo deleted"));
+  if(window._draft && window._draft.assetId===assetId){ keepText(); const sc=window._draft.scanned; closeSheet(); openAsset(assetId, sc); } else route();
 }
 
 function pickState(k){
@@ -992,7 +1193,9 @@ function compress(file){
   });
 }
 
+let savingItem = false;
 async function saveItem(){
+  if(savingItem) return;   // منع الحفظ المزدوج عند الضغط مرتين
   keepText();
   const d = window._draft;
   if(!d.condition) return toast(L("اختر حالة الجهاز","Choose the equipment condition"));
@@ -1002,7 +1205,12 @@ async function saveItem(){
     if(!d.parts.trim()) return toast(L("اكتب القطع المطلوبة أو وصف العطل","Write the parts needed or the fault"));
   }
   const payload = {visit_id:window._v.id, asset_id:d.assetId, condition:d.condition,
-    technician_notes:d.notes.trim()||null, parts_needed_text:d.condition==="سليم"?null:d.parts.trim()};
+    technician_notes:d.notes.trim()||null, parts_needed_text:d.condition==="سليم"?null:d.parts.trim(),
+    scanned:d.scanned, scanned_at:d.scanned_at};
+  savingItem = true;
+  try{ await persistItem(d, payload); } finally { savingItem = false; }
+}
+async function persistItem(d, payload){
   let itemId = d.itemId;
   if(itemId){
     const {error} = await sb.from("visit_items").update(payload).eq("id",itemId);
@@ -1038,7 +1246,8 @@ async function reviewPage(id){
   window._v = v; window._items = items;
   const map = new Map(assets.map(a=>[a.id,a]));
   let body = `<div class="spread" style="margin-bottom:12px">${back("#/")}
-    <span class="pill">${items.length} ${L("جهازاً","items")}</span></div>
+    <div class="row"><span class="pill">${items.length} ${L("جهازاً","items")}</span>
+      <span class="pill" style="background:#E3F4EF;color:var(--ok)" title="${L("فُحص بمسح الملصق في الموقع","Inspected by scanning the label on site")}">✓ QR ${items.filter(i=>i.scanned).length}/${items.length}</span></div></div>
   <div class="card"><h3>${esc(v.clients.name_ar)}</h3>
     <p class="muted">${L("زيارة","Visit")} ${fmt(v.visit_date)} · ${time(v.check_in)} — ${time(v.check_out)}</p>
     <div class="row" style="margin:8px 0;flex-wrap:wrap">
@@ -1054,20 +1263,44 @@ async function reviewPage(id){
     <div class="list" style="margin-top:10px">
     ${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
       const showParts = i.condition!=="سليم" || i.parts_needed_text;
-      return `<div class="item" style="align-items:flex-start">
+      const clr = f => `<button class="btn quiet sm" style="padding:2px 8px;margin-inline-start:6px" onclick="$('#${f}_${i.id}').value=''" title="${L("حذف النص","Clear text")}">🗑</button>`;
+      return `<div class="item" id="ri_${i.id}" style="align-items:flex-start">
         <span class="edge" style="background:var(${s.v})"></span>
-        <span class="body" style="width:100%"><span class="t">${assetName(a)}</span>
-          <span class="s">${esc(a.asset_no||"")} · ${L(esc(i.condition),condEn(i.condition))}</span>
-          ${showParts?`<label style="margin-top:8px">${T("القطع المطلوبة","Spare parts needed")}</label>
+        <span class="body" style="width:100%">
+          <div class="spread"><span class="t">${assetName(a)}</span>
+            <button class="btn quiet sm" style="color:var(--down)" onclick="deleteVisitItem('${i.id}')">🗑 ${T("حذف البند","Delete item")}</button></div>
+          <span class="s">${esc(a.asset_no||"")} · ${L(esc(i.condition),condEn(i.condition))}
+            ${i.scanned?` · <b style="color:var(--ok)">✓ QR ${time(i.scanned_at)}</b>`:` · ${L("بدون مسح","Not scanned")}`}</span>
+          ${showParts?`<label style="margin-top:8px">${T("القطع المطلوبة","Spare parts needed")}${clr("parts")}</label>
           <textarea id="parts_${i.id}" style="min-height:44px">${esc(i.parts_needed_text||"")}</textarea>`:""}
-          <label style="margin-top:8px">${T("ملاحظة الفني","Technician notes")}</label>
+          <label style="margin-top:8px">${T("ملاحظة الفني","Technician notes")}${clr("note")}</label>
           <textarea id="note_${i.id}" style="min-height:56px">${esc(i.technician_notes||"")}</textarea>
-          <div class="photos">${(i.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
+          <div class="photos">${(i.photos||[]).map(p=>`<span id="ph_${p.id}" style="position:relative;display:inline-block">
+            <a href="${p.url}" target="_blank" rel="noopener"><img src="${p.url}"></a>
+            <button onclick="deletePhoto('${p.id}')" title="${L("حذف الصورة","Delete photo")}"
+              style="position:absolute;top:-6px;inset-inline-end:-6px;width:24px;height:24px;border-radius:50%;border:0;background:var(--down);color:#fff;font-size:13px;line-height:1">×</button></span>`).join("")}</div>
         </span></div>`;}).join("")}</div></div>`;
 
   shell(T("مراجعة الزيارة","Visit review"), body,
     `<button class="btn quiet" onclick="rejectVisit('${id}')">${T("إعادة للفني","Return to technician")}</button>
      <button class="btn" onclick="approveVisit('${id}')">${T("اعتماد وإصدار التقرير","Approve & issue report")}</button>`);
+}
+
+/* حذف فوري لبند أو صورة من شاشة المراجعة — بدون إعادة تحميل الصفحة حتى لا تضيع تعديلات النصوص */
+async function deleteVisitItem(itemId){
+  if(!confirm(L("حذف هذا الجهاز من الزيارة (مع صوره)؟","Remove this equipment from the visit (with its photos)?"))) return;
+  const {error} = await sb.from("visit_items").delete().eq("id",itemId);
+  if(error) return toast(L("تعذر الحذف","Delete failed")+": "+error.message);
+  $("#ri_"+itemId)?.remove();
+  window._items = (window._items||[]).filter(i=>i.id!==itemId);
+  toast(L("حُذف البند","Item removed"));
+}
+async function deletePhoto(photoId){
+  if(!confirm(L("حذف هذه الصورة؟","Delete this photo?"))) return;
+  const {error} = await sb.from("photos").delete().eq("id",photoId);
+  if(error) return toast(L("تعذر الحذف","Delete failed")+": "+error.message);
+  $("#ph_"+photoId)?.remove();
+  toast(L("حُذفت الصورة","Photo deleted"));
 }
 
 /* ---------------------- تصحيح إملائي بالذكاء الاصطناعي ---------------------- */
@@ -1121,6 +1354,12 @@ async function approveVisit(id){
   if(error) return toast(L("تعذر الاعتماد","Approval failed")+": "+error.message);
   location.hash = "#/report/"+id;
 }
+async function unapproveVisit(id){
+  if(!confirm(L("إلغاء اعتماد التقرير وإعادته لشاشة المراجعة للتعديل؟ (يبقى رقم التقرير كما هو)","Reopen this report for edits? (report number stays the same)"))) return;
+  const {error} = await sb.from("visits").update({status:"submitted"}).eq("id",id);
+  if(error) return toast(L("تعذر الحفظ","Save failed")+": "+error.message);
+  location.hash = "#/review/"+id;
+}
 async function rejectVisit(id){
   const why = prompt(L("سبب الإعادة للفني","Reason for returning to technician")); if(!why) return;
   const {error} = await sb.from("visits").update({status:"rejected",reject_reason:why}).eq("id",id);
@@ -1135,6 +1374,9 @@ async function reportPage(id){
   const {data:tech} = await sb.from("profiles").select("full_name").eq("id",v.technician_id).maybeSingle();
   const counts = STATES.map(s=>[s,items.filter(i=>i.condition===s.k).length]);
   const okPct = items.length ? Math.round(items.filter(i=>i.condition==="سليم").length/items.length*100) : 0;
+  const scannedN = items.filter(i=>i.scanned).length;
+  const scanPct = items.length ? Math.round(scannedN/items.length*100) : 0;
+  const isSup = me.role==="supervisor";
 
   app.innerHTML = `
   <div class="wrap noprint"><div class="spread">
@@ -1143,6 +1385,8 @@ async function reportPage(id){
       <button class="btn quiet sm" onclick="exportVisitParts()">${T("Excel للقطع","Parts Excel")}</button>
       <button class="btn quiet sm" onclick="shareReport()">${T("مشاركة","Share")}</button>
       <button class="btn sm" onclick="window.print()">${T("طباعة / PDF","Print / PDF")}</button>
+      ${isSup&&v.status==="approved"?`<button class="btn quiet sm" onclick="unapproveVisit('${id}')">${T("إلغاء الاعتماد للتعديل","Reopen for edits")}</button>`:""}
+      ${isSup?`<button class="btn quiet sm" style="color:var(--down)" onclick="deleteVisit('${id}','${v.client_id}')" title="${L("حذف","Delete")}">🗑</button>`:""}
     </div></div></div>
 
   <div class="report">
@@ -1167,7 +1411,11 @@ async function reportPage(id){
         <div style="font-size:11.5px">${s.k}</div><div class="bi" style="font-size:10px">${s.en}</div></div>`).join("")}
       <div><div class="n" style="color:var(--brand)">${okPct}%</div>
         <div style="font-size:11.5px">نسبة السليم</div><div class="bi" style="font-size:10px">Healthy rate</div></div>
+      ${scannedN?`<div title="فُحصت بمسح ملصق الجهاز في الموقع"><div class="n" style="color:var(--ok)">${scanPct}%</div>
+        <div style="font-size:11.5px">فُحص بمسح الملصق</div><div class="bi" style="font-size:10px">Verified by QR scan on site</div></div>`:""}
     </div>
+    ${v.visit_type==="emergency"&&v.general_notes?`<div style="margin:0 0 12px;font-size:12.5px"><b>وصف الطلب / Request</b>
+      <div style="white-space:pre-line">${esc(v.general_notes)}</div></div>`:""}
 
     <table class="rtable"><thead><tr>
       <th>رقم الأصل<div class="bi">Asset No.</div></th>
@@ -1184,7 +1432,7 @@ async function reportPage(id){
           <td>${esc(a.name_ar||"")}${a.name_en&&a.name_en!==a.name_ar?`<div class="bi">${esc(a.name_en)}</div>`:(a.name_en?"":`<div class="bi">${esc(CAT_EN[a.category]||"")}</div>`)}</td>
           <td>${esc(a.location_text||"—")}</td>
           <td>${esc(a.brand||"")} ${esc(a.model||"")}</td>
-          <td><span class="dot ${s.c}"></span> ${esc(i.condition)}<div class="bi">${s.en}</div></td>
+          <td><span class="dot ${s.c}"></span> ${esc(i.condition)}<div class="bi">${s.en}</div>${i.scanned?`<div style="font-size:10px;color:var(--ok);font-weight:700">✓ QR</div>`:""}</td>
           <td>${esc(i.parts_needed_text||"—")}${i.technician_notes?`<div class="bi">${esc(i.technician_notes)}</div>`:""}</td>
           <td>${ph?`<img src="${ph.url}">`:"—"}</td></tr>`;}).join("")}
       </tbody></table>
