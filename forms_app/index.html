@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>تعبئة النماذج</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1c2430;--mut:#667;--line:#d5d9e0;--pri:#1b4f9c}
+@media(prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d222a;--ink:#e8ebf0;--mut:#9aa3b0;--line:#323946;--pri:#6ea2f0}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",Tahoma,Arial,sans-serif}
+header{padding:16px;max-width:900px;margin:auto}h1{margin:0;font-size:22px}
+.tabs{display:flex;gap:8px;padding:0 16px;max-width:900px;margin:auto;flex-wrap:wrap}
+.tabs button{flex:1;min-width:120px;padding:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;font:inherit;cursor:pointer}
+.tabs button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+main{max-width:900px;margin:12px auto;padding:0 16px 40px}
+form{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;display:none}
+form.on{display:block}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+label{display:block;font-size:13px;color:var(--mut)}
+input,select{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+h3{margin:18px 0 8px;font-size:16px}
+.rows{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:620px}
+td{padding:3px}td.n{width:28px;color:var(--mut);text-align:center}
+.act{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.act button{padding:11px 20px;border-radius:8px;border:1px solid var(--pri);font:inherit;cursor:pointer}
+.go{background:var(--pri);color:#fff}.sec{background:none;color:var(--pri)}
+#res{margin:14px 0;padding:12px;border-radius:8px;background:var(--card);border:1px solid var(--line);display:none}
+#res a{color:var(--pri);margin-inline-end:14px}
+.hint{font-size:12px;color:var(--mut)}
+</style></head><body>
+<header><h1>تعبئة النماذج وطباعتها</h1><div class="hint">عبّي الفراغات ثم اضغط «إنشاء» — يظهر النموذج جاهز للطباعة.</div></header>
+<div class="tabs" id="tabs"></div>
+<main>
+<div id="res"></div>
+
+<form id="overtime" class="on">
+ <div class="g">
+  <label>من تاريخ<input type="date" name="from"></label>
+  <label>إلى تاريخ<input type="date" name="to"></label>
+  <label>الإدارة / الفرع<input name="branch" value="بجده"></label>
+  <label>القسم<input name="dept" value="المالية"></label>
+  <label>اسم المشروع<input name="project"></label>
+  <label>رقم المشروع<input name="project_no"></label>
+ </div>
+ <h3>الموظفون (حتى 14)</h3>
+ <div class="rows"><table data-rows="14" data-cols='[["name","الاسم","text"],["date","التاريخ","date"],["start","من","time"],["end","إلى","time"],["hours","الساعات (تلقائي)","number"]]'></table></div>
+ <div class="hint">اليوم يُحسب من التاريخ، والساعات من الفرق بين الوقتين إن تركتها فارغة.</div>
+</form>
+
+<form id="meals">
+ <div class="g">
+  <label>القسم<input name="dept" value="صيانة المدينة"></label>
+  <label>التاريخ<input type="date" name="date"></label>
+  <label>اسم العميل<input name="client"></label>
+  <label>اسم المشروع<input name="project"></label>
+  <label>رقم المشروع<input name="project_no"></label>
+  <label>قيمة الوجبة الافتراضية<input type="number" name="price" value="25"></label>
+ </div>
+ <h3>العاملون (حتى 10)</h3>
+ <div class="rows"><table data-rows="10" data-cols='[["name","الاسم","text"],["from","من","date"],["to","إلى","date"],["days","الأيام (تلقائي)","number"],["price","قيمة الوجبة","number"]]'></table></div>
+</form>
+
+<form id="purchase">
+ <div class="g">
+  <label>التاريخ<input type="date" name="date"></label>
+  <label>القسم<input name="dept"></label>
+  <label>المورد<input name="supplier"></label>
+ </div>
+ <h3>العميل (1)</h3><div class="g cust" data-c="c1"></div>
+ <h3>العميل (2) — اختياري</h3><div class="g cust" data-c="c2"></div>
+ <h3>بيان القطع / الأعمال (حتى 5)</h3>
+ <div class="rows"><table data-rows="5" data-cols='[["desc","البيان","text"],["qty","الكمية","number"],["price","سعر الوحدة","number"]]'></table></div>
+ <div class="hint">القيمة الكلية والإجمالي تُحسب تلقائيًا.</div>
+</form>
+
+<div class="act"><button class="go" id="go">إنشاء النموذج</button><button class="sec" id="clr">مسح الحقول</button></div>
+</main>
+<script>
+const TITLES={overtime:"كشف الساعات الإضافية",meals:"بدل وجبة",purchase:"طلب شراء"};
+let cur="overtime";
+const tabs=document.getElementById("tabs");
+for(const k in TITLES){const b=document.createElement("button");b.textContent=TITLES[k];b.dataset.k=k;
+ b.onclick=()=>show(k);tabs.append(b)}
+function show(k){cur=k;document.querySelectorAll("form").forEach(f=>f.classList.toggle("on",f.id===k));
+ tabs.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.k===k))}
+show("overtime");
+document.querySelectorAll("table[data-rows]").forEach(t=>{
+ const cols=JSON.parse(t.dataset.cols);
+ t.innerHTML="<tr><td></td>"+cols.map(c=>`<td class="hint">${c[1]}</td>`).join("")+"</tr>"+
+  Array.from({length:+t.dataset.rows},(_,i)=>`<tr><td class="n">${i+1}</td>`+
+   cols.map(c=>`<td><input data-k="${c[0]}" type="${c[2]}" ${c[2]=="number"?'step="any"':""}></td>`).join("")+"</tr>").join("")});
+document.querySelectorAll(".cust").forEach(g=>{g.dataset.html=1;g.innerHTML=`
+ <label>اسم المشروع / العميل<input data-k="project"></label>
+ <label>رقم عرض السعر<input data-k="quote"></label>
+ <label>رقم المشروع على النظام<input data-k="sys"></label>
+ <label>دفعة مقدمة من العميل (مبلغ)<input type="number" step="any" data-k="advance"></label>
+ <label>النوع<select data-k="type"><option value="">—</option><option value="credit">عميل آجل</option><option value="cash">نقدي</option></select></label>`});
+function collect(form){
+ const o={};form.querySelectorAll(":scope > .g input[name]").forEach(i=>o[i.name]=i.value);
+ form.querySelectorAll(".cust").forEach(g=>{o[g.dataset.c]={};g.querySelectorAll("[data-k]").forEach(i=>o[g.dataset.c][i.dataset.k]=i.value)});
+ const t=form.querySelector("table");
+ o.rows=[...t.querySelectorAll("tr")].slice(1).map(tr=>{const r={};tr.querySelectorAll("input").forEach(i=>r[i.dataset.k]=i.value);return r})
+  .filter(r=>Object.values(r).some(v=>v));
+ return o}
+const res=document.getElementById("res");
+document.getElementById("go").onclick=async()=>{
+ res.style.display="block";res.textContent="جاري الإنشاء…";
+ try{const r=await fetch("/"+cur,{method:"POST",body:JSON.stringify(collect(document.getElementById(cur)))});
+  const j=await r.json();if(j.error)throw new Error(j.error);
+  const n=encodeURIComponent(j.name);
+  res.innerHTML=(j.pdf?`<a href="/files/${n}.pdf" target="_blank">فتح PDF للطباعة</a>`:`<span class="hint">PDF غير متاح (ثبّت LibreOffice) — افتح ملف Excel واطبعه.</span> `)+`<a href="/files/${n}.xlsx">تنزيل Excel</a>`;
+  if(j.pdf)window.open(`/files/${n}.pdf`,"_blank")
+ }catch(e){res.textContent="خطأ: "+e.message}};
+document.getElementById("clr").onclick=()=>document.getElementById(cur).querySelectorAll("input:not([name=branch]):not([name=dept]):not([name=price])").forEach(i=>i.value="");
+</script></body></html>
