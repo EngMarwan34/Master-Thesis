@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>تعبئة النماذج</title>
+<link rel="stylesheet" href="style.css">
+</head><body>
+<header><h1>تعبئة النماذج</h1><p>عبّي الحقول، شاهد النموذج مباشرة، ثم نزّله PDF أو Excel.</p></header>
+<nav id="tabs"></nav>
+<div class="wrap">
+ <section class="panel" id="panel"></section>
+ <section class="prev">
+  <div class="bar">
+   <button class="go" id="dlpdf">تنزيل PDF</button>
+   <button class="go" id="dlxls">تنزيل Excel</button>
+   <button class="sec" id="print">طباعة</button>
+   <button class="sec" id="clr">مسح</button>
+   <span id="msg"></span>
+  </div>
+  <div class="scaler" id="scaler"><div id="page" class="page"></div></div>
+ </section>
+</div>
+<script src="lib/exceljs.min.js"></script>
+<script src="lib/html2pdf.bundle.min.js"></script>
+<script src="templates.js"></script>
+<script src="images.js"></script>
+<script src="app.js"></script>
+</body></html>
