@@ -12,6 +12,27 @@ const pad = (rows, n) => Array.from({length:n}, (_, i) => rows[i] || {});
 const sig = (...t) => `<div class="sig">${t.map(x=>`<span>${x}</span>`).join("")}</div>`;
 const mark = `<span style="font-size:18px">✔</span>`;
 
+/* يعيد ترتيب ورقة طلب الشراء حسب عدد العملاء: كتلة العميل = 5 صفوف (18-22) تتكرر، وما بعدها (28-47) ينزل/يطلع */
+function restructure(ws, n) {
+  const COLS = 10, jc = x => JSON.parse(JSON.stringify(x));
+  const snap = (r1, r2) => { const cells = [], merges = [], heights = {};
+    for (let r = r1; r <= r2; r++) { heights[r] = ws.getRow(r).height;
+      for (let c = 1; c <= COLS; c++) { const cell = ws.getCell(r, c);
+        cells.push({r, c, style: jc(cell.style), value: cell.isMerged && cell.master !== cell ? null : cell.value}); } }
+    for (const m of ws.model.merges) { const [a, b] = m.split(":").map(x => ws.getCell(x));
+      if (a.row >= r1 && b.row <= r2) merges.push([a.row, a.col, b.row, b.col]); }
+    return {cells, merges, heights}; };
+  const block = snap(18, 22), rest = snap(28, 47);
+  for (const m of [...ws.model.merges]) if (ws.getCell(m.split(":")[0]).row >= 18) ws.unMergeCells(m);
+  for (let r = 18; r <= 47; r++) { ws.getRow(r).height = undefined; for (let c = 1; c <= COLS; c++) { const x = ws.getCell(r, c); x.value = null; x.style = {}; } }
+  const put = (s, off) => {
+    for (const {r, c, style, value} of s.cells) { const x = ws.getCell(r + off, c); x.style = jc(style); if (value != null) x.value = value; }
+    for (const [r1, c1, r2, c2] of s.merges) ws.mergeCells(r1 + off, c1, r2 + off, c2);
+    for (const r in s.heights) if (s.heights[r]) ws.getRow(+r + off).height = s.heights[r]; };
+  for (let k = 0; k < n; k++) { put(block, 5*k); ws.getCell(18 + 5*k, 2).value = `CUSTOMER ( ${k+1} )`; }
+  put(rest, 5*n - 10);
+}
+
 /* ---------------- definitions ---------------- */
 const FORMS = {
  meals: {
@@ -56,14 +77,14 @@ const FORMS = {
   title: "طلب شراء", file: "طلب_شراء",
   fields: [["date","التاريخ","date","today"],["dept","القسم","text"],["supplier","المورد","text","","w"]],
   customers: true,
-  pics: [["new",[1,66675,0,57150],[8,1533525,9,171450]],["check",[8,485776,21,7902],[8,1066800,21,307973]],["check",[8,485776,26,7902],[8,1066800,26,307973]]],
+  pics: d => [["new",[1,66675,0,57150],[8,1533525,9,171450]], ...d.custs.map((_, k) => { const r = 21 + 5*k; return ["check",[8,485776,r,7902],[8,1066800,r,307973]]; })],
   nrows: 5,
   cols: [["desc","البيان","text"],["qty","الكمية","number"],["price","سعر الوحدة","number"]],
   hint: "القيمة الكلية والإجمالي تُحسب تلقائيًا.",
   render(d) {
     const dt = pd(d.date);
     const cust = (n, c) => `<div class="sp" style="font-family:serif">CUSTOMER ( ${n} )</div>
-     <table style="width:84%;margin-right:auto"><tr><td style="width:34%" class="lb">اسم المشروع / العميل</td><td>${esc(c.project)}</td></tr>
+     <table style="width:84%;margin:0 auto"><tr><td style="width:34%" class="lb">اسم المشروع / العميل</td><td>${esc(c.project)}</td></tr>
      <tr><td class="lb">رقم عرض السعر</td><td>${esc(c.quote)}</td></tr><tr><td class="lb">رقم المشروع علي النظام</td><td>${esc(c.sys)}</td></tr>
      <tr><td class="lb2">دفعه مقدمه من العميل</td><td><div style="display:flex;justify-content:space-between;align-items:center"><span style="width:60px">${nz(num(c.advance))}</span><span class="lb2" style="padding:0 6px">عميل اجل</span><span style="width:30px">${c.type==="credit"?mark:""}</span><span class="lb2" style="padding:0 6px">نقدي</span><span style="width:30px">${c.type==="cash"?mark:""}</span></div></td></tr></table>`;
     let tot = 0;
@@ -72,9 +93,9 @@ const FORMS = {
     return `<img class="hd" src="${IMG.new}">
     <div class="sp" style="font-size:20px">طلب شراء</div><div class="sp" style="font-size:24px;font-family:serif">PURCHASE REQUEST</div>
     <div class="sp" style="font-size:14px">خاص بالمورد</div>
-    <table style="width:84%;margin-right:auto"><tr><td style="width:34%" class="lb">اليوم</td><td>${dayName(dt)}</td></tr><tr><td class="lb">التاريخ</td><td>${fmt(dt)}</td></tr>
+    <table style="width:84%;margin:0 auto"><tr><td style="width:34%" class="lb">اليوم</td><td>${dayName(dt)}</td></tr><tr><td class="lb">التاريخ</td><td>${fmt(dt)}</td></tr>
     <tr><td class="lb">القسم</td><td>${esc(d.dept)}</td></tr><tr><td class="lb">المورد</td><td>${esc(d.supplier)}</td></tr></table>
-    ${cust(1,d.c1)}${cust(2,d.c2)}
+    ${d.custs.map((c,i) => cust(i+1,c)).join("")}
     <div style="font-size:12px;margin:2px 0">ملحوظه - في حاله دفعه مقدمه من العميل نرجو ارفاق صوره التحويل مع الطلب</div>
     <div class="sp" style="font-size:14px">بيان ( بالقطع / الاعمال ) المطلوبه</div>
     <table><tr><th style="width:34px">م</th><th>البيـــــــــــــــــــان</th><th style="width:70px">الكميه</th><th style="width:90px">سعر الوحده</th><th style="width:100px">القيمه الكليه</th></tr>${body}
@@ -83,17 +104,21 @@ const FORMS = {
     <div class="sp" style="margin-top:34px">اعتماد مدير الصيانه</div>`;
   },
   excel(ws, d) {
+    const n = d.custs.length, S = 5*n - 10;
+    restructure(ws, n);
     const dt = pd(d.date);
     ws.getCell("D14").value = dayName(dt) || null; ws.getCell("D15").value = fmt(dt) || null;
     ws.getCell("D16").value = d.dept || null; ws.getCell("D17").value = d.supplier || null;
-    for (const [b,c] of [[19,d.c1],[24,d.c2]]) {
+    d.custs.forEach((c, k) => { const b = 19 + 5*k;
       ws.getCell("D"+b).value = c.project || null; ws.getCell("D"+(b+1)).value = c.quote || null; ws.getCell("D"+(b+2)).value = c.sys || null;
       const r = b+3; ws.getCell("D"+r).value = num(c.advance);
-      ws.getCell("F"+r).value = c.type==="credit" ? "✔" : null; ws.getCell("H"+r).value = c.type==="cash" ? "✔" : null; }
-    pad(d.rows,5).forEach((r,i) => { const n = 31+i, q = num(r.qty), p = num(r.price);
-      ws.getCell("C"+n).value = r.desc || null; ws.getCell("G"+n).value = q; ws.getCell("H"+n).value = p;
-      ws.getCell("I"+n).value = q!=null && p!=null ? {formula:`G${n}*H${n}`, result:q*p} : null; });
-    ws.getCell("I36").value = {formula:"SUM(I31:I35)"};
+      ws.getCell("F"+r).value = c.type==="credit" ? "✔" : null; ws.getCell("H"+r).value = c.type==="cash" ? "✔" : null; });
+    pad(d.rows,5).forEach((r,i) => { const n2 = 31+S+i, q = num(r.qty), p = num(r.price);
+      ws.getCell("C"+n2).value = r.desc || null; ws.getCell("G"+n2).value = q; ws.getCell("H"+n2).value = p;
+      ws.getCell("I"+n2).value = q!=null && p!=null ? {formula:`G${n2}*H${n2}`, result:q*p} : null; });
+    ws.getCell("I"+(36+S)).value = {formula:`SUM(I${31+S}:I${35+S})`};
+    ws.pageSetup.fitToPage = true; ws.pageSetup.fitToWidth = 1; ws.pageSetup.fitToHeight = 1;
+    ws.pageSetup.printArea = `B1:I${47+S}`;
   }
  }
 };
@@ -105,21 +130,23 @@ const today = () => { const n = new Date(), p = x => String(x).padStart(2,"0"); 
 function blank(k) {
   const f = FORMS[k], o = {rows: emptyRows(f.nrows)};
   f.fields.forEach(x => o[x[0]] = x[3] === "today" ? today() : (x[3] || ""));
-  if (f.customers) { o.c1 = {type:""}; o.c2 = {type:""}; o.showC2 = false; }
+  if (f.customers) o.custs = [{type:""}];
   return o;
 }
 for (const k in FORMS) state[k] = blank(k);
-try { const s = JSON.parse(localStorage.getItem("forms-v2")); if (s) for (const k in s) if (state[k]) state[k] = s[k]; } catch {}
+try { const s = JSON.parse(localStorage.getItem("forms-v3")); if (s) for (const k in s) if (state[k]) state[k] = s[k]; } catch {}
 
 const inp = (attrs, val) => `<input ${attrs} value="${esc(val)}">`;
 function buildPanel() {
   const f = FORMS[cur], d = state[cur];
   let h = `<div class="g">` + f.fields.map(([n,l,t,,w]) => `<label class="${w||""}">${l}${inp(`data-f="${n}" type="${t}" ${t==="number"?'step="any"':""}`, d[n])}</label>`).join("") + `</div>`;
-  if (f.customers) for (const c of ["c1","c2"]) {
-    if (c === "c2" && !d.showC2) { h += `<button type="button" class="sec add" data-act="showc2">+ إضافة العميل (2)</button>`; continue; }
-    h += `<h3>العميل (${c==="c1"?1:2})${c==="c2"?` <button type="button" class="sec add" data-act="hidec2">إخفاء</button>`:""}</h3><div class="g">` +
-     [["project","اسم المشروع / العميل","text","w"],["quote","رقم عرض السعر","text"],["sys","رقم المشروع على النظام","text"],["advance","دفعة مقدمة (مبلغ)","number"]].map(([n,l,t,w]) => `<label class="${w||""}">${l}${inp(`data-c="${c}" data-f="${n}" type="${t}" step="any"`, d[c][n])}</label>`).join("") +
-     `<label>النوع<select data-c="${c}" data-f="type">${[["","—"],["credit","عميل آجل"],["cash","نقدي"]].map(([v,t])=>`<option value="${v}" ${d[c].type===v?"selected":""}>${t}</option>`).join("")}</select></label></div>`;
+  if (f.customers) {
+    d.custs.forEach((cu, i) => {
+      h += `<h3>العميل (${i+1})${i>0?` <button type="button" class="sec add" data-act="delc" data-i="${i}">حذف</button>`:""}</h3><div class="g">` +
+       [["project","اسم المشروع / العميل","text","w"],["quote","رقم عرض السعر","text"],["sys","رقم المشروع على النظام","text"],["advance","دفعة مقدمة (مبلغ)","number"]].map(([n,l,ty,w]) => `<label class="${w||""}">${l}${inp(`data-c="${i}" data-f="${n}" type="${ty}" step="any"`, cu[n])}</label>`).join("") +
+       `<label>النوع<select data-c="${i}" data-f="type">${[["","—"],["credit","عميل آجل"],["cash","نقدي"]].map(([v,tx])=>`<option value="${v}" ${cu.type===v?"selected":""}>${tx}</option>`).join("")}</select></label></div>`;
+    });
+    if (d.custs.length < 4) h += `<button type="button" class="sec add" data-act="addc">+ إضافة عميل (${d.custs.length+1})</button>`;
   }
   h += `<h3>${f.customers ? "البنود" : "الصفوف"} (حتى ${f.nrows})</h3><div class="rows"><table><tr><td></td>${f.cols.map(c=>`<td class="h">${c[1]}</td>`).join("")}</tr>` +
     d.rows.map((r,i) => `<tr><td class="n">${i+1}</td>${f.cols.map(([n,,t]) => `<td>${inp(`data-r="${i}" data-f="${n}" type="${t}" ${t==="number"?'step="any"':""}`, r[n]||"")}</td>`).join("")}</tr>`).join("") + `</table></div>`;
@@ -130,18 +157,25 @@ function scale() {
   const s = Math.min(1, ($("#scaler").clientWidth || 794) / 794);
   $("#page").style.transform = `scale(${s})`; $("#scaler").style.height = (1123*s) + "px";
 }
-function draw() { $("#page").innerHTML = FORMS[cur].render(state[cur]); scale(); }
-function save() { try { localStorage.setItem("forms-v2", JSON.stringify(state)); } catch {} }
+function draw() {
+  const pg = $("#page"); pg.innerHTML = `<div class="in">${FORMS[cur].render(state[cur])}</div>`;
+  const inn = pg.firstChild, room = 1123 - 56, h = inn.offsetHeight;   // يصغّر المحتوى ليبقى في صفحة واحدة
+  if (h > room) { const k = room / h; inn.style.cssText = `transform:scale(${k});transform-origin:top right;width:${100/k}%`; }
+  scale();
+}
+function save() { try { localStorage.setItem("forms-v3", JSON.stringify(state)); } catch {} }
 
 $("#panel").addEventListener("click", e => {
   const a = e.target.dataset.act; if (!a) return;
-  state[cur].showC2 = a === "showc2"; if (a === "hidec2") state[cur].c2 = {type:""};
+  const cs = state[cur].custs;
+  if (a === "addc" && cs.length < 4) cs.push({type:""});
+  if (a === "delc") cs.splice(+e.target.dataset.i, 1);
   save(); buildPanel(); draw();
 });
 $("#panel").addEventListener("input", e => {
   const t = e.target, f = t.dataset.f; if (!f) return; const d = state[cur];
   if (t.dataset.r != null) d.rows[+t.dataset.r][f] = t.value;
-  else if (t.dataset.c) d[t.dataset.c][f] = t.value;
+  else if (t.dataset.c != null) d.custs[+t.dataset.c][f] = t.value;
   else d[f] = t.value;
   save(); draw();
 });
@@ -157,13 +191,13 @@ function save_blob(blob, name) { const a = document.createElement("a"); a.href =
 
 $("#dlpdf").onclick = async () => {
   const page = $("#page"), old = page.style.transform; $("#msg").textContent = "جاري إنشاء PDF…";
-  page.style.transform = "none";
+  page.style.transform = "none"; page.style.marginInline = "0";
   try {
     await html2pdf().set({margin:0, filename:`${FORMS[cur].file}_${stamp()}.pdf`, image:{type:"jpeg",quality:0.98},
       html2canvas:{scale:2, useCORS:true, backgroundColor:"#fff", scrollX:0, scrollY:0}, jsPDF:{unit:"px", format:[794,1123], hotfixes:["px_scaling"]}}).from(page).save();
     $("#msg").textContent = "تم التنزيل ✓";
   } catch (e) { $("#msg").textContent = "تعذر إنشاء PDF: " + e.message; }
-  page.style.transform = old;
+  page.style.transform = old; page.style.marginInline = "";
 };
 $("#dlxls").onclick = async () => {
   $("#msg").textContent = "جاري إنشاء Excel…";
@@ -173,7 +207,8 @@ $("#dlxls").onclick = async () => {
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load(u.buffer);
     const ws = wb.worksheets[0];
     FORMS[cur].excel(ws, state[cur]);
-    for (const [key, tl, br] of FORMS[cur].pics) {
+    const pics = typeof FORMS[cur].pics === "function" ? FORMS[cur].pics(state[cur]) : FORMS[cur].pics;
+    for (const [key, tl, br] of pics) {
       const id = wb.addImage({base64: IMG[key], extension: "jpeg"});
       const a = ([c,co,r,ro]) => ({nativeCol:c, nativeColOff:co, nativeRow:r, nativeRowOff:ro});
       ws.addImage(id, {tl:a(tl), br:a(br), editAs:"oneCell"});

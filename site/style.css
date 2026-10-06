@@ -22,7 +22,7 @@ h3{margin:14px 0 6px;font-size:15px}
 #msg{font-size:13px;color:var(--mut)}
 .scaler{overflow:hidden;border:1px solid var(--line);border-radius:6px;background:#888}
 /* ===== A4 page (always light, as printed) ===== */
-.page{width:794px;height:1123px;background:#fff;color:#000;padding:28px 36px;position:relative;transform-origin:top right;direction:rtl;font-family:"Segoe UI",Tahoma,Arial,sans-serif;font-size:14px;overflow:hidden}
+.page{width:794px;height:1123px;background:#fff;color:#000;padding:28px 36px;position:relative;transform-origin:top right;margin-inline:auto;direction:rtl;font-family:"Segoe UI",Tahoma,Arial,sans-serif;font-size:14px;overflow:hidden}
 .page img.hd{width:100%;display:block;margin-bottom:8px}
 .page .t1{text-align:center;font-weight:700;font-size:20px;margin:2px 0}
 .page .ln{font-weight:700;font-size:16px;margin:2px 0}
