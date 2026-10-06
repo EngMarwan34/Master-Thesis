@@ -12,6 +12,15 @@ const pad = (rows, n) => Array.from({length:n}, (_, i) => rows[i] || {});
 const sig = (...t) => `<div class="sig">${t.map(x=>`<span>${x}</span>`).join("")}</div>`;
 const mark = `<span style="font-size:18px">✔</span>`;
 
+const DEPTS = ["صيانة الرياض","صيانة جدة","صيانة المدينة","صيانة الخبر"];
+const NAMES = {
+  "صيانة المدينة": ["علي عدنان","فرمان قدير","مصطفى بسطاوي"],
+  "صيانة جدة": ["محمد رجب","محمود فتحي","محمد زبير","عمر فاروق","محمد ناصر","مد افضل","شايك","عادل"],
+  "صيانة الرياض": ["زهير","افتاب","جليل","امجاد","خالد","فهد خان","شيبو","احمد الهربوك","محمد مجدي","محمد صابر"],
+  "صيانة الخبر": ["اسد الله","صادق","بونا","عبدالحميد"]
+};
+const OTHER = "__other";
+
 /* يعيد ترتيب ورقة طلب الشراء حسب عدد العملاء: كتلة العميل = 5 صفوف (18-22) تتكرر، وما بعدها (28-47) ينزل/يطلع */
 function restructure(ws, n) {
   const COLS = 10, jc = x => JSON.parse(JSON.stringify(x));
@@ -37,10 +46,10 @@ function restructure(ws, n) {
 const FORMS = {
  meals: {
   title: "بدل وجبة", file: "بدل_وجبة",
-  fields: [["dept","القسم","text","صيانة المدينة"],["date","التاريخ","date","today"],["client","اسم العميل","text"],["project","اسم المشروع","text"],["project_no","رقم المشروع","text"],["price","قيمة الوجبة الافتراضية","number","25"]],
+  fields: [["dept","القسم","dept","صيانة المدينة"],["date","التاريخ","date","today"],["client","اسم العميل","text"],["project","اسم المشروع","text"],["project_no","رقم المشروع","text"],["price","قيمة الوجبة الافتراضية","number","25"]],
   pics: [["meals",[1,76201,1,9525],[8,1485900,10,28574]]],
   nrows: 10,
-  cols: [["name","الاسم","text"],["from","من","date"],["to","إلى","date"],["days","الأيام (تلقائي)","number"],["price","قيمة الوجبة","number"]],
+  cols: [["name","الاسم","name"],["from","من","date"],["to","إلى","date"],["days","الأيام (تلقائي)","number"],["price","قيمة الوجبة","number"]],
   calc(r, d) { const a = pd(r.from), b = pd(r.to);
     const days = num(r.days) ?? (a && b ? Math.round((b-a)/864e5)+1 : null);
     const has = r.name || a || b || days != null, price = has ? (num(r.price) ?? num(d.price)) : null;
@@ -75,7 +84,7 @@ const FORMS = {
  },
  purchase: {
   title: "طلب شراء", file: "طلب_شراء",
-  fields: [["date","التاريخ","date","today"],["dept","القسم","text"],["supplier","المورد","text","","w"]],
+  fields: [["date","التاريخ","date","today"],["dept","القسم","dept"],["supplier","المورد","text","","w"]],
   customers: true,
   pics: d => [["new",[1,66675,0,57150],[8,1533525,9,171450]], ...d.custs.map((_, k) => { const r = 21 + 5*k; return ["check",[8,485776,r,7902],[8,1066800,r,307973]]; })],
   nrows: 5,
@@ -137,9 +146,14 @@ for (const k in FORMS) state[k] = blank(k);
 try { const s = JSON.parse(localStorage.getItem("forms-v3")); if (s) for (const k in s) if (state[k]) state[k] = s[k]; } catch {}
 
 const inp = (attrs, val) => `<input ${attrs} value="${esc(val)}">`;
+function nameCell(d, r, i) {
+  const names = NAMES[d.dept] || [], other = r.other || (r.name && !names.includes(r.name));
+  return `<select data-r="${i}" data-nm="1"><option value="">— اختر الفني —</option>${names.map(x => `<option ${!other && r.name===x?"selected":""}>${x}</option>`).join("")}<option value="${OTHER}" ${other?"selected":""}>غير موجود (اكتب الاسم)</option></select>` +
+    (other ? `<input data-r="${i}" data-f="name" type="text" placeholder="اسم الفني" value="${esc(r.name)}">` : "");
+}
 function buildPanel() {
   const f = FORMS[cur], d = state[cur];
-  let h = `<div class="g">` + f.fields.map(([n,l,t,,w]) => `<label class="${w||""}">${l}${inp(`data-f="${n}" type="${t}" ${t==="number"?'step="any"':""}`, d[n])}</label>`).join("") + `</div>`;
+  let h = `<div class="g">` + f.fields.map(([n,l,t,,w]) => t === "dept" ? `<label class="${w||""}">${l}<select data-f="dept"><option value="">— اختر —</option>${DEPTS.map(x => `<option ${d.dept===x?"selected":""}>${x}</option>`).join("")}</select></label>` : `<label class="${w||""}">${l}${inp(`data-f="${n}" type="${t}" ${t==="number"?'step="any"':""}`, d[n])}</label>`).join("") + `</div>`;
   if (f.customers) {
     d.custs.forEach((cu, i) => {
       h += `<h3>العميل (${i+1})${i>0?` <button type="button" class="sec add" data-act="delc" data-i="${i}">حذف</button>`:""}</h3><div class="g">` +
@@ -149,7 +163,7 @@ function buildPanel() {
     if (d.custs.length < 4) h += `<button type="button" class="sec add" data-act="addc">+ إضافة عميل (${d.custs.length+1})</button>`;
   }
   h += `<h3>${f.customers ? "البنود" : "الصفوف"} (حتى ${f.nrows})</h3><div class="rows"><table><tr><td></td>${f.cols.map(c=>`<td class="h">${c[1]}</td>`).join("")}</tr>` +
-    d.rows.map((r,i) => `<tr><td class="n">${i+1}</td>${f.cols.map(([n,,t]) => `<td>${inp(`data-r="${i}" data-f="${n}" type="${t}" ${t==="number"?'step="any"':""}`, r[n]||"")}</td>`).join("")}</tr>`).join("") + `</table></div>`;
+    d.rows.map((r,i) => `<tr><td class="n">${i+1}</td>${f.cols.map(([n,,t]) => t === "name" ? `<td>${nameCell(d, r, i)}</td>` : `<td>${inp(`data-r="${i}" data-f="${n}" type="${t}" ${t==="number"?'step="any"':""}`, r[n]||"")}</td>`).join("")}</tr>`).join("") + `</table></div>`;
   if (f.hint) h += `<div class="hint">${f.hint}</div>`;
   $("#panel").innerHTML = h;
 }
@@ -173,7 +187,18 @@ $("#panel").addEventListener("click", e => {
   save(); buildPanel(); draw();
 });
 $("#panel").addEventListener("input", e => {
-  const t = e.target, f = t.dataset.f; if (!f) return; const d = state[cur];
+  const t = e.target, f = t.dataset.f, d = state[cur];
+  if (t.dataset.nm) {                       // قائمة أسماء الفنيين
+    const r = d.rows[+t.dataset.r];
+    if (t.value === OTHER) { r.other = true; r.name = ""; } else { r.other = false; r.name = t.value; }
+    save(); buildPanel(); draw(); return;
+  }
+  if (f === "dept" && t.tagName === "SELECT") {   // تغيير القسم يحدّث قوائم الفنيين
+    d.dept = t.value; const names = NAMES[d.dept] || [];
+    (d.rows || []).forEach(r => { if (r.name && !r.other && !names.includes(r.name)) r.name = ""; });
+    save(); buildPanel(); draw(); return;
+  }
+  if (!f) return;
   if (t.dataset.r != null) d.rows[+t.dataset.r][f] = t.value;
   else if (t.dataset.c != null) d.custs[+t.dataset.c][f] = t.value;
   else d[f] = t.value;

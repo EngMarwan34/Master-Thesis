@@ -44,4 +44,4 @@ h3{margin:14px 0 6px;font-size:15px}
 
 .add{padding:6px 12px;border-radius:8px;border:1px solid var(--pri);font:inherit;cursor:pointer;margin-top:10px}
 h3 .add{margin:0 8px;padding:2px 10px;font-size:12px}
-.rows td:nth-child(2) input{min-width:140px}
+.rows td:nth-child(2) input,.rows td:nth-child(2) select{min-width:140px}
