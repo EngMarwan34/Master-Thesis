@@ -7,12 +7,6 @@ const fmt = d => d ? d.toISOString().slice(0,10).replace(/-/g,"/") : "";
 const dayName = d => d ? DAYS[d.getUTCDay()] : "";
 const num = v => (v === "" || v == null || isNaN(+v)) ? null : +v;
 const nz = v => v == null ? "" : (Math.round(v*100)/100);
-function hoursBetween(a, b) {
-  if (!a || !b) return null;
-  const [h1,m1] = a.split(":").map(Number), [h2,m2] = b.split(":").map(Number);
-  let h = (h2*60+m2 - h1*60 - m1) / 60; if (h < 0) h += 24;
-  return Math.round(h*100)/100;
-}
 const emptyRows = n => Array.from({length:n}, () => ({}));
 const pad = (rows, n) => Array.from({length:n}, (_, i) => rows[i] || {});
 const sig = (...t) => `<div class="sig">${t.map(x=>`<span>${x}</span>`).join("")}</div>`;
@@ -20,45 +14,9 @@ const mark = `<span style="font-size:18px">✔</span>`;
 
 /* ---------------- definitions ---------------- */
 const FORMS = {
- overtime: {
-  title: "كشف الساعات الإضافية", file: "كشف_الساعات_الاضافية",
-  fields: [["from","من تاريخ","date"],["to","إلى تاريخ","date"],["branch","الإدارة / الفرع","text","بجده"],["dept","القسم","text","المالية"],["project","اسم المشروع","text"],["project_no","رقم المشروع","text"]],
-  pics: [["old",[0,68581,0,60960],[6,754380,7,191135]]],
-  nrows: 14,
-  cols: [["name","الاسم","text"],["date","التاريخ","date"],["start","من","time"],["end","إلى","time"],["hours","ساعات (تلقائي)","number"]],
-  hint: "اليوم يُحسب من التاريخ، والساعات من الفرق بين الوقتين إن تركتها فارغة.",
-  hrs: r => num(r.hours) ?? hoursBetween(r.start, r.end),
-  render(d) {
-    const rows = pad(d.rows, 14); let tot = 0;
-    const body = rows.map((r,i) => { const h = this.hrs(r); if (h) tot += h; const dt = pd(r.date);
-      return `<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${dayName(dt)}</td><td>${fmt(dt)}</td><td>${esc(r.start)}</td><td>${esc(r.end)}</td><td>${nz(h)}</td></tr>`; }).join("");
-    return `<img class="hd" src="${IMG.old}">
-    <div class="t1">كشف اجمالي ساعات العمل الاضافيه</div>
-    <div class="t1">عن الفتره من :- ${fmt(pd(d.from))} الي ${fmt(pd(d.to))}</div>
-    <div class="ln" style="margin-top:14px">الاداره :- ${esc(d.branch)}</div>
-    <div class="ln">القسم :- ${esc(d.dept)}</div>
-    <div class="ln" style="display:flex;justify-content:space-between"><span>اسم المشروع :- ${esc(d.project)}</span><span>رقم المشروع :- ${esc(d.project_no)}</span></div>
-    <table style="margin-top:4px"><tr><th rowspan="2" style="width:34px">م</th><th rowspan="2" style="width:200px">الاســـــم</th><th rowspan="2">اليوم</th><th rowspan="2">التاريخ</th><th colspan="2">ساعات الدوام</th><th rowspan="2" style="width:70px">عدد الساعات الاضافيه</th></tr>
-    <tr><th>من</th><th>الي</th></tr>${body}
-    <tr class="tot"><td colspan="6">الاجمالي</td><td>${nz(tot)}</td></tr></table>
-    ${sig("رئيس القسم","الاداره الماليه","المدير العام")}`;
-  },
-  excel(ws, d) {
-    ws.getCell("A10").value = `عن الفتره من :- ${fmt(pd(d.from))} الي ${fmt(pd(d.to))}`;
-    ws.getCell("A12").value = d.branch ? `الاداره :- ${d.branch}` : null;
-    ws.getCell("A13").value = `القسم :- ${d.dept}`;
-    ws.getCell("A14").value = `اسم المشروع :- ${d.project}`;
-    ws.getCell("D14").value = `رقم المشروع :- ${d.project_no}`;
-    pad(d.rows,14).forEach((r,i) => { const n = 17+i, dt = pd(r.date), h = this.hrs(r);
-      ws.getCell("B"+n).value = r.name || null; ws.getCell("C"+n).value = dayName(dt) || null;
-      ws.getCell("D"+n).value = fmt(dt) || null; ws.getCell("E"+n).value = r.start || null;
-      ws.getCell("F"+n).value = r.end || null; ws.getCell("G"+n).value = h; });
-    ws.getCell("G31").value = {formula:"SUM(G17:G30)"};
-  }
- },
  meals: {
   title: "بدل وجبة", file: "بدل_وجبة",
-  fields: [["dept","القسم","text","صيانة المدينة"],["date","التاريخ","date"],["client","اسم العميل","text"],["project","اسم المشروع","text"],["project_no","رقم المشروع","text"],["price","قيمة الوجبة الافتراضية","number","25"]],
+  fields: [["dept","القسم","text","صيانة المدينة"],["date","التاريخ","date","today"],["client","اسم العميل","text"],["project","اسم المشروع","text"],["project_no","رقم المشروع","text"],["price","قيمة الوجبة الافتراضية","number","25"]],
   pics: [["meals",[1,76201,1,9525],[8,1485900,10,28574]]],
   nrows: 10,
   cols: [["name","الاسم","text"],["from","من","date"],["to","إلى","date"],["days","الأيام (تلقائي)","number"],["price","قيمة الوجبة","number"]],
@@ -96,7 +54,7 @@ const FORMS = {
  },
  purchase: {
   title: "طلب شراء", file: "طلب_شراء",
-  fields: [["date","التاريخ","date"],["dept","القسم","text"],["supplier","المورد","text","","w"]],
+  fields: [["date","التاريخ","date","today"],["dept","القسم","text"],["supplier","المورد","text","","w"]],
   customers: true,
   pics: [["new",[1,66675,0,57150],[8,1533525,9,171450]],["check",[8,485776,21,7902],[8,1066800,21,307973]],["check",[8,485776,26,7902],[8,1066800,26,307973]]],
   nrows: 5,
@@ -141,23 +99,25 @@ const FORMS = {
 };
 
 /* ---------------- UI ---------------- */
-let cur = "overtime";
+let cur = "meals";
 const state = {};
+const today = () => { const n = new Date(), p = x => String(x).padStart(2,"0"); return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`; };
 function blank(k) {
   const f = FORMS[k], o = {rows: emptyRows(f.nrows)};
-  f.fields.forEach(x => o[x[0]] = x[3] || "");
-  if (f.customers) { o.c1 = {type:""}; o.c2 = {type:""}; }
+  f.fields.forEach(x => o[x[0]] = x[3] === "today" ? today() : (x[3] || ""));
+  if (f.customers) { o.c1 = {type:""}; o.c2 = {type:""}; o.showC2 = false; }
   return o;
 }
 for (const k in FORMS) state[k] = blank(k);
-try { const s = JSON.parse(localStorage.getItem("forms-v1")); if (s) for (const k in s) if (state[k]) state[k] = s[k]; } catch {}
+try { const s = JSON.parse(localStorage.getItem("forms-v2")); if (s) for (const k in s) if (state[k]) state[k] = s[k]; } catch {}
 
 const inp = (attrs, val) => `<input ${attrs} value="${esc(val)}">`;
 function buildPanel() {
   const f = FORMS[cur], d = state[cur];
   let h = `<div class="g">` + f.fields.map(([n,l,t,,w]) => `<label class="${w||""}">${l}${inp(`data-f="${n}" type="${t}" ${t==="number"?'step="any"':""}`, d[n])}</label>`).join("") + `</div>`;
   if (f.customers) for (const c of ["c1","c2"]) {
-    h += `<h3>العميل (${c==="c1"?1:"2 — اختياري"})</h3><div class="g">` +
+    if (c === "c2" && !d.showC2) { h += `<button type="button" class="sec add" data-act="showc2">+ إضافة العميل (2)</button>`; continue; }
+    h += `<h3>العميل (${c==="c1"?1:2})${c==="c2"?` <button type="button" class="sec add" data-act="hidec2">إخفاء</button>`:""}</h3><div class="g">` +
      [["project","اسم المشروع / العميل","text","w"],["quote","رقم عرض السعر","text"],["sys","رقم المشروع على النظام","text"],["advance","دفعة مقدمة (مبلغ)","number"]].map(([n,l,t,w]) => `<label class="${w||""}">${l}${inp(`data-c="${c}" data-f="${n}" type="${t}" step="any"`, d[c][n])}</label>`).join("") +
      `<label>النوع<select data-c="${c}" data-f="type">${[["","—"],["credit","عميل آجل"],["cash","نقدي"]].map(([v,t])=>`<option value="${v}" ${d[c].type===v?"selected":""}>${t}</option>`).join("")}</select></label></div>`;
   }
@@ -171,8 +131,13 @@ function scale() {
   $("#page").style.transform = `scale(${s})`; $("#scaler").style.height = (1123*s) + "px";
 }
 function draw() { $("#page").innerHTML = FORMS[cur].render(state[cur]); scale(); }
-function save() { try { localStorage.setItem("forms-v1", JSON.stringify(state)); } catch {} }
+function save() { try { localStorage.setItem("forms-v2", JSON.stringify(state)); } catch {} }
 
+$("#panel").addEventListener("click", e => {
+  const a = e.target.dataset.act; if (!a) return;
+  state[cur].showC2 = a === "showc2"; if (a === "hidec2") state[cur].c2 = {type:""};
+  save(); buildPanel(); draw();
+});
 $("#panel").addEventListener("input", e => {
   const t = e.target, f = t.dataset.f; if (!f) return; const d = state[cur];
   if (t.dataset.r != null) d.rows[+t.dataset.r][f] = t.value;
@@ -218,4 +183,4 @@ $("#dlxls").onclick = async () => {
     $("#msg").textContent = "تم التنزيل ✓";
   } catch (e) { $("#msg").textContent = "تعذر إنشاء Excel: " + e.message; }
 };
-go("overtime");
+go("meals");
