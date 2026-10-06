@@ -1,0 +1,43 @@
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1c2430;--mut:#667;--line:#d5d9e0;--pri:#1b4f9c}
+@media(prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d222a;--ink:#e8ebf0;--mut:#9aa3b0;--line:#323946;--pri:#6ea2f0}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",Tahoma,Arial,sans-serif}
+header{padding:16px;max-width:1300px;margin:auto}h1{margin:0;font-size:22px}header p{margin:2px 0;color:var(--mut);font-size:14px}
+nav{display:flex;gap:8px;padding:0 16px;max-width:1300px;margin:auto;flex-wrap:wrap}
+nav button{flex:1;min-width:120px;padding:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;font:inherit;cursor:pointer}
+nav button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.wrap{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:16px;max-width:1300px;margin:12px auto;padding:0 16px 40px;align-items:start}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.g .w{grid-column:1/-1}
+label{display:block;font-size:13px;color:var(--mut)}
+input,select{width:100%;padding:7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;min-width:0}
+h3{margin:14px 0 6px;font-size:15px}
+.rows{overflow-x:auto}.rows table{border-collapse:collapse;min-width:560px}.rows td{padding:2px}.rows td.n{color:var(--mut);text-align:center;width:22px}.rows .h{font-size:12px;color:var(--mut)}
+.hint{font-size:12px;color:var(--mut)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.bar button{padding:9px 16px;border-radius:8px;border:1px solid var(--pri);font:inherit;cursor:pointer}
+.go{background:var(--pri);color:#fff}.sec{background:none;color:var(--pri)}
+#msg{font-size:13px;color:var(--mut)}
+.scaler{overflow:hidden;border:1px solid var(--line);border-radius:6px;background:#888}
+/* ===== A4 page (always light, as printed) ===== */
+.page{width:794px;height:1123px;background:#fff;color:#000;padding:28px 36px;position:relative;transform-origin:top right;direction:rtl;font-family:"Segoe UI",Tahoma,Arial,sans-serif;font-size:14px;overflow:hidden}
+.page img.hd{width:100%;display:block;margin-bottom:8px}
+.page .t1{text-align:center;font-weight:700;font-size:20px;margin:2px 0}
+.page .ln{font-weight:700;font-size:16px;margin:2px 0}
+.page table{border-collapse:collapse;width:100%}
+.page td,.page th{border:1px solid #000;padding:2px 4px;text-align:center;height:25px;font-size:13px;vertical-align:middle}
+.page th{font-weight:700}
+.page .nb td,.page td.nb{border:none}
+.page .sig{display:flex;justify-content:space-between;font-weight:700;font-size:16px;margin-top:14px}
+.page .lb{background:#e2efda;font-weight:700}.page .lb2{background:#ddebf7}
+.page .tot{background:#eee;font-weight:700;font-size:16px}
+.page .blk{background:#000}
+.page .sp{font-weight:700;text-align:center;font-size:16px;margin:2px 0}
+@media print{
+ body *{visibility:hidden}.page,.page *{visibility:visible}
+ .scaler{border:0;background:none;overflow:visible}
+ .page{position:absolute;top:0;right:0;transform:none!important;margin:0}
+ @page{size:A4;margin:0}
+}
