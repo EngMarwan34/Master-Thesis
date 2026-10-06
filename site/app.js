@@ -1,4 +1,5 @@
 "use strict";
+document.documentElement.setAttribute("dir", "rtl"); document.documentElement.setAttribute("lang", "ar");
 const DAYS = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -169,7 +170,7 @@ function buildPanel() {
 }
 function scale() {
   const s = Math.min(1, ($("#scaler").clientWidth || 794) / 794);
-  $("#page").style.transform = `scale(${s})`; $("#scaler").style.height = (1123*s) + "px";
+  $("#page").style.transform = `scale(${s})`; $("#page").style.marginInline = s < 1 ? "0" : "auto"; $("#scaler").style.height = (1123*s) + "px";
 }
 function draw() {
   const pg = $("#page"); pg.innerHTML = `<div class="in">${FORMS[cur].render(state[cur])}</div>`;
@@ -208,21 +209,26 @@ const tabs = $("#tabs");
 for (const k in FORMS) { const b = document.createElement("button"); b.textContent = FORMS[k].title; b.dataset.k = k; b.onclick = () => go(k); tabs.append(b); }
 function go(k) { cur = k; tabs.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === k)); buildPanel(); draw(); $("#msg").textContent = ""; }
 $("#clr").onclick = () => { if (confirm("مسح كل الحقول؟")) { state[cur] = blank(cur); save(); buildPanel(); draw(); } };
-$("#print").onclick = () => window.print();
 window.addEventListener("resize", scale);
 
 const stamp = () => { const n = new Date(), p = x => String(x).padStart(2,"0"); return `${n.getFullYear()}${p(n.getMonth()+1)}${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}`; };
-function save_blob(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+async function save_blob(blob, name) {
+  const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+  if (dl) { await dl.save({filename: name, data: blob}); return; }   // داخل claude.ai
+  saveLocal(blob, name);
+}
+function saveLocal(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
 
 $("#dlpdf").onclick = async () => {
   const page = $("#page"), old = page.style.transform; $("#msg").textContent = "جاري إنشاء PDF…";
   page.style.transform = "none"; page.style.marginInline = "0";
   try {
-    await html2pdf().set({margin:0, filename:`${FORMS[cur].file}_${stamp()}.pdf`, image:{type:"jpeg",quality:0.98},
-      html2canvas:{scale:2, useCORS:true, backgroundColor:"#fff", scrollX:0, scrollY:0}, jsPDF:{unit:"px", format:[794,1123], hotfixes:["px_scaling"]}}).from(page).save();
+    const pdf = await html2pdf().set({margin:0, filename:`${FORMS[cur].file}_${stamp()}.pdf`, image:{type:"jpeg",quality:0.98},
+      html2canvas:{scale:2, useCORS:true, backgroundColor:"#fff", scrollX:0, scrollY:0}, jsPDF:{unit:"px", format:[794,1123], hotfixes:["px_scaling"]}}).from(page).outputPdf("blob");
+    await save_blob(pdf, `${FORMS[cur].file}_${stamp()}.pdf`);
     $("#msg").textContent = "تم التنزيل ✓";
-  } catch (e) { $("#msg").textContent = "تعذر إنشاء PDF: " + e.message; }
-  page.style.transform = old; page.style.marginInline = "";
+  } catch (e) { $("#msg").textContent = e && e.code === "declined" ? "" : "تعذر إنشاء PDF: " + (e.message || e); }
+  scale();
 };
 $("#dlxls").onclick = async () => {
   $("#msg").textContent = "جاري إنشاء Excel…";
@@ -239,8 +245,8 @@ $("#dlxls").onclick = async () => {
       ws.addImage(id, {tl:a(tl), br:a(br), editAs:"oneCell"});
     }
     const buf = await wb.xlsx.writeBuffer();
-    save_blob(new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), `${FORMS[cur].file}_${stamp()}.xlsx`);
+    await save_blob(new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), `${FORMS[cur].file}_${stamp()}.xlsx`);
     $("#msg").textContent = "تم التنزيل ✓";
-  } catch (e) { $("#msg").textContent = "تعذر إنشاء Excel: " + e.message; }
+  } catch (e) { $("#msg").textContent = e && e.code === "declined" ? "" : "تعذر إنشاء Excel: " + (e.message || e); }
 };
 go("meals");
