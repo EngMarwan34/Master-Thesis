@@ -24,15 +24,17 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
   const message = useMemo(() => {
     if (selectedLines.length === 0) return "";
     return buildWhatsAppMessage(
+      branch,
       selectedLines.map((line) => ({
         request_number: line.request_number,
         customer_name: line.customer_name,
         part_code: line.part_code,
+        part_name: line.part_name,
         quantity: line.quantity,
         source_type: line.source_type,
       })),
     );
-  }, [selectedLines]);
+  }, [branch, selectedLines]);
 
   function toggle(id: number) {
     setJustMarked(false);
