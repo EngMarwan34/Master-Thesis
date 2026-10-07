@@ -137,11 +137,13 @@ export interface SourcingWithContext extends PartSourcing {
   part_name: string | null;
   request_number: string;
   maintenance_request_id: number;
+  customer_name: string | null;
 }
 
 const SOURCING_WITH_CONTEXT_SELECT = `
   SELECT ps.*, pr.part_code AS part_code, pr.part_name AS part_name,
-         mr.request_number AS request_number, mr.id AS maintenance_request_id
+         mr.request_number AS request_number, mr.id AS maintenance_request_id,
+         mr.customer_name AS customer_name
   FROM part_sourcing ps
   JOIN part_requests pr ON pr.id = ps.part_request_id
   JOIN maintenance_requests mr ON mr.id = pr.maintenance_request_id

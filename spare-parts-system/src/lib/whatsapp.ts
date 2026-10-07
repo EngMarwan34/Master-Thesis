@@ -1,50 +1,32 @@
-import { BRANCH_LABELS, DESTINATION_BRANCH_LABEL, type Branch, type SourceType } from "./types";
+import { type SourceType } from "./types";
 
 export interface MessageLineInput {
   request_number: string;
+  customer_name: string | null;
   part_code: string;
-  part_name: string | null;
   quantity: number;
   source_type: SourceType;
 }
 
 /**
  * Builds the WhatsApp message text sent to a source branch asking it to
- * ship one or more spare parts to the Madinah branch. Groups every selected
- * line (which may belong to different maintenance requests) into a single,
- * ready-to-send message.
+ * ship one or more spare parts to the Madinah branch. Kept intentionally
+ * bare — just the request number/site and the part code + quantity, in the
+ * exact short format the branch teams already use and respond to. No
+ * header, signature, or branch name: anything more than that and they
+ * don't read it.
  */
-export function buildWhatsAppMessage(
-  branch: Branch,
-  lines: MessageLineInput[],
-  senderName?: string,
-): string {
-  const header = `📦 Spare Parts Request – Transfer to ${DESTINATION_BRANCH_LABEL} Branch\nFrom: ${BRANCH_LABELS[branch]} Branch`;
-
-  const body = lines
-    .map((line, index) => {
-      const parts = [
-        `${index + 1}) Maintenance Request #: ${line.request_number}`,
-        `Part Code: ${line.part_code}`,
-      ];
-      if (line.part_name) parts.push(`Part Name: ${line.part_name}`);
-      parts.push(`Quantity: ${line.quantity}`);
-      if (line.source_type === "stock_pull") {
-        parts.push(`Note: pull from your existing stock (please do not sell it)`);
-      }
-      return parts.join("\n");
+export function buildWhatsAppMessage(lines: MessageLineInput[]): string {
+  return lines
+    .map((line) => {
+      const site = line.customer_name ? ` - ${line.customer_name}` : "";
+      const stockTag = line.source_type === "stock_pull" ? " (STOCK)" : "";
+      return [
+        `Maintenance Request #: ${line.request_number}${site}`,
+        `Part Code: ${line.part_code}----${line.quantity}PCS${stockTag}`,
+      ].join("\n");
     })
-    .join("\n----------------------\n");
-
-  const footer = [
-    "----------------------",
-    `Please ship the parts above to the ${DESTINATION_BRANCH_LABEL} branch, and send the tracking number once available.`,
-    senderName ? `Requested by: ${senderName}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  return `${header}\n\n${body}\n\n${footer}`;
+    .join("\n----------------\n");
 }
 
 /**

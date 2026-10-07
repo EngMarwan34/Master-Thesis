@@ -15,7 +15,6 @@ interface Props {
 
 export default function BranchMessagePanel({ branch, lines, contactName, phoneNumber }: Props) {
   const [selected, setSelected] = useState<Set<number>>(() => new Set(lines.map((l) => l.id)));
-  const [senderName, setSenderName] = useState("");
   const [copied, setCopied] = useState(false);
   const [justMarked, setJustMarked] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -25,17 +24,15 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
   const message = useMemo(() => {
     if (selectedLines.length === 0) return "";
     return buildWhatsAppMessage(
-      branch,
       selectedLines.map((line) => ({
         request_number: line.request_number,
+        customer_name: line.customer_name,
         part_code: line.part_code,
-        part_name: line.part_name,
         quantity: line.quantity,
         source_type: line.source_type,
       })),
-      senderName || undefined,
     );
-  }, [branch, selectedLines, senderName]);
+  }, [selectedLines]);
 
   function toggle(id: number) {
     setJustMarked(false);
@@ -106,20 +103,10 @@ export default function BranchMessagePanel({ branch, lines, contactName, phoneNu
         ))}
       </ul>
 
-      <label className="mt-3 block text-xs text-slate-600">
-        Requested by (shown in the message)
-        <input
-          value={senderName}
-          onChange={(e) => setSenderName(e.target.value)}
-          placeholder="e.g. Mohammed"
-          className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
-        />
-      </label>
-
       <textarea
         readOnly
         value={message}
-        rows={Math.min(16, selectedLines.length * 4 + 5)}
+        rows={Math.min(16, Math.max(3, selectedLines.length * 3 - 1))}
         className="mt-3 w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800"
         dir="ltr"
       />
