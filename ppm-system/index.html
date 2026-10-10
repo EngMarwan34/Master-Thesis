@@ -735,6 +735,7 @@ async function visitPage(id){
     }).join("")}</div></div>`;
 
   body += await discussionCard(v);
+  if(canResetPreventiveVisit(v,items))body+=`<div class="card"><button class="btn quiet" onclick="resetPreventiveStart()">${tr('بدأت الزيارة بالخطأ','Started this visit by mistake')}</button><p class="muted">${tr('التراجع عن البدء متاح للزيارة الفارغة فقط.','Reset is available only for an empty visit.')}</p></div>`;
   const bar = readOnly ? "" :
     (isEmergency ? `<button class="btn" onclick="finishVisit()">إنهاء الطلب</button>`
       : `<button class="btn quiet" onclick="addAssetInVisit()">جهاز غير مسجّل</button>
@@ -852,7 +853,7 @@ async function openAsset(assetId){
     </div>
     <p class="muted">${esc(a.asset_no)} · ${esc(a.category)} ${a.brand?"· "+esc(a.brand):""} ${a.model?"· "+esc(a.model):""}
       ${a.serial_no?"<br>الرقم التسلسلي: "+esc(a.serial_no):""} ${a.location_text?"<br>الموقع: "+esc(a.location_text):""}</p>
-    ${repeated?`<div class="card" style="background:#FEF6E7;border-color:var(--maint);padding:11px">
+    ${repeated?`<div class="card repeat-fault-note" style="padding:11px">
       <b style="color:var(--maint)">تنبيه:</b> سُجّلت ملاحظات على هذا الجهاز في زيارة سابقة.</div>`:""}
     ${hist.length?`<details open style="margin:10px 0"><summary style="cursor:pointer;font-weight:600">سجل الصيانات السابقة (${hist.length})</summary>
       ${hist.map(h=>`<div style="border-top:1px solid var(--line);padding:9px 0">
