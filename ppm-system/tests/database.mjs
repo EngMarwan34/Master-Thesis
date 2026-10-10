@@ -1,0 +1,132 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const {PGlite}=await import(process.env.PGLITE_MODULE||'@electric-sql/pglite');
+const db=new PGlite();
+const sql=async text=>db.exec(text);
+await sql(`create schema auth; create schema storage; create role authenticated;
+create table auth.users(id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.uid',true),'')::uuid $$;
+create table storage.buckets(id text primary key,name text,public boolean);
+create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text);
+create function gen_random_bytes(n integer) returns bytea language sql as $$ select decode(repeat('ab',n),'hex') $$;`);
+const dir=new URL('../sql/',import.meta.url);
+for(const name of ['schema.sql','migration_002_photos_crm_notes.sql','migration_003_visit_types_and_delete.sql','migration_004_fix_visit_finish_rls.sql','migration_005_workflow_and_scheduling.sql'])await sql(await readFile(new URL(name,dir),'utf8'));
+// Migration is safe to apply again.
+await sql(await readFile(new URL('migration_005_workflow_and_scheduling.sql',dir),'utf8'));
+await sql(`grant usage on schema public,auth to authenticated;
+grant select,insert,update,delete on all tables in schema public to authenticated;
+grant usage,select on all sequences in schema public to authenticated;`);
+const uid=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
+const [supervisor,tech,other,clientUser,remoteSup]=[1,2,3,4,5].map(uid);
+const [client,remoteClient]=[10,11].map(uid);
+const [asset,asset2]=[20,21].map(uid);
+const [visit,otherVisit,remoteVisit]=[30,31,32].map(uid);
+await sql(`insert into auth.users values ${[supervisor,tech,other,clientUser,remoteSup].map(x=>`('${x}')`).join(',')};
+insert into clients(id,name_ar,branch) values ('${client}','اختبار','المدينة'),('${remoteClient}','آخر','جدة');
+insert into profiles(id,full_name,role,branch,client_id) values
+('${supervisor}','مشرف','supervisor','المدينة',null),('${tech}','فني','technician','المدينة',null),
+('${other}','فني آخر','technician','المدينة',null),('${clientUser}','عميل','client',null,'${client}'),('${remoteSup}','مشرف آخر','supervisor','جدة',null);
+insert into assets(id,client_id,asset_no,name_ar,qr_code) values ('${asset}','${client}','A1','جهاز','qr1'),('${asset2}','${remoteClient}','A2','آخر','qr2');
+insert into visits(id,client_id,technician_id) values ('${visit}','${client}','${tech}'),('${otherVisit}','${client}','${other}'),('${remoteVisit}','${remoteClient}','${remoteSup}');`);
+async function as(id){await sql(`reset role;set test.uid='${id}';set role authenticated;`);}
+async function reject(statement){await assert.rejects(sql(statement));}
+const itemCall=(vid=visit,condition='يحتاج قطع غيار',photos=[{url:'https://example.test/general.jpg',type:'general'},{url:'https://example.test/defect.jpg',type:'defect'}])=>`select save_visit_item('${vid}','${asset}','${condition}','اختبار','قطعة', '${JSON.stringify(photos)}'::jsonb)`;
+await as(tech);
+await reject(`update visits set status='approved' where id='${visit}'`);
+await reject(`insert into visits(client_id,technician_id,status) values ('${client}','${tech}','approved')`);
+await reject(`update visits set crm_ticket_no='tamper' where id='${visit}'`);
+await reject(`update visits set client_id='${remoteClient}' where id='${visit}'`);
+await reject(itemCall(otherVisit));
+await sql(itemCall());
+const itemId=(await db.query(`select id from visit_items where visit_id='${visit}'`)).rows[0].id;
+await reject(itemCall(visit,'سليم',[{url:'ok',type:'general'},{url:'broken',type:'invalid'}]));
+assert.equal((await db.query(`select condition from visit_items where id='${itemId}'`)).rows[0].condition,'يحتاج قطع غيار');
+assert.equal((await db.query(`select count(*)::int as n from photos where visit_item_id='${itemId}'`)).rows[0].n,2);
+console.log('PASS technician ownership, branch/CRM restrictions, approval bypass denied, atomic photo rollback');
+await sql(`update visits set status='submitted' where id='${visit}'`);
+await reject(itemCall());
+await as(supervisor);
+await reject(`select approve_visit('${visit}','توصيات','[{"id":"${uid(99)}","notes":"bad"}]')`);
+assert.equal((await db.query(`select status from visits where id='${visit}'`)).rows[0].status,'submitted');
+await sql(`select approve_visit('${visit}','توصيات','[{"id":"${itemId}","notes":"مصَحح","parts":"قطعة"}]')`);
+const approved=(await db.query(`select * from visits where id='${visit}'`)).rows[0];
+assert.equal(approved.status,'approved');assert.equal(approved.approved_by,supervisor);assert.match(approved.report_no,/^PPM-/);
+await reject(itemCall());
+console.log('PASS submission, atomic supervisor approval, report numbering, approved inspection frozen');
+let faults=(await db.query('select current_faults() as result')).rows[0].result;assert.equal(faults.length,1);
+await sql(`insert into fault_resolutions(visit_item_id,resolution_notes) values ('${itemId}','استبدال القطعة')`);
+assert.equal((await db.query('select current_faults() as result')).rows[0].result.length,0);
+await as(tech);await reject(`insert into fault_resolutions(visit_item_id,resolution_notes) values ('${itemId}','غير مصرح')`);
+await as(remoteSup);assert.equal((await db.query('select current_faults() as result')).rows[0].result.length,0);
+await as(clientUser);assert.equal((await db.query('select current_faults() as result')).rows[0].result.length,0);
+console.log('PASS fault closure, client/branch isolation');
+// Later healthy inspections remove historic faults; a fresh failure reopens follow-up.
+await sql('reset role;set test.uid=\'\';');
+for(const [n,condition] of [[40,'يحتاج قطع غيار'],[41,'سليم'],[42,'يحتاج صيانة']]){
+ await sql(`insert into visits(id,client_id,technician_id,status,visit_date) values ('${uid(n)}','${client}','${tech}','approved','2026-10-${n-20}');
+ insert into visit_items(visit_id,asset_id,condition) values ('${uid(n)}','${asset}','${condition}')`);
+ await as(supervisor);faults=(await db.query('select current_faults() as result')).rows[0].result;
+ assert.equal(faults.length,condition==='سليم'?0:1);if(faults.length)assert.equal(faults[0].visits.id,uid(n));
+ await sql('reset role;set test.uid=\'\';');
+}
+console.log('PASS latest inspection deduplication, healthy recovery and recurring fault');
+await as(supervisor);
+await sql(`select create_contract_schedule('${client}','C1','2026-10-01','2027-01-31','شهري','${tech}','["2026-10-31","2026-11-30","2026-12-31"]')`);
+const schedules=(await db.query('select * from scheduled_visits order by due_date')).rows;
+assert.equal(schedules.length,3);
+await reject(`select create_contract_schedule('${client}','INVALID','2026-10-01','2027-01-31','شهري','${tech}','["2026-09-01"]')`);
+assert.equal((await db.query(`select count(*)::int as n from contracts where contract_no='INVALID'`)).rows[0].n,0);
+await as(other);
+await reject(`insert into visits(client_id,technician_id,contract_id,scheduled_visit_id) values ('${client}','${other}','${schedules[0].contract_id}','${schedules[0].id}')`);
+await as(tech);
+await sql(`insert into visits(client_id,technician_id,contract_id,scheduled_visit_id) values ('${client}','${tech}','${schedules[0].contract_id}','${schedules[0].id}')`);
+await reject(`insert into visits(client_id,technician_id,contract_id,scheduled_visit_id) values ('${client}','${tech}','${schedules[0].contract_id}','${schedules[0].id}')`);
+await reject(`select create_contract_schedule('${client}','C2','2026-10-01','2027-01-31','شهري','${tech}','["2026-10-31"]')`);
+console.log('PASS atomic contract scheduling, date validation, assigned technician and duplicate start prevention');
+await sql(`reset role;set test.uid='';update profiles set active=false where id='${tech}';`);
+await as(tech);await reject(`insert into visits(client_id,technician_id) values ('${client}','${tech}')`);
+console.log('PASS inactive staff cannot create visits');
+// Apply additive upgrades to an existing database and verify team/historical/settings flows.
+await sql(`reset role;set test.uid='';update profiles set active=true where id='${tech}';`);
+for(const name of ['migration_006_preventive_teams_and_history.sql','migration_007_settings.sql']){
+  const source=await readFile(new URL(name,dir),'utf8');await sql(source);await sql(source);
+}
+await sql(`grant select,insert,update,delete on all tables in schema public to authenticated;`);
+await as(supervisor);
+const year=new Date().getUTCFullYear();
+const newPlan=(await db.query(`select create_preventive_plan('${client}','${year}-01-01','${year+1}-12-31','شهري',array['${tech}','${other}']::uuid[],
+  '["${year}-01-01","${year}-02-01","${year+1}-01-01"]','[{"due_date":"${year}-01-01","completed_on":"${year}-01-15","notes":"منفذة سابقا"}]') as id`)).rows[0].id;
+assert.equal((await db.query(`select contract_no from contracts where id='${newPlan}'`)).rows[0].contract_no,null);
+const sharedSchedules=(await db.query(`select * from scheduled_visits where contract_id='${newPlan}' order by due_date`)).rows;
+assert.equal(new Date(sharedSchedules[0].completed_externally_on).toISOString().slice(0,10),`${year}-01-15`);
+assert.equal((await db.query(`select count(*)::int as n from visits where contract_id='${newPlan}'`)).rows[0].n,0,'Historical completion must not create a report');
+await as(tech);
+await reject(`select start_preventive_visit('${client}','${sharedSchedules[0].id}')`);
+const sharedId=(await db.query(`select start_preventive_visit('${client}','${sharedSchedules[1].id}') as id`)).rows[0].id;
+await sql(itemCall(sharedId));
+await as(other);
+assert.equal((await db.query(`select start_preventive_visit('${client}','${sharedSchedules[1].id}') as id`)).rows[0].id,sharedId);
+assert.ok((await db.query('select my_open_visits() as items')).rows[0].items.some(v=>v.id===sharedId));
+assert.equal((await db.query(`select visit_team('${sharedId}') as team`)).rows[0].team.length,2);
+await sql(itemCall(sharedId,'سليم',[{url:'https://example.test/general.jpg',type:'general'}]));
+await reject(`update visits set status='approved' where id='${sharedId}'`);
+await reject(`insert into visit_technicians values ('${otherVisit}','${tech}')`);
+await reject(`select record_previous_preventive_visit('${sharedSchedules[2].id}','${year}-02-01','forged')`);
+await sql(`update visits set status='submitted' where id='${sharedId}'`);
+await as(tech);await reject(itemCall(sharedId));
+await as(supervisor);
+await reject(`select record_previous_preventive_visit('${sharedSchedules[1].id}','${year}-02-01','already started')`);
+await reject(`select record_previous_preventive_visit('${sharedSchedules[2].id}','${year+1}-02-01','future')`);
+await reject(`select create_preventive_plan('${remoteClient}','${year}-01-01','${year+1}-12-31','شهري',array['${tech}']::uuid[],'["${year}-02-01"]')`);
+await reject(`select create_preventive_plan('${client}','${year}-01-01','${year+1}-12-31','شهري',array['${remoteSup}']::uuid[],'["${year}-02-01"]')`);
+await sql(`select update_schedule_team('${sharedSchedules[2].id}',array['${other}']::uuid[],'${year+1}-01-15')`);
+await reject(`select update_schedule_team('${sharedSchedules[1].id}',array['${other}']::uuid[],'${year}-02-15')`);
+await sql(`insert into branch_settings(branch,display_name,brand_color) values ('المدينة','اختبار','teal');`);
+await sql(`select update_staff_profile('${other}','فني معدل','0550000000',false)`);
+await as(other);await reject(`select start_preventive_visit('${client}','${sharedSchedules[2].id}')`);
+assert.equal((await db.query(`update branch_settings set display_name='unauthorized' where branch='المدينة' returning branch`)).rows.length,0);
+await reject(`select update_staff_profile('${tech}','غير مصرح','',false)`);
+await as(remoteSup);assert.equal((await db.query("select * from branch_settings where branch='المدينة'")).rows.length,0);
+await reject(`select update_staff_profile('${tech}','فرع آخر','',false)`);
+console.log('PASS client-only plans, historical visits without fake reports, shared team editing/submission, no duplicate starts, restricted settings and team administration');
+await db.close();
