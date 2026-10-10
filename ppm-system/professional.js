@@ -275,6 +275,7 @@ function checklistFields(asset,item,readOnly){
 async function discussionCard(v){
   if(me.role==='client'||!(me.role==='supervisor'||(v.team||[]).some(t=>t.technician_id===me.id)||v.technician_id===me.id))return '';
   const {data,error}=await sb.rpc('visit_discussion',{p_visit_id:v.id});if(error)throw error;
+  v.has_saved_comments=!!data?.length;
   return `<section class="card discussion-card"><h3>${tr('تعليقات الفريق الداخلية','Internal team discussion')}</h3><p class="muted">${tr('مرئية للفريق والمشرف فقط، ولا تظهر في تقرير العميل.','Visible to the assigned team and supervisor; excluded from client reports.')}</p><div class="list" data-no-page>${(data||[]).map(c=>`<article class="comment"><div class="spread"><strong data-user-content>${esc(c.full_name)}</strong><time>${fmt(c.created_at)} · ${time(c.created_at)}</time></div><p data-user-content>${esc(c.body)}</p></article>`).join('')||`<p class="empty">${tr('ابدأ النقاش مع فريق الزيارة','Start a discussion with the visit team')}</p>`}</div><form onsubmit="saveVisitComment(event,'${v.id}')"><label for="visitComment">${tr('تعليق جديد','New comment')}</label><textarea id="visitComment" required maxlength="2000"></textarea><div class="form-actions"><button class="btn" type="submit">${tr('إرسال التعليق','Post comment')}</button></div></form></section>`;
 }
 async function saveVisitComment(event,id){

@@ -47,31 +47,82 @@ async function schedulePage(){
   const rows=(scheduleResult.data||[]).filter(r=>!clientId||r.contracts.client_id===clientId);
   const contracts=(contractResult.data||[]).filter(c=>!clientId||c.client_id===clientId);
   window._scheduleRows=rows;
+  if(!window._scheduleView||window._scheduleView.clientId!==clientId)window._scheduleView={clientId,period:'month',month:todayISO().slice(0,7),status:'all',limit:40};
   const overdue=rows.filter(r=>scheduleState(r).tone==='danger').length;
   const upcoming=rows.filter(r=>!r.visits?.length&&!r.completed_externally_on&&r.due_date>=todayISO()&&r.due_date<=reminderEnd()).length;
   let body=`<section class="dashboard-hero"><div><span class="eyebrow">من الخطة إلى التنفيذ</span><h2>كل زيارة في موعدها</h2><p>جدول الوقائية باسم العميل، كلّف فريق العمل، وسجّل الزيارات السابقة.</p></div>${me.role==='supervisor'?`<button class="btn hero-action" onclick="newContract('${clientId||''}')">+ خطة وقائية جديدة</button>`:''}</section>
     <div class="kpi"><div class="b"><span class="metric-icon">${icon('calendar')}</span><div class="n">${contracts.length}</div><div class="muted">خطة وقائية</div></div><div class="b"><span class="metric-icon danger">${icon('calendar')}</span><div class="n">${overdue}</div><div class="muted">زيارة متأخرة لم تبدأ</div></div><div class="b"><span class="metric-icon">${icon('check')}</span><div class="n">${upcoming}</div><div class="muted">زيارة خلال ${preferences.reminder_days} أيام</div></div></div>
     <div class="card">${me.role==='supervisor'?`<div class="bulk-toolbar"><span>${tr('اختر المواعيد غير المبدوءة لتعديلها معًا','Select unstarted dates to reschedule together')}</span><button class="btn quiet" onclick="bulkRescheduleForm()">${tr('إعادة جدولة المختار','Reschedule selected')}</button></div>`:''}<div class="spread"><h3>جدول الزيارات</h3><select id="scheduleFilter" aria-label="تصفية الزيارات" class="compact-select" onchange="filterSchedule(this.value)"><option value="all">كل الزيارات</option><option value="danger">المتأخرة</option><option value="upcoming">القادمة والمستحقة</option><option value="done">المكتملة</option></select></div>
-    <div class="list" style="margin-top:16px">${rows.map(r=>{
+    <div class="schedule-date-controls"><div><label for="schedulePeriod">${tr('فترة الزيارات','Visit period')}</label><select id="schedulePeriod" onchange="filterSchedule()"><option value="month">${tr('شهر محدد','Selected month')}</option><option value="next14">${tr('الأسبوعان القادمان','Next two weeks')}</option><option value="past14">${tr('الأسبوعان الماضيان','Past two weeks')}</option><option value="all">${tr('كل التواريخ','All dates')}</option></select></div><div id="scheduleMonthControls"><label for="scheduleMonth">${tr('الشهر','Month')}</label><div class="row"><button class="btn quiet sm" type="button" onclick="shiftScheduleMonth(-1)" aria-label="${tr('الشهر السابق','Previous month')}"> ${tr('السابق','Previous')} </button><input id="scheduleMonth" type="month" value="${window._scheduleView.month}" required onchange="filterSchedule()"><button class="btn quiet sm" type="button" onclick="shiftScheduleMonth(1)" aria-label="${tr('الشهر التالي','Next month')}"> ${tr('التالي','Next')} </button><button class="btn quiet sm" type="button" onclick="showCurrentScheduleMonth()">${tr('الشهر الحالي','Current month')}</button></div></div></div><p class="muted" id="scheduleRange" aria-live="polite"></p>
+    <div id="scheduleList" class="list" data-no-page style="margin-top:16px">${rows.map(r=>{
       const state=scheduleState(r),v=state.visit;
       const canStart=me.role==='supervisor'||scheduledForMe(r);
       const destination=v?(v.status==='approved'?'report':v.status==='submitted'&&me.role==='supervisor'?'review':'visit'):null;
-      return `<div class="item schedule-item" data-schedule="${state.historical?'done':v?(v.status==='approved'?'done':'progress'):state.tone==='danger'?'danger':'upcoming'}">${me.role==='supervisor'&&!state.historical&&!v?`<input class="schedule-check" type="checkbox" name="scheduleSelection" value="${r.id}" aria-label="${tr('اختيار موعد','Select date')} ${esc(r.contracts.clients.name_ar)} ${r.due_date}">`:''}<span class="date-tile"><strong>${r.due_date.slice(8)}</strong><small>${r.due_date.slice(0,7)}</small></span><span class="body"><span class="t">${esc(r.contracts.clients.name_ar)}</span><span class="s">${fmt(r.due_date)} · ${durationLabel(r.expected_duration_minutes||120)}${state.historical?' · نُفّذت '+fmt(r.completed_externally_on):''}${r.external_notes?' · '+esc(r.external_notes):''}</span></span><span class="status-tag ${state.tone}">${state.label}</span>${state.historical?`<span class="muted">مسجّلة خارج النظام</span>`:v?`<a class="btn quiet sm" href="#/${destination}/${v.id}">فتح الزيارة</a>`:canStart?`<div class="row"><button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}','${r.contract_id}')">بدء الزيارة</button>${me.role==='supervisor'?`<button class="btn quiet sm" onclick="recordPreviousVisit('${r.id}')">نُفّذت سابقًا</button>`:''}</div>`:`<span class="muted">مكلّفة لفني آخر</span>`}</div>`;
-    }).join('')}</div><p class="empty" id="emptySchedule" ${rows.length?'hidden':''}>لا توجد زيارات مطابقة. أضف خطة وقائية باسم العميل.</p></div>
+      return `<div class="item schedule-item" data-due="${r.due_date}" data-schedule="${state.historical?'done':v?(v.status==='approved'?'done':'progress'):state.tone==='danger'?'danger':'upcoming'}">${me.role==='supervisor'&&!state.historical&&!v?`<input class="schedule-check" type="checkbox" name="scheduleSelection" value="${r.id}" aria-label="${tr('اختيار موعد','Select date')} ${esc(r.contracts.clients.name_ar)} ${r.due_date}">`:''}<span class="date-tile"><strong>${r.due_date.slice(8)}</strong><small>${r.due_date.slice(0,7)}</small></span><span class="body"><span class="t">${esc(r.contracts.clients.name_ar)}</span><span class="s">${fmt(r.due_date)} · ${durationLabel(r.expected_duration_minutes||120)}${state.historical?' · نُفّذت '+fmt(r.completed_externally_on):''}${r.external_notes?' · '+esc(r.external_notes):''}</span></span><span class="status-tag ${state.tone}">${state.label}</span>${state.historical?`<span class="muted">مسجّلة خارج النظام</span>`:v?`<a class="btn quiet sm" href="#/${destination}/${v.id}">فتح الزيارة</a>`:canStart?`<div class="row"><button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}','${r.contract_id}')">بدء الزيارة</button>${me.role==='supervisor'?`<button class="btn quiet sm" onclick="recordPreviousVisit('${r.id}')">نُفّذت سابقًا</button>`:''}</div>`:`<span class="muted">مكلّفة لفني آخر</span>`}</div>`;
+    }).join('')}</div><button class="btn quiet list-more" id="scheduleMore" hidden onclick="filterSchedule(undefined,true)">${tr('عرض المزيد','Load more')}</button><p class="empty" id="emptySchedule" hidden>${tr('لا توجد زيارات في الفترة والحالة المختارتين. جرّب فترة أخرى أو كل التواريخ.','No visits match this period and status. Try another period or all dates.')}</p></div>
     <div class="card"><h3>خطط العملاء وتقدم التنفيذ</h3><div class="list" style="margin-top:16px">${contracts.map(c=>{
       const related=rows.filter(r=>r.contract_id===c.id),done=related.filter(r=>r.completed_externally_on||r.visits?.[0]?.status==='approved').length;
       const total=related.length||c.visits_planned||0,pct=total?Math.round(done/total*100):0;
       return `<div class="contract-card"><div class="spread"><a href="#/client/${c.client_id}"><strong>${esc(c.clients.name_ar)}</strong></a><span class="status-tag ${c.end_date&&c.end_date<todayISO()?'neutral':'brand'}">${c.end_date&&c.end_date<todayISO()?'منتهي':'خطة وقائية'}</span></div><p class="muted">${esc(c.frequency||'بدون دورية')}<br>${fmt(c.start_date)} — ${fmt(c.end_date)}</p><div class="spread"><span>زيارات منفّذة</span><strong>${done} من ${total}</strong></div><div class="rail"><span style="width:${pct}%"></span></div>${!related.length?`<p class="muted">لا توجد مواعيد لهذه الخطة بعد.</p>${me.role==='supervisor'?`<button class="btn quiet sm" onclick="planExistingContract('${c.id}')">جدولة الزيارات</button>`:''}`:''}</div>`;
     }).join('')||'<p class="empty">لا توجد خطط وقائية بعد.</p>'}</div></div>`;
   window._contracts=contracts;shell('جدولة الوقائية',body);
+  $('#schedulePeriod').value=window._scheduleView.period;$('#scheduleFilter').value=window._scheduleView.status;filterSchedule();
 }
-function filterSchedule(value){
-  let count=0;document.querySelectorAll('[data-schedule]').forEach(el=>{el.hidden=value!=='all'&&el.dataset.schedule!==value;if(!el.hidden)count++;});
-  $('#emptySchedule').hidden=count>0;
+function scheduleDateRange(period,month,today=todayISO()){
+  const addDays=(date,days)=>{const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+  if(period==='all')return null;
+  if(period==='next14')return {start:today,end:addDays(today,13)};
+  if(period==='past14')return {start:addDays(today,-14),end:addDays(today,-1)};
+  const selected=/^\d{4}-(0[1-9]|1[0-2])$/.test(month||'')?month:today.slice(0,7);
+  const [year,m]=selected.split('-').map(Number);
+  return {start:selected+'-01',end:new Date(Date.UTC(year,m,0)).toISOString().slice(0,10)};
+}
+function shiftScheduleMonth(offset){
+  const [year,month]=(window._scheduleView.month).split('-').map(Number);
+  $('#scheduleMonth').value=new Date(Date.UTC(year,month-1+offset,1)).toISOString().slice(0,7);$('#schedulePeriod').value='month';filterSchedule();
+}
+function showCurrentScheduleMonth(){
+  $('#scheduleMonth').value=todayISO().slice(0,7);$('#schedulePeriod').value='month';filterSchedule();
+}
+function filterSchedule(value,loadMore=false){
+  const view=window._scheduleView;if(!view)return;
+  view.status=value||$('#scheduleFilter').value;view.period=$('#schedulePeriod').value;
+  view.month=$('#scheduleMonth').value||todayISO().slice(0,7);$('#scheduleMonth').value=view.month;
+  view.limit=loadMore?view.limit+40:40;
+  const range=scheduleDateRange(view.period,view.month);let count=0;
+  document.querySelectorAll('#scheduleList [data-schedule]').forEach(el=>{
+    const matches=(view.status==='all'||el.dataset.schedule===view.status)&&(!range||(el.dataset.due>=range.start&&el.dataset.due<=range.end));
+    if(matches)count++;
+    el.hidden=!matches||count>view.limit;
+    if(el.hidden){const check=el.querySelector('[name=scheduleSelection]');if(check)check.checked=false;}
+  });
+  $('#scheduleMonthControls').hidden=view.period!=='month';$('#emptySchedule').hidden=count>0;$('#scheduleMore').hidden=count<=view.limit;
+  $('#scheduleRange').textContent=tr(`عدد الزيارات: ${count}`,`Visits: ${count}`)+(range?' · '+fmt(range.start)+' — '+fmt(range.end):'');
 }
 function scheduledForMe(row){
   const team=row.scheduled_visit_technicians||[];
   return team.length?team.some(t=>t.technician_id===me.id):!row.technician_id||row.technician_id===me.id;
+}
+function canResetPreventiveVisit(v,items){
+  return v.visit_type==='preventive'&&v.status==='draft'&&canEditVisit(v)&&!items.length&&!v.has_saved_comments&&
+    !v.check_out&&!v.approved_by&&!v.approved_at&&
+    ['general_notes','recommendations','reject_reason','report_no','crm_ticket_no','quote_url'].every(k=>!String(v[k]||'').trim());
+}
+function resetPreventiveStart(){
+  const v=window._v;if(!canResetPreventiveVisit(v,window._items||[]))return;
+  openSheet(`<div class="sheet-heading"><h2>${tr('بدأت الزيارة بالخطأ','Started this visit by mistake')}</h2><p>${esc(v.clients.name_ar)}</p></div><p>${tr(v.scheduled_visit_id?'ستعود الزيارة إلى جدول المواعيد بنفس التاريخ والفريق. يمكنك بدءها لاحقًا.':'سيُلغى بدء هذه الزيارة الفارغة. يمكنك إنشاء زيارة جديدة لاحقًا.',v.scheduled_visit_id?'The visit will return to the schedule with the same date and team. You can start it later.':'This empty visit will be removed. You can create a new visit later.')}</p><p class="muted">${tr('يسمح التراجع فقط إذا لم تُحفظ فحوص أو تعليقات أو بيانات عمل في الزيارة.','Reset is allowed only if no inspections, comments or work details have been saved.')}</p><form onsubmit="confirmPreventiveReset(event,'${v.id}')"><div class="form-actions"><button class="btn quiet" type="button" onclick="closeSheet()">${tr('الاحتفاظ بالزيارة','Keep visit')}</button><button class="btn" type="submit">${tr('تأكيد التراجع عن البدء','Confirm reset')}</button></div></form>`);
+}
+async function confirmPreventiveReset(event,id){
+  event.preventDefault();const button=event.target.querySelector('[type=submit]');button.disabled=true;
+  const v=window._v;
+  try{
+    const {error}=await sb.rpc('reset_preventive_visit',{p_visit_id:id});if(error)throw error;
+    closeSheet();location.hash=v.scheduled_visit_id?'#/schedule':'#/client/'+v.client_id;
+    toast(tr('تم التراجع عن بدء الزيارة','Visit start reset'));
+  }catch(e){
+    recordError('reset-preventive-start',e);button.disabled=false;
+    toast(e.message?.includes('Visit is not empty')?tr('لا يمكن التراجع: حُفظ عمل في الزيارة. افتحها مجددًا للاطلاع على التحديثات.','Cannot reset: work has been saved. Reopen the visit to view updates.'):tr('تعذر التراجع عن البدء. الزيارة محفوظة؛ حاول مجددًا.','Could not reset. The visit is preserved; please try again.'),6000);
+  }
 }
 function technicianFields(selected=[]){
   return `<fieldset class="team-picker"><legend>فريق الزيارة الوقائية</legend><p class="muted">اختر فنيًا واحدًا أو أكثر. يعمل الفريق على الزيارة نفسها.</p>${(window._technicians||[]).map((t,i)=>`<label class="team-option"><input type="checkbox" name="assignedTech" onchange="suggestDuration()" value="${t.id}" ${selected.includes(t.id)||(!selected.length&&i===0)?'checked':''}><span>${esc(t.full_name)}</span></label>`).join('')||'<p class="empty">لا يوجد فنيون مفعّلون في الفرع.</p>'}</fieldset>`;

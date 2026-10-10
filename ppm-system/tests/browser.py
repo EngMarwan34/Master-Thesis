@@ -32,6 +32,7 @@ window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:{u
  if(name==='visit_team')data=fixture.teamOverride||fixture.rows.profiles.filter(p=>p.id===visit.technician_id).map(p=>({technician_id:p.id,full_name:p.full_name}));
  if(name==='my_open_visits')data=fixture.rows.visits;
  if(name==='record_previous_preventive_visit'){const row=fixture.rows.scheduled_visits.find(r=>r.id===payload.p_schedule_id);row.completed_externally_on=payload.p_completed_on;row.external_notes=payload.p_notes;}
+ if(name==='reset_preventive_visit'){const v=fixture.rows.visits.find(v=>v.id===payload.p_visit_id);data=v.scheduled_visit_id;fixture.rows.visits=fixture.rows.visits.filter(v=>v.id!==payload.p_visit_id);fixture.rows.scheduled_visits.find(r=>r.id===data).visits=[];}
  if(name==='start_preventive_visit')data='v1';return {data,error:null};}})};
 
 '''
@@ -65,6 +66,41 @@ try:
   page.wait_for_function("fixture.calls.some(c=>c.table==='fault_resolutions'&&c.op==='insert')")
   page.get_by_role('link',name='جدولة الوقائية',exact=True).click()
   page.get_by_role('heading',name='كل زيارة في موعدها').wait_for()
+  assert page.locator('#schedulePeriod').input_value()=='month'
+  assert page.locator('#scheduleMonth').input_value()==page.evaluate('todayISO().slice(0,7)')
+  assert page.locator('#emptySchedule').is_visible()
+  # Date and status filters compose, clear hidden selections, and page matching results.
+  page.evaluate("""async()=>{
+    fixture.originalSchedule=fixture.rows.scheduled_visits.slice();
+    const base=new Date(todayISO()+'T00:00:00Z');
+    fixture.rows.scheduled_visits.push(...[-15,-14,-1,0,13,14].map((offset,i)=>{
+      const d=new Date(base);d.setUTCDate(d.getUTCDate()+offset);
+      return {...fixture.originalSchedule[0],id:'period'+i,due_date:d.toISOString().slice(0,10)};
+    }));await schedulePage();
+  }""")
+  assert page.locator('[data-schedule]:visible').count()==page.evaluate("fixture.rows.scheduled_visits.filter(r=>r.due_date.startsWith(todayISO().slice(0,7))).length")
+  page.locator('#schedulePeriod').select_option('next14')
+  assert page.locator('[data-schedule]:visible').count()==2
+  page.locator('#scheduleFilter').select_option('danger');assert page.locator('#emptySchedule').is_visible()
+  page.locator('#scheduleFilter').select_option('all')
+  page.locator('#schedulePeriod').select_option('past14');assert page.locator('[data-schedule]:visible').count()==2
+  assert page.locator('#scheduleMonthControls').is_hidden()
+  page.locator('#schedulePeriod').select_option('month');page.locator('#scheduleMonth').fill('2027-10')
+  assert page.locator('[data-schedule]:visible').count()==1
+  page.locator('[name=scheduleSelection][value=sc2]').check()
+  page.get_by_role('button',name='الشهر السابق',exact=True).click()
+  assert page.locator('#scheduleMonth').input_value()=='2027-09'
+  assert not page.locator('[name=scheduleSelection][value=sc2]').is_checked()
+  page.get_by_role('button',name='الشهر التالي',exact=True).click()
+  assert page.locator('#scheduleMonth').input_value()=='2027-10'
+  page.get_by_role('button',name='الشهر الحالي',exact=True).click()
+  assert page.locator('#scheduleMonth').input_value()==page.evaluate('todayISO().slice(0,7)')
+  page.evaluate("async()=>{fixture.rows.scheduled_visits.push(...Array.from({length:42},(_,i)=>({...fixture.originalSchedule[0],id:'large'+i,due_date:todayISO()})));await schedulePage();}")
+  page.locator('#schedulePeriod').select_option('next14')
+  assert page.locator('[data-schedule]:visible').count()==40
+  page.locator('#scheduleMore').click();assert page.locator('[data-schedule]:visible').count()==44
+  page.evaluate("async()=>{fixture.rows.scheduled_visits=fixture.originalSchedule;await schedulePage();}")
+  page.locator('#schedulePeriod').select_option('all')
   page.evaluate("document.querySelectorAll('.toast').forEach(t=>t.remove())");page.screenshot(path=str(OUT/'schedule-desktop.png'),full_page=True)
   page.locator('#scheduleFilter').select_option('danger');assert page.locator('[data-schedule]:visible').count()==1
   page.locator('#scheduleFilter').select_option('done');assert page.locator('#emptySchedule').is_visible()
@@ -93,6 +129,18 @@ try:
   page.evaluate("me=fixture.rows.profiles[1];fixture.rows.visits[0].technician_id='t1';route()")
   page.get_by_role('button',name='ثلاجة المطبخ الرئيسية',exact=False).click()
   assert page.locator('.short-checklist select').count()==3
+  # The condition labels remain readable in dark mode, including the selected button.
+  page.evaluate("personal.theme='dark';applyPersonal()")
+  page.wait_for_function("!document.getAnimations().some(a=>a.playState==='running')")
+  assert page.locator('#states .state').count()==5
+  contrast=page.locator('#states .state').evaluate_all("""buttons=>{
+    const luminance=rgb=>{const c=rgb.match(/[\\d.]+/g).slice(0,3).map(Number).map(x=>x/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return .2126*c[0]+.7152*c[1]+.0722*c[2];};
+    return buttons.map(b=>{const s=getComputedStyle(b),a=luminance(s.color),z=luminance(s.backgroundColor);return {text:b.textContent.trim(),background:s.backgroundColor,ratio:(Math.max(a,z)+.05)/(Math.min(a,z)+.05)};});
+  }""")
+  assert all(b['text'] and b['background']!='rgb(255, 255, 255)' and b['ratio']>=4.5 for b in contrast),contrast
+  page.evaluate("document.querySelectorAll('.toast').forEach(t=>t.remove())")
+  page.screenshot(path=str(OUT/'inspection-dark.png'))
+  page.evaluate("personal.theme='light';applyPersonal()")
   page.locator('#notes').fill('نص يجب ألا يضيع')
   page.evaluate("window._draft.photos=[{url:'https://example.test/photo',type:'general'},{url:'https://example.test/defect',type:'defect'}];fixture.rpcError=true")
 
@@ -113,8 +161,10 @@ try:
   page.set_viewport_size({'width':390,'height':844});page.evaluate("document.querySelectorAll('.toast').forEach(t=>t.remove())");page.screenshot(path=str(OUT/'dashboard-mobile.png'),full_page=True)
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
   page.get_by_role('link',name='جدولة الوقائية',exact=True).click();page.get_by_role('heading',name='كل زيارة في موعدها').wait_for()
+  page.locator('#schedulePeriod').select_option('month')
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
   page.evaluate("document.querySelectorAll('.toast').forEach(t=>t.remove())");page.screenshot(path=str(OUT/'schedule-mobile.png'),full_page=True)
+  page.locator('#schedulePeriod').select_option('all')
   # Record an old visit and verify it disappears from overdue schedules.
   page.get_by_role('button',name='نُفّذت سابقًا').first.click()
   page.locator('#previousDate').fill('2026-01-15');page.locator('#previousNotes').fill('نُفّذت قبل بدء النظام')
@@ -161,6 +211,7 @@ try:
   page.get_by_role('button',name='إرسال التعليق',exact=True).click()
   page.wait_for_function("fixture.calls.some(c=>c.table==='visit_comments'&&c.op==='insert')")
   page.get_by_role('link',name='جدولة الوقائية',exact=True).click()
+  page.locator('#scheduleFilter').select_option('all')
   page.locator('[name=scheduleSelection]').first.check()
   page.get_by_role('button',name='إعادة جدولة المختار',exact=True).click()
   page.locator('#shiftReason').fill('تأجيل بطلب العميل')
@@ -169,6 +220,30 @@ try:
   page.wait_for_function("fixture.calls.some(c=>c.rpc==='reschedule_preventive_visits'&&c.payload.p_reason==='تأجيل بطلب العميل')")
   page.locator('.undo-toast button').last.click()
   page.wait_for_function("fixture.calls.some(c=>c.rpc==='undo_schedule_change')")
+  # An accidental empty start needs confirmation; failed requests preserve the visit.
+  page.evaluate("""()=>{
+    const v={...fixture.rows.visits[0],id:'emptyVisit',status:'draft',check_out:null,scheduled_visit_id:'scReset'};
+    fixture.rows.visits.push(v);
+    fixture.rows.scheduled_visits.push({...fixture.rows.scheduled_visits[1],id:'scReset',due_date:todayISO(),visits:[{id:v.id,status:v.status}]});
+    location.hash='#/visit/emptyVisit';
+  }""")
+  page.get_by_role('button',name='بدأت الزيارة بالخطأ',exact=True).click()
+  page.get_by_role('button',name='الاحتفاظ بالزيارة',exact=True).click()
+  assert not page.evaluate("fixture.calls.some(c=>c.rpc==='reset_preventive_visit')")
+  page.get_by_role('button',name='بدأت الزيارة بالخطأ',exact=True).click()
+  page.evaluate('fixture.rpcError=true')
+  page.get_by_role('button',name='تأكيد التراجع عن البدء',exact=True).click()
+  page.wait_for_function("document.body.innerText.includes('تعذر التراجع عن البدء')")
+  assert not page.get_by_role('button',name='تأكيد التراجع عن البدء',exact=True).is_disabled()
+  assert page.evaluate("fixture.rows.visits.some(v=>v.id==='emptyVisit')")
+  page.evaluate('fixture.rpcError=false')
+  page.get_by_role('button',name='تأكيد التراجع عن البدء',exact=True).click()
+  page.get_by_role('heading',name='كل زيارة في موعدها',exact=True).wait_for()
+  assert not page.evaluate("fixture.rows.visits.some(v=>v.id==='emptyVisit')")
+  assert page.locator('[name=scheduleSelection][value=scReset]').is_visible()
+  page.evaluate("location.hash='#/visit/v1'")
+  page.get_by_role('button',name='إنهاء الزيارة',exact=True).wait_for()
+  assert page.get_by_role('button',name='بدأت الزيارة بالخطأ',exact=True).count()==0
   # Client invitations are separate from technician invitations.
   page.goto('http://127.0.0.1:8776/#/settings/accounts')
   page.get_by_role('button',name='+ حساب عميل',exact=True).click()
@@ -220,7 +295,7 @@ try:
   page.emulate_media(media='print');page.pdf(path=str(OUT/'report.pdf'),format='A4')
   assert (OUT/'report.pdf').stat().st_size>1000
   assert not errors,errors
-  print('PASS desktop/mobile, personal language/dark mode/density, accessible navigation/dialogs, duration estimates, paged search, bulk shift/undo, short inspections, internal comments, client invites, unsaved preview and report languages/PDF; previous workflows also passed')
+  print('PASS current-month/two-week filters, month navigation, filtered pagination, hidden selection clearing, dark inspection contrast, accidental-start confirmation/failure/retry, desktop/mobile and existing workspace workflows')
   print('Screenshots:',OUT)
   browser.close()
 finally:server.terminate();server.wait()

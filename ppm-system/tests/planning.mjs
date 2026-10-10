@@ -21,3 +21,11 @@ assert.equal(context.scheduledForMe({technician_id:'lead',scheduled_visit_techni
 assert.equal(context.scheduledForMe({technician_id:'lead',scheduled_visit_technicians:[{technician_id:'lead'}]}),false);
 assert.equal(context.scheduleState({due_date:'2026-10-01',completed_externally_on:'2026-10-05',visits:[]}).label,'منفّذة سابقًا');
 console.log('PASS shared assignment visibility and historical completion state');
+const range=(...args)=>JSON.parse(JSON.stringify(context.scheduleDateRange(...args)));
+assert.deepEqual(range('month','2028-02','2026-10-10'),{start:'2028-02-01',end:'2028-02-29'});
+assert.deepEqual(range('month','2026-12','2026-10-10'),{start:'2026-12-01',end:'2026-12-31'});
+assert.deepEqual(range('month','','2026-10-10'),{start:'2026-10-01',end:'2026-10-31'});
+assert.deepEqual(range('next14','', '2026-12-25'),{start:'2026-12-25',end:'2027-01-07'});
+assert.deepEqual(range('past14','', '2026-01-05'),{start:'2025-12-22',end:'2026-01-04'});
+assert.equal(range('all','','2026-10-10'),null);
+console.log('PASS calendar-month and two-week windows across leap years and year boundaries');
