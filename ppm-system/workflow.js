@@ -2,13 +2,8 @@
 function todayISO(){
   return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 }
-function filterClients(value){
-  const query=value.trim().toLocaleLowerCase('ar');let found=0;
-  document.querySelectorAll('#clientList [data-search]').forEach(el=>{
-    el.hidden=!el.dataset.search.toLocaleLowerCase('ar').includes(query);if(!el.hidden)found++;
-  });
-  const empty=$('#noClients');if(empty)empty.hidden=found>0;
-}
+function filterClients(value){filterPagedItems('#clientList [data-search]',value.trim().toLocaleLowerCase(),'search','#noClients');}
+
 function contractDates(first,end,months){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(first)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||first>end||![1,3,6,12].includes(months))return [];
   const [year,month,day]=first.split('-').map(Number),dates=[];
@@ -56,12 +51,12 @@ async function schedulePage(){
   const upcoming=rows.filter(r=>!r.visits?.length&&!r.completed_externally_on&&r.due_date>=todayISO()&&r.due_date<=reminderEnd()).length;
   let body=`<section class="dashboard-hero"><div><span class="eyebrow">من الخطة إلى التنفيذ</span><h2>كل زيارة في موعدها</h2><p>جدول الوقائية باسم العميل، كلّف فريق العمل، وسجّل الزيارات السابقة.</p></div>${me.role==='supervisor'?`<button class="btn hero-action" onclick="newContract('${clientId||''}')">+ خطة وقائية جديدة</button>`:''}</section>
     <div class="kpi"><div class="b"><span class="metric-icon">${icon('calendar')}</span><div class="n">${contracts.length}</div><div class="muted">خطة وقائية</div></div><div class="b"><span class="metric-icon danger">${icon('calendar')}</span><div class="n">${overdue}</div><div class="muted">زيارة متأخرة لم تبدأ</div></div><div class="b"><span class="metric-icon">${icon('check')}</span><div class="n">${upcoming}</div><div class="muted">زيارة خلال ${preferences.reminder_days} أيام</div></div></div>
-    <div class="card"><div class="spread"><h3>جدول الزيارات</h3><select id="scheduleFilter" aria-label="تصفية الزيارات" class="compact-select" onchange="filterSchedule(this.value)"><option value="all">كل الزيارات</option><option value="danger">المتأخرة</option><option value="upcoming">القادمة والمستحقة</option><option value="done">المكتملة</option></select></div>
+    <div class="card">${me.role==='supervisor'?`<div class="bulk-toolbar"><span>${tr('اختر المواعيد غير المبدوءة لتعديلها معًا','Select unstarted dates to reschedule together')}</span><button class="btn quiet" onclick="bulkRescheduleForm()">${tr('إعادة جدولة المختار','Reschedule selected')}</button></div>`:''}<div class="spread"><h3>جدول الزيارات</h3><select id="scheduleFilter" aria-label="تصفية الزيارات" class="compact-select" onchange="filterSchedule(this.value)"><option value="all">كل الزيارات</option><option value="danger">المتأخرة</option><option value="upcoming">القادمة والمستحقة</option><option value="done">المكتملة</option></select></div>
     <div class="list" style="margin-top:16px">${rows.map(r=>{
       const state=scheduleState(r),v=state.visit;
       const canStart=me.role==='supervisor'||scheduledForMe(r);
       const destination=v?(v.status==='approved'?'report':v.status==='submitted'&&me.role==='supervisor'?'review':'visit'):null;
-      return `<div class="item schedule-item" data-schedule="${state.historical?'done':v?(v.status==='approved'?'done':'progress'):state.tone==='danger'?'danger':'upcoming'}"><span class="date-tile"><strong>${r.due_date.slice(8)}</strong><small>${r.due_date.slice(0,7)}</small></span><span class="body"><span class="t">${esc(r.contracts.clients.name_ar)}</span><span class="s">${fmt(r.due_date)}${state.historical?' · نُفّذت '+fmt(r.completed_externally_on):''}${r.external_notes?' · '+esc(r.external_notes):''}</span></span><span class="status-tag ${state.tone}">${state.label}</span>${state.historical?`<span class="muted">مسجّلة خارج النظام</span>`:v?`<a class="btn quiet sm" href="#/${destination}/${v.id}">فتح الزيارة</a>`:canStart?`<div class="row"><button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}','${r.contract_id}')">بدء الزيارة</button>${me.role==='supervisor'?`<button class="btn quiet sm" onclick="recordPreviousVisit('${r.id}')">نُفّذت سابقًا</button>`:''}</div>`:`<span class="muted">مكلّفة لفني آخر</span>`}</div>`;
+      return `<div class="item schedule-item" data-schedule="${state.historical?'done':v?(v.status==='approved'?'done':'progress'):state.tone==='danger'?'danger':'upcoming'}">${me.role==='supervisor'&&!state.historical&&!v?`<input class="schedule-check" type="checkbox" name="scheduleSelection" value="${r.id}" aria-label="${tr('اختيار موعد','Select date')} ${esc(r.contracts.clients.name_ar)} ${r.due_date}">`:''}<span class="date-tile"><strong>${r.due_date.slice(8)}</strong><small>${r.due_date.slice(0,7)}</small></span><span class="body"><span class="t">${esc(r.contracts.clients.name_ar)}</span><span class="s">${fmt(r.due_date)} · ${durationLabel(r.expected_duration_minutes||120)}${state.historical?' · نُفّذت '+fmt(r.completed_externally_on):''}${r.external_notes?' · '+esc(r.external_notes):''}</span></span><span class="status-tag ${state.tone}">${state.label}</span>${state.historical?`<span class="muted">مسجّلة خارج النظام</span>`:v?`<a class="btn quiet sm" href="#/${destination}/${v.id}">فتح الزيارة</a>`:canStart?`<div class="row"><button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}','${r.contract_id}')">بدء الزيارة</button>${me.role==='supervisor'?`<button class="btn quiet sm" onclick="recordPreviousVisit('${r.id}')">نُفّذت سابقًا</button>`:''}</div>`:`<span class="muted">مكلّفة لفني آخر</span>`}</div>`;
     }).join('')}</div><p class="empty" id="emptySchedule" ${rows.length?'hidden':''}>لا توجد زيارات مطابقة. أضف خطة وقائية باسم العميل.</p></div>
     <div class="card"><h3>خطط العملاء وتقدم التنفيذ</h3><div class="list" style="margin-top:16px">${contracts.map(c=>{
       const related=rows.filter(r=>r.contract_id===c.id),done=related.filter(r=>r.completed_externally_on||r.visits?.[0]?.status==='approved').length;
@@ -79,17 +74,18 @@ function scheduledForMe(row){
   return team.length?team.some(t=>t.technician_id===me.id):!row.technician_id||row.technician_id===me.id;
 }
 function technicianFields(selected=[]){
-  return `<fieldset class="team-picker"><legend>فريق الزيارة الوقائية</legend><p class="muted">اختر فنيًا واحدًا أو أكثر. يعمل الفريق على الزيارة نفسها.</p>${(window._technicians||[]).map((t,i)=>`<label class="team-option"><input type="checkbox" name="assignedTech" value="${t.id}" ${selected.includes(t.id)||(!selected.length&&i===0)?'checked':''}><span>${esc(t.full_name)}</span></label>`).join('')||'<p class="empty">لا يوجد فنيون مفعّلون في الفرع.</p>'}</fieldset>`;
+  return `<fieldset class="team-picker"><legend>فريق الزيارة الوقائية</legend><p class="muted">اختر فنيًا واحدًا أو أكثر. يعمل الفريق على الزيارة نفسها.</p>${(window._technicians||[]).map((t,i)=>`<label class="team-option"><input type="checkbox" name="assignedTech" onchange="suggestDuration()" value="${t.id}" ${selected.includes(t.id)||(!selected.length&&i===0)?'checked':''}><span>${esc(t.full_name)}</span></label>`).join('')||'<p class="empty">لا يوجد فنيون مفعّلون في الفرع.</p>'}</fieldset>`;
 }
 function selectedTechnicians(){return [...document.querySelectorAll('[name=assignedTech]:checked')].map(el=>el.value);}
 async function newContract(clientId=''){
   const [clients,technicians]=await Promise.all([sb.from('clients').select('id,name_ar').order('name_ar'),sb.from('profiles').select('id,full_name').eq('role','technician').eq('active',true)]);
   if(clients.error||technicians.error)return toast('تعذر تحميل العملاء والفنيين');
   window._technicians=technicians.data||[];
-  openSheet(`<div class="sheet-heading"><span class="eyebrow">تخطيط الصيانة الوقائية</span><h2>خطة وقائية باسم العميل</h2><p class="muted">لا تحتاج رقم عقد. اختر الفترة والفريق، وحدّد الزيارات التي نُفّذت قبل استخدام النظام.</p></div><form onsubmit="saveContract(event)"><label for="contractClient">العميل</label><select id="contractClient" required>${(clients.data||[]).map(c=>`<option value="${c.id}" ${c.id===clientId?'selected':''}>${esc(c.name_ar)}</option>`).join('')}</select><div class="grid2"><div><label for="contractStart">بداية فترة الصيانة</label><input type="date" id="contractStart" value="${todayISO()}" required oninput="$('#firstVisit').value=this.value;refreshHistoryOptions()"></div><div><label for="contractEnd">نهاية فترة الصيانة</label><input type="date" id="contractEnd" required oninput="refreshHistoryOptions()"></div></div>${planningFields()}<div id="previousVisits"></div><div class="form-actions"><button class="btn quiet" type="button" onclick="closeSheet()">إلغاء</button><button class="btn" type="submit">حفظ خطة الزيارات</button></div></form>`);
+  openSheet(`<div class="sheet-heading"><span class="eyebrow">تخطيط الصيانة الوقائية</span><h2>خطة وقائية باسم العميل</h2><p class="muted">لا تحتاج رقم عقد. اختر الفترة والفريق، وحدّد الزيارات التي نُفّذت قبل استخدام النظام.</p></div><form onsubmit="saveContract(event)"><label for="contractClient">العميل</label><select id="contractClient" required onchange="delete document.getElementById('expectedDuration').dataset.manual;suggestDuration(this.value)">${(clients.data||[]).map(c=>`<option value="${c.id}" ${c.id===clientId?'selected':''}>${esc(c.name_ar)}</option>`).join('')}</select><div class="grid2"><div><label for="contractStart">بداية فترة الصيانة</label><input type="date" id="contractStart" value="${todayISO()}" required oninput="$('#firstVisit').value=this.value;refreshHistoryOptions()"></div><div><label for="contractEnd">نهاية فترة الصيانة</label><input type="date" id="contractEnd" required oninput="refreshHistoryOptions()"></div></div>${planningFields()}<div id="previousVisits"></div><div class="form-actions"><button class="btn quiet" type="button" onclick="closeSheet()">إلغاء</button><button class="btn" type="submit">حفظ خطة الزيارات</button></div></form>`);
+  await suggestDuration();
 }
 function planningFields(){
-  return `<div class="grid2"><div><label for="firstVisit">أول موعد في الخطة</label><input type="date" id="firstVisit" required value="${todayISO()}" oninput="refreshHistoryOptions()"></div><div><label for="frequency">الدورية</label><select id="frequency" onchange="refreshHistoryOptions()">${[[1,'شهري'],[3,'ربع سنوي'],[6,'نصف سنوي'],[12,'سنوي']].map(([n,l])=>`<option value="${n}" ${n===preferences.default_frequency?'selected':''}>${l}</option>`).join('')}</select></div></div>${technicianFields()}`;
+  return `<div class="grid2"><div><label for="firstVisit">أول موعد في الخطة</label><input type="date" id="firstVisit" required value="${todayISO()}" oninput="refreshHistoryOptions()"></div><div><label for="frequency">الدورية</label><select id="frequency" onchange="refreshHistoryOptions()">${[[1,'شهري'],[3,'ربع سنوي'],[6,'نصف سنوي'],[12,'سنوي']].map(([n,l])=>`<option value="${n}" ${n===preferences.default_frequency?'selected':''}>${l}</option>`).join('')}</select></div></div><label for="expectedDuration">${tr('المدة المتوقعة لكل زيارة (دقيقة)','Expected duration per visit (minutes)')}</label><input id="expectedDuration" type="number" min="15" max="1440" step="1" required value="120" oninput="this.dataset.manual='true'"><p id="durationSuggestion" class="muted">${tr('مدة تقديرية قابلة للتعديل حسب الأجهزة والموقع','An estimate adjustable for equipment and site conditions')}</p>${technicianFields()}`;
 }
 function previousValues(){
   return [...document.querySelectorAll('.history-entry')].filter(el=>el.querySelector('[type=checkbox]').checked).map(el=>({due_date:el.dataset.due,completed_on:el.querySelector('[type=date]').value,notes:el.querySelector('[type=text]').value}));
@@ -113,7 +109,7 @@ async function saveContract(event){
   const previous=previousValues();if(previous.some(p=>!p.completed_on||p.completed_on>todayISO()||p.completed_on<start||p.completed_on>end))return toast('تأكد من تواريخ تنفيذ الزيارات السابقة');
   const button=event.target.querySelector('[type=submit]');button.disabled=true;
   try{
-    const {error}=await sb.rpc('create_preventive_plan',{p_client_id:$('#contractClient').value,
+    const {error}=await sb.rpc('create_preventive_plan_with_duration',{p_duration:+$('#expectedDuration').value,p_client_id:$('#contractClient').value,
       p_start_date:start,p_end_date:end,p_frequency:frequency.options[frequency.selectedIndex].text,
       p_technician_ids:team,p_dates:dates,p_previous:previous});
     if(error)throw error;closeSheet();toast(`حُفظت الخطة وجُدولت ${dates.length} زيارة`);await route();
@@ -134,7 +130,7 @@ async function saveExistingSchedule(event,id){
   if(!dates.length||!team.length)return toast('اختر الفنيين وحدّد مواعيد صالحة');
   const button=event.target.querySelector('[type=submit]');button.disabled=true;
   try{
-    const {error}=await sb.rpc('schedule_existing_plan',{p_contract_id:id,p_technician_ids:team,p_dates:dates,p_previous:previousValues()});
+    const {error}=await sb.rpc('schedule_existing_plan_with_duration',{p_duration:+$('#expectedDuration').value,p_contract_id:id,p_technician_ids:team,p_dates:dates,p_previous:previousValues()});
     if(error)throw error;closeSheet();toast('حُفظ جدول الزيارات');await route();
   }catch(e){toast('تعذر الجدولة: '+e.message,5000);button.disabled=false;}
 }

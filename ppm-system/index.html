@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>الصيانة الوقائية — المحتسب</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 :root{
   --brand:#0F5DA3; --brand-deep:#0A3F73; --brand-soft:#E7F0F8;
@@ -139,6 +136,7 @@ th{color:var(--muted);font-size:12px;font-weight:600}
 </head>
 <body>
 <div id="app"></div>
+<script src="professional.js"></script>
 <script src="workflow.js"></script>
 <script src="settings.js"></script>
 
@@ -169,11 +167,11 @@ let sb=null, me=null, session=null, scanner=null;
 const $ = s => document.querySelector(s);
 const app = $("#app");
 const esc = s => (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const fmt = d => d ? new Date(d).toLocaleDateString("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}) : "—";
-const time = d => d ? new Date(d).toLocaleTimeString("ar-SA",{hour:"2-digit",minute:"2-digit"}) : "—";
+const fmt = d => d ? new Date(d).toLocaleDateString(personal.language==='en'?"en-GB":"ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}) : "—";
+const time = d => d ? new Date(d).toLocaleTimeString(personal.language==='en'?"en-GB":"ar-SA",{hour:"2-digit",minute:"2-digit"}) : "—";
 
 function toast(msg,ms=2600){
-  const t=document.createElement("div"); t.className="toast noprint"; t.textContent=msg;
+  const t=document.createElement("div"); t.className="toast noprint"; t.textContent=personal.language==='en'?(uiWords[msg]||msg):msg;t.setAttribute("role","status");t.setAttribute("aria-live","polite");
   document.body.appendChild(t); setTimeout(()=>t.remove(),ms);
 }
 function cfg(){
@@ -195,6 +193,7 @@ function cfg(){
   const {data:p} = await sb.from("profiles").select("*").eq("id",session.user.id).single();
   if(!p || !p.active){ await sb.auth.signOut(); return loginScreen("الحساب غير مفعّل أو لا يوجد ملف صلاحيات له. راجع مشرف النظام."); }
   me = p;
+  await loadPersonalPreferences();
   try{await loadPreferences();}catch(e){toast(e.message,6000);}
   window.addEventListener("hashchange",route);
   route();
@@ -275,24 +274,18 @@ async function doResetPassword(){
 
 /* ---------------------- الهيكل العام ---------------------- */
 function icon(name){
-  const paths={home:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 11h18"/>',arrow:'<path d="m9 5 7 7-7 7"/>',logout:'<path d="M9 5H5v14h4M13 8l4 4-4 4M8 12h13"/>',check:'<path d="m5 12 4 4L19 6"/>',tool:'<path d="M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-4 3-3-3z"/>',search:'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>'};
+  const paths={menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',person:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',home:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 11h18"/>',arrow:'<path d="m9 5 7 7-7 7"/>',logout:'<path d="M9 5H5v14h4M13 8l4 4-4 4M8 12h13"/>',check:'<path d="m5 12 4 4L19 6"/>',tool:'<path d="M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-4 3-3-3z"/>',search:'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>'};
   return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.home}</svg>`;
 }
 function shell(title, html, bar=""){
-  const roleAr = {supervisor:"مشرف فرع",technician:"فني ميداني",client:"حساب عميل"}[me.role];
-  const schedule = location.hash.startsWith("#/schedule"),settings=location.hash.startsWith("#/settings");
-  app.innerHTML = `<div class="workspace-shell">
-    <aside class="sidebar noprint">
-      <a class="brand-lockup" href="#/"><img src="${LOGO}" alt="شعار المحتسب"><span>${esc(preferences.display_name)}<small>إدارة الصيانة</small></span></a>
-      <div class="nav-caption">مساحة العمل</div>
-      <nav aria-label="القائمة الرئيسية"><a class="nav-link ${!schedule&&!settings?'active':''}" href="#/">${icon('home')}<span>${me.role==='client'?'تقاريري':'لوحة المتابعة'}</span></a>
-      ${me.role!=='client'?`<a class="nav-link ${schedule?'active':''}" href="#/schedule">${icon('calendar')}<span>جدولة الوقائية</span></a>`:''}${me.role==='supervisor'?`<a class="nav-link ${settings?'active':''}" href="#/settings">${icon('tool')}<span>الإعدادات</span></a>`:''}</nav>
-      <div class="sidebar-note">كل جهاز له قصة.<br><strong>تابعها من مكان واحد.</strong>${preferences.support_phone?`<br><a href="tel:${esc(preferences.support_phone)}">${esc(preferences.support_phone)}</a>`:""}</div>
-      <div class="account"><span class="avatar">${esc(me.full_name?.slice(0,1)||'م')}</span><span><strong>${esc(me.full_name)}</strong><small>${roleAr} · ${esc(me.branch||'')}</small></span><button class="icon-button" onclick="logout()" aria-label="تسجيل الخروج">${icon('logout')}</button></div>
-    </aside>
-    <main class="main-content"><header class="workspace-header noprint"><div><span class="eyebrow">${esc(preferences.display_name)} / ${roleAr}</span><h1>${esc(title)}</h1></div><span class="today">${icon('calendar')}${fmt(new Date())}</span></header>
-    <div class="wrap">${html}</div>
-    ${bar?`<div class="bar noprint"><div class="inner">${bar}</div></div>`:''}</main></div>`;
+  const roleAr={supervisor:"مشرف فرع",technician:"فني ميداني",client:"حساب عميل"}[me.role];
+  const page=location.hash.split('/')[1]||'',nav=(href,text,ico,active)=>`<a class="nav-link ${active?'active':''}" ${active?'aria-current="page"':''} href="${href}" aria-label="${esc(text)}" title="${esc(uiWords[text]&&personal.language==='en'?uiWords[text]:text)}">${icon(ico)}<span>${text}</span></a>`;
+  app.innerHTML=`<a class="skip-link" href="#mainContent" onclick="event.preventDefault();document.getElementById('mainContent').focus()">${tr('انتقل إلى المحتوى','Skip to content')}</a><div class="workspace-shell">
+    <aside class="sidebar noprint" id="workspaceSidebar"><a class="brand-lockup" href="#/"><img src="${LOGO}" alt="شعار المحتسب"><span>${esc(preferences.display_name)}<small>إدارة الصيانة</small></span></a><div class="nav-caption">مساحة العمل</div><nav aria-label="القائمة الرئيسية">
+    ${nav('#/',me.role==='client'?'تقاريري':'لوحة المتابعة','home',!page)}${me.role!=='client'?nav('#/schedule','جدولة الوقائية','calendar',page==='schedule'):''}${me.role==='supervisor'?nav('#/settings','الإعدادات','tool',page==='settings'):''}${nav('#/preferences',tr('تفضيلاتي','My preferences'),'person',page==='preferences')}</nav>
+    <div class="sidebar-note">${tr('صيانة منظمة، خدمة أفضل','Organized maintenance, better service')}${preferences.support_phone?`<br><a href="tel:${esc(preferences.support_phone)}">${esc(preferences.support_phone)}</a>`:''}</div><div class="account"><span class="avatar">${esc(me.full_name?.slice(0,1)||'م')}</span><span class="account-details" data-user-content><strong>${esc(me.full_name)}</strong><small>${personal.language==='en'?(uiWords[roleAr]||roleAr):roleAr} · ${esc(me.branch||'')}</small></span><button class="icon-button" onclick="logout()" aria-label="${tr('تسجيل الخروج','Sign out')}">${icon('logout')}</button></div></aside>
+    <main class="main-content" id="mainContent" tabindex="-1"><header class="workspace-header noprint"><button id="sidebarToggle" class="icon-button sidebar-toggle" aria-controls="workspaceSidebar" aria-expanded="true" aria-label="${tr('طي القائمة أو توسيعها','Collapse or expand navigation')}" onclick="toggleSidebar()">${icon('menu')}</button><div><span class="eyebrow">${esc(preferences.display_name)} / ${personal.language==='en'?(uiWords[roleAr]||roleAr):roleAr}</span><h1>${esc(title)}</h1></div><span class="today">${icon('calendar')}${fmt(new Date())}</span></header><div class="wrap">${html}</div>${bar?`<div class="bar noprint"><div class="inner">${bar}</div></div>`:''}</main></div>`;
+  workspaceEnhance();
 }
 const back = h => `<button class="btn quiet sm" onclick="location.hash='${h}'">رجوع</button>`;
 
@@ -301,16 +294,17 @@ async function route(){
   const h = location.hash.replace(/^#\/?/,"");
   const [page,id] = h.split("/");
   try{
-    if(page==="settings")    return settingsPage(id);
-    if(page==="schedule")    return schedulePage();
-    if(page==="client")      return clientPage(id);
-    if(page==="visit")       return visitPage(id);
-    if(page==="review")      return reviewPage(id);
-    if(page==="report")      return reportPage(id);
-    if(page==="labels")      return labelsPage(id);
-    if(page==="scan")        return scanPage(id);
-    return homePage();
-  }catch(e){ console.error(e); toast("تعذر تحميل البيانات: "+e.message,6000); }
+    if(page==="preferences") return preferencesPage();
+    if(page==="settings")    return await settingsPage(id);
+    if(page==="schedule")    return await schedulePage();
+    if(page==="client")      return await clientPage(id);
+    if(page==="visit")       return await visitPage(id);
+    if(page==="review")      return await reviewPage(id);
+    if(page==="report")      return await reportPage(id);
+    if(page==="labels")      return await labelsPage(id);
+    if(page==="scan")        return await scanPage(id);
+    return await homePage();
+  }catch(e){ recordError("route",e); toast(tr("تعذر تحميل الصفحة. تحقق من اتصالك وأعد المحاولة.","Could not load this page. Check your connection and retry."),6000); }
 }
 
 /* ---------------------- الوصول عبر مسح ملصق QR ---------------------- */
@@ -348,6 +342,11 @@ async function homePage(){
   if(me.role==="technician"){
     const {data:myOpen,error:openError}=await sb.rpc("my_open_visits");
     if(openError)throw openError;
+    body += `<section class="dashboard-hero"><div><span class="eyebrow">${tr('عملك اليوم، في مكان واحد','Your daily work, in one place')}</span><h2>${tr('مرحبًا بفريق الصيانة','Welcome, maintenance team')}</h2><p>${tr('ابدأ بالمهام المفتوحة ثم راجع المواعيد المقبلة.','Start with open tasks, then review upcoming visits.')}</p></div><a class="btn hero-action" href="#/schedule">${tr('مواعيدي','My schedule')}</a></section>`;
+    const {data:techSchedule,error:techScheduleError}=await sb.from('scheduled_visits').select('*,contracts(*,clients(name_ar)),scheduled_visit_technicians(technician_id),visits!scheduled_visit_id(id,status)').order('due_date');
+    if(techScheduleError)throw techScheduleError;
+    const myDue=techSchedule.filter(r=>scheduledForMe(r)&&!r.visits?.length&&!r.completed_externally_on&&r.due_date<=reminderEnd());
+    if(personal.notifications&&myDue.length)body+=`<section class="card priority-card"><h3>${tr('مواعيد تحتاج انتباهك','Visits needing attention')}</h3><div class="list">${myDue.slice(0,5).map(r=>`<a class="item" href="#/schedule/${r.contracts.client_id}"><strong data-user-content>${esc(r.contracts.clients.name_ar)}</strong><span>${fmt(r.due_date)}</span></a>`).join('')}</div></section>`;
     body += `<div class="card"><h3>مهامي المفتوحة</h3>
       ${myOpen.length?`<div class="list" style="margin-top:10px">${myOpen.map(v=>`
         <button class="item" onclick="location.hash='#/visit/${v.id}'">
@@ -375,6 +374,7 @@ async function homePage(){
       <a class="b" href="#/schedule"><span class="metric-icon danger">${icon("calendar")}</span><div class="n">${due.length}</div><div class="muted">زيارة متأخرة لم تبدأ</div></a>
     </div><div style="height:14px"></div>`;
 
+    body += `<section id="dashboardPriority" class="card priority-card" hidden><div class="spread"><h3>${tr('الأولوية الآن','Priority now')}</h3><a class="btn quiet sm" href="#/schedule">${tr('عرض المواعيد','View schedule')}</a></div>${due.length?`<p>${tr('زيارات متأخرة تحتاج إعادة جدولة أو بدء التنفيذ','Overdue visits need rescheduling or action')}</p><div class="list">${due.slice(0,5).map(r=>`<a class="item" href="#/schedule/${r.contracts.client_id}"><strong data-user-content>${esc(r.contracts.clients.name_ar)}</strong><span class="status-tag danger">${fmt(r.due_date)}</span></a>`).join('')}</div>`:`<p class="muted">${tr('لا توجد زيارات متأخرة. راجع التقارير والأعطال التالية.','No overdue visits. Review the reports and faults below.')}</p>`}</section>`;
     body += `<div class="card"><h3>زيارات بانتظار الاعتماد</h3>
       ${pending.length?`<div class="list" style="margin-top:10px">${pending.map(v=>`
         <button class="item" onclick="location.hash='#/review/${v.id}'">
@@ -432,7 +432,8 @@ async function newClient(){
   route();
 }
 
-function exportParts(){
+async function exportParts(){
+  await ensureLibrary("XLSX");
   const rows = (window._parts||[]).map(p=>({
     "العميل":p.visits?.clients?.name_ar||"", "الجهاز":p.assets?.name_ar||"",
     "رقم الأصل":p.assets?.asset_no||"", "الحالة":p.condition,
@@ -464,8 +465,8 @@ async function clientPage(id){
       <button class="btn quiet sm" style="color:var(--down)" onclick="deleteClient('${id}')">حذف العميل</button>`:""}
       </div>`:""}</div>`;
 
-  body += `<div class="card"><h2>${esc(c.name_ar)}</h2>
-    <p class="muted">${esc(c.name_en||"")} ${c.type?"· "+esc(c.type):""} ${c.city?"· "+esc(c.city):""}</p>
+  body += `<div class="card"><h2>${esc(personal.language==='en'?(c.name_en||c.name_ar):c.name_ar)}</h2>
+    <p class="muted">${c.type?esc(c.type):""} ${c.city?"· "+esc(c.city):""}</p>
     <div class="row" style="margin-top:8px">${byCat.map(([k,n])=>`<span class="pill">${k} ${n}</span>`).join("")}
       <span class="pill">الإجمالي ${assets.length}</span></div></div>`;
 
@@ -491,9 +492,9 @@ async function clientPage(id){
       const label = (v.visit_type==="emergency"?"⚡ طارئة — ":"")+"زيارة "+fmt(v.visit_date);
       return `<div class="item">
         <span class="edge" style="background:var(${st[1]})"></span>
-        <span class="body" style="cursor:pointer" onclick="location.hash='${target}'"><span class="t">${label}</span>
-        <span class="s">${st[0]}${v.report_no?" · "+esc(v.report_no):""}</span></span>
-        <span class="muted" style="cursor:pointer" onclick="location.hash='${target}'">›</span>
+        <a class="body" href="${target}"><span class="t">${label}</span>
+        <span class="s">${st[0]}${v.report_no?" · "+esc(v.report_no):""}</span></a>
+        <a class="muted" href="${target}" aria-label="${tr('فتح الزيارة','Open visit')}">›</a>
         ${isSup?`<button class="btn quiet sm" style="color:var(--down)" onclick="deleteVisit('${v.id}')" title="حذف">🗑</button>`:""}
         </div>`;}).join("")}</div>`
       : `<p class="empty">لا توجد زيارات.</p>`}</div>`;
@@ -601,6 +602,7 @@ function importExcel(){
   const inp=document.createElement("input"); inp.type="file"; inp.accept=".xlsx,.xls,.csv";
   inp.onchange=async()=>{
     const f=inp.files[0]; if(!f) return;
+    try{await ensureLibrary("XLSX");}catch{return;}
     const wb = XLSX.read(await f.arrayBuffer());
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""});
     if(!rows.length) return toast("الملف فارغ");
@@ -643,6 +645,7 @@ async function runImport(){
 
 /* ---------------------- ملصقات QR ---------------------- */
 async function labelsPage(id){
+  await ensureLibrary("QRCode");
   const {data:c} = await sb.from("clients").select("*").eq("id",id).single();
   const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",id).eq("active",true).order("asset_no");
   app.innerHTML = `<div class="wrap">
@@ -677,11 +680,12 @@ async function startVisit(clientId, scheduleId=null){
 async function loadVisit(id){
   const {data:v} = await sb.from("visits").select("*,clients(*)").eq("id",id).single();
   if(!v)throw new Error("الزيارة غير موجودة");
-  const {data:team,error:teamError}=await sb.rpc("visit_team",{p_visit_id:id});
-  if(teamError)throw teamError;v.team=team||[];
-  const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",v.client_id).order("asset_no");
-  const {data:items=[]} = await sb.from("visit_items").select("*,photos(*)").eq("visit_id",id);
-  return {v,assets,items};
+  const [team,assets,items]=await Promise.all([
+    sb.rpc("visit_team",{p_visit_id:id}),sb.from("assets").select("*").eq("client_id",v.client_id).order("asset_no"),
+    sb.from("visit_items").select("*,photos(*),inspection_checklists(answers)").eq("visit_id",id)]);
+  if(team.error||assets.error||items.error)throw team.error||assets.error||items.error;
+  v.team=team.data||[];
+  return {v,assets:assets.data||[],items:items.data||[]};
 }
 
 async function visitPage(id){
@@ -693,7 +697,7 @@ async function visitPage(id){
   const pct = assets.length ? Math.round(done.size/assets.length*100) : 0;
   const readOnly = !canEditVisit(v);
 
-  let body = `<div class="spread" style="margin-bottom:12px">${back("#/client/"+v.client_id)}
+  let body = `<section class="visit-overview"><span class="eyebrow">${tr("مساحة الزيارة","Visit workspace")}</span><h2>${esc(v.clients.name_ar)}</h2><div class="row"><span class="status-tag brand">${tr(v.status==="draft"?"قيد التنفيذ":v.status==="rejected"?"أُعيدت للتعديل":"بانتظار الاعتماد",v.status==="draft"?"In progress":v.status==="rejected"?"Returned for correction":"Awaiting approval")}</span><span>${done.size} / ${assets.length} · ${pct}%</span></div></section><div class="spread" style="margin-bottom:12px">${back("#/client/"+v.client_id)}
     <span class="pill">${isEmergency?"⚡ طارئة":done.size+" من "+assets.length}</span></div>`;
 
   if(isEmergency) body += `<div class="card" style="border-color:var(--parts)">
@@ -730,6 +734,7 @@ async function visitPage(id){
         <span class="muted" style="font-size:12.5px">${it?esc(it.condition):"لم يُفحص"}</span></button>`;
     }).join("")}</div></div>`;
 
+  body += await discussionCard(v);
   const bar = readOnly ? "" :
     (isEmergency ? `<button class="btn" onclick="finishVisit()">إنهاء الطلب</button>`
       : `<button class="btn quiet" onclick="addAssetInVisit()">جهاز غير مسجّل</button>
@@ -745,6 +750,7 @@ async function visitPage(id){
 }
 
 async function toggleScan(){
+  await ensureLibrary("Html5Qrcode");
   if(scanner){ await scanner.stop(); scanner=null; return; }
   scanner = new Html5Qrcode("reader");
   try{
@@ -807,12 +813,17 @@ async function saveCrmInfo(){
 
 /* ---------------------- بطاقة فحص الجهاز ---------------------- */
 function openSheet(html){
-  const d=document.createElement("div"); d.className="sheet noprint"; d.id="sheetEl";
-  d.innerHTML = `<div class="panel">${html}</div>`;
-  d.addEventListener("click",e=>{ if(e.target===d) closeSheet(); });
-  document.body.appendChild(d);
+  closeSheet();window._sheetReturnFocus=document.activeElement;
+  const d=document.createElement("div");d.className="sheet noprint";d.id="sheetEl";
+  d.innerHTML=`<div class="panel" role="dialog" aria-modal="true" tabindex="-1">${html}</div>`;
+  const panel=d.querySelector('.panel'),heading=panel.querySelector('h2,h3');if(heading){heading.id='sheetTitle';panel.setAttribute('aria-labelledby','sheetTitle');}else panel.setAttribute('aria-label',tr('نافذة إجراء','Action dialog'));
+  d.addEventListener('click',e=>{if(e.target===d)closeSheet();});
+  d.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();closeSheet();}if(e.key==='Tab'){
+    const fields=[...panel.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')].filter(el=>el.getClientRects().length);
+    const first=fields[0],last=fields.at(-1);if(!first){e.preventDefault();panel.focus();}else if(e.shiftKey&&(document.activeElement===first||document.activeElement===panel)){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
+  document.body.appendChild(d);app.inert=true;accessibleFields(d);localize(d);panel.focus();
 }
-function closeSheet(){ $("#sheetEl")?.remove(); }
+function closeSheet(){if(window._savingItem)return;$('#sheetEl')?.remove();app.inert=false;if(window._sheetReturnFocus?.isConnected)window._sheetReturnFocus.focus();}
 
 async function openAsset(assetId){
   const a = window._assets.find(x=>x.id===assetId);
@@ -852,9 +863,10 @@ async function openAsset(assetId){
         <div class="photos">${(h.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
       </div>`).join("")}</details>`:`<p class="muted">لا يوجد سجل صيانة سابق لهذا الجهاز.</p>`}
 
+    ${checklistFields(a,item,readOnly)}
     <label>حالة الجهاز</label>
     <div class="states" id="states">${STATES.map(s=>`
-      <button class="state ${window._draft.condition===s.k?"on":""}" data-k="${s.k}" onclick="pickState('${s.k}')"
+      <button class="state ${window._draft.condition===s.k?"on":""}" aria-pressed="${window._draft.condition===s.k}" data-k="${s.k}" onclick="pickState('${s.k}')"
         ${readOnly?"disabled":""}><b style="background:var(${s.v})"></b>${s.k}</button>`).join("")}</div>
 
     <div id="extra"></div>
@@ -890,7 +902,7 @@ function uploadAssetPhoto(assetId){
 function pickState(k){
   if(!canEditVisit(window._v)) return;
   window._draft.condition = k;
-  document.querySelectorAll("#states .state").forEach(b=>b.classList.toggle("on",b.dataset.k===k));
+  document.querySelectorAll("#states .state").forEach(b=>{b.classList.toggle("on",b.dataset.k===k);b.setAttribute("aria-pressed",String(b.dataset.k===k));});
   renderExtra();
 }
 
@@ -970,6 +982,7 @@ async function saveItem(){
   keepText();
   const d = window._draft;
   if(!d.condition) return toast("اختر حالة الجهاز");
+  if(!["operation","safety","service"].every(k=>["yes","no","na"].includes(d.answers?.[k]))) return toast(tr("أجب عن أسئلة الفحص الثلاثة","Answer the three inspection questions"));
   if(!d.photos.some(p=>p.type==="general")) return toast("أضف صورة الجهاز");
   if(d.condition==='غير متاح للفحص' && !d.notes.trim()) return toast('اكتب سبب تعذر الفحص');
   if(!['سليم','غير متاح للفحص'].includes(d.condition)){
@@ -979,11 +992,11 @@ async function saveItem(){
   window._savingItem=true;
   const btn=$('#saveItemButton'); if(btn){btn.disabled=true;btn.textContent='جارٍ الحفظ…';}
   try{
-    const {error} = await sb.rpc('save_visit_item', {p_visit_id:window._v.id,p_asset_id:d.assetId,
+    const {error} = await sb.rpc('save_inspection', {p_answers:d.answers,p_visit_id:window._v.id,p_asset_id:d.assetId,
       p_condition:d.condition,p_notes:d.notes,p_parts:d.parts,
       p_photos:d.photos.map(p=>({url:p.url,type:p.type}))});
     if(error) throw error;
-    closeSheet();toast('حُفظ الفحص والصور بنجاح');await route();
+    window._savingItem=false;closeSheet();toast('حُفظ الفحص والصور بنجاح');await route();
   }catch(e){toast('تعذر الحفظ. بياناتك ما زالت هنا: '+e.message,5000);}
   finally{window._savingItem=false;if(btn){btn.disabled=false;btn.textContent='حفظ الجهاز';}}
 }
@@ -1004,9 +1017,9 @@ async function finishVisit(){
 
 /* ---------------------- المراجعة والاعتماد ---------------------- */
 async function reviewPage(id){
-  if(me.role!=="supervisor") return visitPage(id);
+  if(me.role!=="supervisor") return await visitPage(id);
   const {v,assets,items} = await loadVisit(id);
-  window._v = v; window._items = items;
+  window._v = v; window._items = items; window._assets=assets;
   const map = new Map(assets.map(a=>[a.id,a]));
   let body = `<div class="spread" style="margin-bottom:12px">${back("#/")}
     <span class="pill">${items.length} جهازاً</span></div>
@@ -1037,7 +1050,7 @@ async function reviewPage(id){
         </span></div>`;}).join("")}</div></div>`;
 
   shell("مراجعة الزيارة", body,
-    `<button class="btn quiet" onclick="rejectVisit('${id}')">إعادة للفني</button>
+    `<button class="btn ghost" onclick="previewReport()">${tr("معاينة التقرير","Preview report")}</button><button class="btn quiet" onclick="rejectVisit('${id}')">إعادة للفني</button>
      <button class="btn" onclick="approveVisit('${id}')">اعتماد وإصدار التقرير</button>`);
 }
 
@@ -1096,78 +1109,13 @@ async function rejectVisit(id){
 
 /* ---------------------- التقرير ---------------------- */
 async function reportPage(id){
-  const {v,assets,items} = await loadVisit(id);
-  const map = new Map(assets.map(a=>[a.id,a]));
-  const teamNames=(v.team||[]).map(t=>t.full_name).join("، ");
-  const counts = STATES.map(s=>[s,items.filter(i=>i.condition===s.k).length]);
-  const okPct = items.length ? Math.round(items.filter(i=>i.condition==="سليم").length/items.length*100) : 0;
-
-  app.innerHTML = `
-  <div class="wrap noprint"><div class="spread">
-    ${back("#/client/"+v.client_id)}
-    <div class="row">
-      <button class="btn quiet sm" onclick="exportVisitParts()">Excel للقطع</button>
-      <button class="btn quiet sm" onclick="shareReport()">مشاركة</button>
-      <button class="btn sm" onclick="window.print()">طباعة / PDF</button>
-    </div></div></div>
-
-  <div class="report">
-    <div class="rhead">
-      <img src="${LOGO}" alt="AL-MOHTASEB">
-      <div style="flex:1">
-        <h2 style="margin:0">${v.visit_type==="emergency"?"تقرير صيانة طارئة":"تقرير زيارة صيانة وقائية"}</h2>
-        <div class="bi">${v.visit_type==="emergency"?"Emergency Maintenance Report":"Preventive Maintenance Visit Report"}</div>
-        <div style="margin-top:6px;font-weight:600">${esc(v.clients.name_ar)}</div>
-        <div class="bi">${esc(v.clients.name_en||"")}</div>
-      </div>
-      <div style="text-align:end;font-size:12px">
-        <div><b>${esc(v.report_no||"مسودة")}</b></div>
-        <div>التاريخ / Date: ${fmt(v.visit_date)}</div>
-        <div>الفني / Technician: ${esc(teamNames)}</div>
-        <div>الدخول والخروج: ${time(v.check_in)} — ${time(v.check_out)}</div>
-      </div>
-    </div>
-
-    <div class="sum">
-      ${counts.map(([s,n])=>`<div><div class="n" style="color:var(${s.v})">${n}</div>
-        <div style="font-size:11.5px">${s.k}</div><div class="bi" style="font-size:10px">${s.en}</div></div>`).join("")}
-      <div><div class="n" style="color:var(--brand)">${okPct}%</div>
-        <div style="font-size:11.5px">نسبة السليم</div><div class="bi" style="font-size:10px">Healthy rate</div></div>
-    </div>
-
-    <table class="rtable"><thead><tr>
-      <th>رقم الأصل<div class="bi">Asset No.</div></th>
-      <th>الجهاز<div class="bi">Equipment</div></th>
-      <th>الموقع<div class="bi">Location</div></th>
-      <th>الماركة والموديل<div class="bi">Brand / Model</div></th>
-      <th>الحالة<div class="bi">Condition</div></th>
-      <th>القطع المطلوبة<div class="bi">Spare parts</div></th>
-      <th>الصورة<div class="bi">Photo</div></th></tr></thead>
-      <tbody>${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
-        const ph=(i.photos||[])[0];
-        return `<tr>
-          <td>${esc(a.asset_no||"")}</td>
-          <td>${esc(a.name_ar||"")}<div class="bi">${esc(a.name_en||CAT_EN[a.category]||"")}</div></td>
-          <td>${esc(a.location_text||"—")}</td>
-          <td>${esc(a.brand||"")} ${esc(a.model||"")}</td>
-          <td><span class="dot ${s.c}"></span> ${esc(i.condition)}<div class="bi">${s.en}</div></td>
-          <td>${esc(i.parts_needed_text||"—")}${i.technician_notes?`<div class="bi">${esc(i.technician_notes)}</div>`:""}</td>
-          <td>${ph?`<img src="${ph.url}">`:"—"}</td></tr>`;}).join("")}
-      </tbody></table>
-
-    ${v.recommendations?`<div style="margin-top:16px"><b>التوصيات العامة / Recommendations</b>
-      <p style="font-size:12.5px">${esc(v.recommendations)}</p></div>`:""}
-
-    <div class="sign">
-      <div>ممثل شركة المحتسب<div class="bi">Al-Mohtaseb representative</div></div>
-      <div>ممثل العميل<div class="bi">Client representative</div></div>
-    </div>
-  </div>`;
-  window._reportItems = items.map(i=>({...i,asset:map.get(i.asset_id)}));
-  window._reportVisit = v;
+  const data=await loadVisit(id);window._finalReport=data;window._reportItems=data.items.map(i=>({...i,asset:data.assets.find(a=>a.id===i.asset_id)}));window._reportVisit=data.v;
+  app.innerHTML=`<div class="wrap noprint report-toolbar"><div class="spread">${back('#/client/'+data.v.client_id)}<div class="row"><label for="reportLanguage">${tr('لغة التقرير','Report language')}</label><select id="reportLanguage" class="compact-select" onchange="renderFinalReport(this.value)">${reportLanguageOptions(personal.report_language)}</select><button class="btn quiet sm" onclick="exportVisitParts()">${tr('Excel للقطع','Parts Excel')}</button><button class="btn quiet sm" onclick="shareReport()">${tr('مشاركة','Share')}</button><button class="btn sm" onclick="window.print()">${tr('طباعة / PDF','Print / PDF')}</button></div></div></div><div id="finalReportContent"></div>`;
+  renderFinalReport(personal.report_language);localize(app);
 }
 
-function exportVisitParts(){
+async function exportVisitParts(){
+  await ensureLibrary("XLSX");
   const rows = (window._reportItems||[]).filter(i=>i.condition!=="سليم").map(i=>({
     "رقم الأصل":i.asset?.asset_no||"", "الجهاز":i.asset?.name_ar||"", "الموقع":i.asset?.location_text||"",
     "الحالة":i.condition, "القطع المطلوبة":i.parts_needed_text||"", "ملاحظات":i.technician_notes||""

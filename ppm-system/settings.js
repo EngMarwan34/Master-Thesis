@@ -14,11 +14,12 @@ function applyPreferences(){
 function reminderEnd(){const date=new Date(todayISO()+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+preferences.reminder_days);return date.toISOString().slice(0,10);}
 async function settingsPage(tab='general'){
   if(me.role!=='supervisor')return homePage();
-  const tabs={general:'عام',users:'الفنيون',clients:'العملاء',assets:'الأجهزة',plans:'الخطط والفرق'};
+  const tabs={general:'عام',users:'الفنيون',accounts:tr('حسابات العملاء','Client accounts'),clients:'العملاء',assets:'الأجهزة',plans:'الخطط والفرق'};
   if(!tabs[tab])tab='general';
   let body=`<section class="settings-intro"><span class="eyebrow">إدارة الفرع</span><h2>إعدادات واضحة، تحكم كامل</h2><p class="muted">أدر الفنيين والعملاء والأجهزة وخطط الصيانة من مكان واحد.</p></section><nav class="settings-tabs" aria-label="أقسام الإعدادات">${Object.entries(tabs).map(([key,label])=>`<a href="#/settings/${key}" class="${key===tab?'active':''}">${label}</a>`).join('')}</nav>`;
   if(tab==='general')body+=generalSettings();
   if(tab==='users')body+=await userSettings();
+  if(tab==='accounts')body+=await clientAccountSettings();
   if(tab==='clients')body+=await clientSettings();
   if(tab==='assets')body+=await assetSettings();
   if(tab==='plans')body+=await planSettings();
@@ -82,14 +83,19 @@ async function assetSettings(){
   const {data,error}=await sb.from('assets').select('*,clients(name_ar)').order('asset_no');if(error)throw error;window._settingsAssets=data;
   return `<div class="card"><div class="spread"><h3>الأجهزة والأصول</h3><a class="btn quiet" href="#/">إضافة جهاز من صفحة العميل</a></div><div class="search-field">${icon('search')}<input type="search" aria-label="البحث عن جهاز" placeholder="اسم الجهاز، رقم الأصل أو العميل…" oninput="filterSettingsAssets(this.value)"></div><div class="list">${data.map(a=>`<div class="item" data-asset-search="${esc(a.name_ar+' '+a.asset_no+' '+(a.clients?.name_ar||''))}"><span class="body"><span class="t">${esc(a.name_ar)}</span><span class="s">${esc(a.asset_no)} · ${esc(a.clients?.name_ar||'')} · ${esc(a.location_text||'')}</span></span><span class="status-tag ${a.active?'ok':'neutral'}">${a.active?'نشط':'مؤرشف'}</span><button class="btn quiet sm" onclick="settingsAssetForm('${a.id}')">تعديل</button></div>`).join('')||'<p class="empty">لا توجد أجهزة بعد.</p>'}</div><p id="noSettingsAssets" class="empty" hidden>لا توجد نتائج مطابقة.</p></div>`;
 }
-function filterSettingsAssets(query){let count=0;document.querySelectorAll('[data-asset-search]').forEach(el=>{el.hidden=!el.dataset.assetSearch.toLowerCase().includes(query.trim().toLowerCase());if(!el.hidden)count++;});$('#noSettingsAssets').hidden=count>0;}
+function filterSettingsAssets(query){filterPagedItems('[data-asset-search]',query.trim().toLocaleLowerCase(),'assetSearch','#noSettingsAssets');}
+
 function settingsAssetForm(id){
   const a=window._settingsAssets.find(a=>a.id===id);
   openSheet(`<h2>تعديل بيانات الجهاز</h2><p class="muted">${esc(a.clients?.name_ar||'')}</p><form onsubmit="saveSettingsAsset(event,'${id}')"><div class="grid2">${[['asset_no','رقم الأصل'],['name_ar','اسم الجهاز'],['name_en','الاسم بالإنجليزية'],['brand','الماركة'],['model','الموديل'],['serial_no','الرقم التسلسلي'],['location_text','الموقع']].map(([key,label])=>`<div><label for="asset_${key}">${label}</label><input id="asset_${key}" ${['asset_no','name_ar'].includes(key)?'required':''} maxlength="200" value="${esc(a[key]||'')}"></div>`).join('')}<div><label for="asset_category">الفئة</label><select id="asset_category">${CATS.map(c=>`<option ${c===a.category?'selected':''}>${c}</option>`).join('')}</select></div></div><label class="team-option"><input type="checkbox" id="asset_active" ${a.active?'checked':''}><span>جهاز نشط في الزيارات الجديدة</span></label><p class="muted">إلغاء التفعيل يؤرشف الجهاز ويحافظ على سجله السابق.</p><div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ الجهاز</button></div></form>`);
 }
 async function saveSettingsAsset(event,id){
   event.preventDefault();const values=Object.fromEntries(['asset_no','name_ar','name_en','brand','model','serial_no','location_text','category'].map(key=>[key,$('#asset_'+key).value.trim()]));values.active=$('#asset_active').checked;
-  if(!values.name_ar||!values.asset_no)return toast('أدخل الاسم ورقم الأصل');await settingsMutation(event,()=>sb.from('assets').update(values).eq('id',id));
+  if(!values.name_ar||!values.asset_no)return toast(tr('أدخل الاسم ورقم الأصل','Enter a name and asset number'));
+  const original=window._settingsAssets.find(a=>a.id===id),button=event.target.querySelector('[type=submit]');button.disabled=true;
+  try{const {error}=await sb.from('assets').update(values).eq('id',id);if(error)throw error;closeSheet();await route();
+    if(original.active!==values.active)offerUndo(tr('تغيرت حالة أرشفة الجهاز','Equipment archive status changed'),async()=>{const {error}=await sb.rpc('set_asset_activity',{p_id:id,p_active:original.active,p_expected:values.active});if(error)throw error;});else toast(tr('حُفظ الجهاز','Equipment saved'));
+  }catch(e){button.disabled=false;toast(tr('تعذر حفظ الجهاز','Could not save equipment'),5000);recordError('asset',e);}
 }
 async function planSettings(){
   const [plans,rows,visits]=await Promise.all([sb.from('contracts').select('*,clients(name_ar)').order('end_date'),sb.from('scheduled_visits').select('*,contracts(*,clients(name_ar)),scheduled_visit_technicians(technician_id),visits!scheduled_visit_id(id,status)').order('due_date'),sb.from('visits').select('*,clients(name_ar)').eq('visit_type','preventive').in('status',['draft','rejected']).order('visit_date',{ascending:false})]);
@@ -104,9 +110,16 @@ function settingsPlanForm(id){
 async function saveSettingsPlan(event,id){event.preventDefault();await settingsMutation(event,()=>sb.rpc('update_preventive_plan',{p_id:id,p_start_date:$('#planStart').value,p_end_date:$('#planEnd').value,p_frequency:$('#planFrequency').value}));}
 async function editScheduledTeam(id){
   const row=window._scheduleRows.find(r=>r.id===id),{data,error}=await sb.from('profiles').select('id,full_name').eq('role','technician').eq('active',true);if(error)return toast('تعذر تحميل الفنيين');window._technicians=data;
-  openSheet(`<h2>موعد وفريق · ${esc(row.contracts.clients.name_ar)}</h2><form onsubmit="saveScheduledTeam(event,'${id}')"><label for="editedDueDate">الموعد</label><input id="editedDueDate" type="date" required min="${row.contracts.start_date}" max="${row.contracts.end_date}" value="${row.due_date}">${technicianFields((row.scheduled_visit_technicians||[]).map(t=>t.technician_id))}<div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ الموعد والفريق</button></div></form>`);
+  openSheet(`<h2>موعد وفريق · ${esc(row.contracts.clients.name_ar)}</h2><form onsubmit="saveScheduledTeam(event,'${id}')"><label for="editedDueDate">الموعد</label><input id="editedDueDate" type="date" required min="${row.contracts.start_date}" max="${row.contracts.end_date}" value="${row.due_date}"><label for="editedDuration">${tr('المدة المتوقعة (دقيقة)','Expected duration (minutes)')}</label><input id="editedDuration" type="number" min="15" max="1440" required value="${row.expected_duration_minutes||120}"><label for="scheduleReason">${tr('سبب التغيير','Reason for change')}</label><input id="scheduleReason" required maxlength="1000">${technicianFields((row.scheduled_visit_technicians||[]).map(t=>t.technician_id))}<div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ الموعد والفريق</button></div></form>`);
 }
-async function saveScheduledTeam(event,id){event.preventDefault();if(!selectedTechnicians().length)return toast('اختر فنيًا واحدًا على الأقل');await settingsMutation(event,()=>sb.rpc('update_schedule_team',{p_schedule_id:id,p_technician_ids:selectedTechnicians(),p_due_date:$('#editedDueDate').value}));}
+async function saveScheduledTeam(event,id){
+  event.preventDefault();if(!selectedTechnicians().length)return toast(tr('اختر فنيًا واحدًا على الأقل','Select at least one technician'));
+  const row=window._scheduleRows.find(r=>r.id===id),button=event.target.querySelector('[type=submit]');button.disabled=true;
+  try{const {data,error}=await sb.rpc('reschedule_preventive_visits',{p_ids:[id],p_dates:[$('#editedDueDate').value],p_expected_dates:[row.due_date],p_reason:$('#scheduleReason').value.trim(),p_duration:+$('#editedDuration').value,p_team:selectedTechnicians()});if(error)throw error;
+    closeSheet();await route();offerUndo(tr('حُفظ الموعد والفريق','Date and team saved'),async()=>{const {error}=await sb.rpc('undo_schedule_change',{p_change_id:data});if(error)throw error;});
+  }catch(e){button.disabled=false;toast(tr('تعذر التعديل. تحقق من الموعد والفريق وحدّث الصفحة.','Could not save. Check the date and team, then reload.'),5000);recordError('schedule',e);}
+}
+
 async function editCurrentVisitTeam(id){
   const [tech,team]=await Promise.all([sb.from('profiles').select('id,full_name').eq('role','technician').eq('active',true),sb.rpc('visit_team',{p_visit_id:id})]);if(tech.error||team.error)return toast('تعذر تحميل الفريق');window._technicians=tech.data;
   openSheet(`<h2>فريق الزيارة الجارية</h2><form onsubmit="saveCurrentVisitTeam(event,'${id}')">${technicianFields(team.data.map(t=>t.technician_id))}<div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ الفريق</button></div></form>`);
