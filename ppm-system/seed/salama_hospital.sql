@@ -8,12 +8,20 @@
 -- آمن التكرار: تشغيله مرتين لا يُنشئ عميلاً أو أجهزة مكرّرة.
 -- =====================================================================
 
--- ⚠️ الفرع: مستشفى السلامة (حي المرجان) في جدة. إن كان سيُدار من فرع المدينة
--- المنورة غيّر 'جدة' في السطر التالي إلى 'المدينة المنورة' — المشرف لا يرى إلا
--- عملاء فرعه.
+-- الفرع: يُضبط تلقائياً على فرع المشرف مروان (المشرف لا يرى إلا عملاء فرعه).
+-- لو لم يُعثر عليه يُستخدم 'جدة'. لتغييره لاحقاً: update clients set branch='...' where id='e9c1a2b0-5555-4a2a-9b1a-000000000005';
 insert into clients (id, name_ar, name_en, type, branch, city)
-values ('e9c1a2b0-5555-4a2a-9b1a-000000000005', 'مستشفى السلامة', 'Al-Salama Hospital', 'مستشفى', 'جدة', 'جدة')
-on conflict (id) do nothing;
+select 'e9c1a2b0-5555-4a2a-9b1a-000000000005', 'مستشفى السلامة', 'Al-Salama Hospital', 'مستشفى',
+       coalesce((select branch from profiles where role = 'supervisor' and full_name like 'مروان%' and branch is not null limit 1), 'جدة'),
+       'جدة'
+on conflict (id) do update set branch = excluded.branch;
+
+-- إن كان قد أُنشئ عميل "السلامة" يدوياً من التطبيق وهو فارغ (بلا أجهزة ولا زيارات)
+-- يُحذف حتى لا يظهر عميلان بنفس الاسم
+delete from clients c
+where c.id <> 'e9c1a2b0-5555-4a2a-9b1a-000000000005' and c.name_ar like '%السلامة%'
+  and not exists (select 1 from assets a where a.client_id = c.id)
+  and not exists (select 1 from visits v where v.client_id = c.id);
 
 insert into assets (client_id, asset_no, name_ar, name_en, category, brand, model, location_text)
 select 'e9c1a2b0-5555-4a2a-9b1a-000000000005', v.asset_no, v.name_ar, v.name_en, v.category, v.brand, v.model, v.location_text
@@ -104,8 +112,11 @@ delete from assets where client_id = 'e9c1a2b0-5555-4a2a-9b1a-000000000005' and 
   ('SLM-03.01','SLM-05.01','SLM-09.12','SLM-12.09-1','SLM-12.09-2','SLM-16.02','SLM-19.01-1','SLM-19.01-2',
    'SLM-17.09','SLM-18.03','SLM-19.13','SLM-20.14','SLM-23.05'));
 
--- تحقق سريع بعد التنفيذ (المتوقع 77):
--- select count(*) from assets where client_id = 'e9c1a2b0-5555-4a2a-9b1a-000000000005';
+-- النتيجة (تظهر أسفل محرر SQL): اسم العميل، الفرع، وعدد الأجهزة (المتوقع 77)
+select c.name_ar as "العميل", c.branch as "الفرع", count(a.id) as "عدد الأجهزة"
+from clients c left join assets a on a.client_id = c.id
+where c.id = 'e9c1a2b0-5555-4a2a-9b1a-000000000005'
+group by c.name_ar, c.branch;
 
 -- ---------------------------------------------------------------------
 -- بنود الجدول التي لم تُضف (ثابتة، لا تحتاج صيانة وقائية أو ملصق QR):
