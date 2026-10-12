@@ -20,6 +20,7 @@ ppm-system/
     ├── maden_asasi_visit_2026-07-05.sql     ← زيارة تاريخية — مادن الأساسي
     ├── maden_rawdah_visit_2026-06-01.sql    ← زيارة تاريخية — مادن الروضة
     ├── maden_taibah_visit_2026-06-01.sql    ← زيارة تاريخية — مادن طيبة
+    ├── salama_hospital.sql                  ← مستشفى السلامة (91 جهازاً من جدول معدات المطبخ REV-02)
     └── technicians_template.sql            ← قالب جاهز لإضافة حسابات الفنيين
 └── supabase/functions/fix-arabic-text/index.ts ← تصحيح إملائي بالذكاء الاصطناعي (اختياري، انظر أدناه)
 ```
