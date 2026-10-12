@@ -1,7 +1,7 @@
 -- =====================================================================
 -- عميل جديد: مستشفى السلامة — مطبخ المستشفى (مشروع المرجان)
 -- المصدر: KITCHEN EQUIPMENT SCHEDULE REV-02 (30/03/2023) — 217 بنداً
--- استُورد منها 78 بنداً = 91 جهازاً قابلاً للصيانة (كهربائي/ميكانيكي/تبريد).
+-- استُورد منها 66 بنداً = 77 جهازاً قابلاً للصيانة (كهربائي/ميكانيكي/تبريد).
 -- البنود الثابتة التي لا تحتاج صيانة دورية لم تُضف (انظر القائمة في آخر الملف).
 -- رقم الأصل = SLM- + رقم البند في الجدول (مع -1 / -2 للكميات المتعددة)
 -- ليسهل الرجوع لجدول المقاول والمخططات.
@@ -18,15 +18,12 @@ on conflict (id) do nothing;
 insert into assets (client_id, asset_no, name_ar, name_en, category, brand, model, location_text)
 select 'e9c1a2b0-5555-4a2a-9b1a-000000000005', v.asset_no, v.name_ar, v.name_en, v.category, v.brand, v.model, v.location_text
 from (values
-  ('SLM-01.01', 'صاعق حشرات', 'Insect control unit', 'أخرى', 'BRANDENBERG', 'EC030', 'منطقة الاستلام / Receiving Area'),
-  ('SLM-03.01', 'صاعق حشرات', 'Insect control unit', 'أخرى', 'BRANDENBERG', 'EC030', 'ثلاجة عامة / General Chiller'),
   ('SLM-03.02', 'غرفة تبريد - الثلاجة العامة', 'Modular cold room - General Chiller', 'تبريد', 'HRCO', 'CUSTOM', 'ثلاجة عامة / General Chiller'),
   ('SLM-03.03', 'مبخر - الثلاجة العامة', 'Evaporator - General Chiller', 'تبريد', 'Friga Bohn', 'Part of cold room', 'ثلاجة عامة / General Chiller'),
   ('SLM-03.04', 'كمبروسر - الثلاجة العامة', 'Compressor - General Chiller', 'تبريد', 'Carrier/Bitzer', 'Part of cold room', 'ثلاجة عامة / General Chiller'),
   ('SLM-04.01', 'غرفة تجميد - الفريزر العام', 'Modular cold room - General Freezer', 'تبريد', 'HRCO', 'CUSTOM', 'فريزر عام / General Freezer'),
   ('SLM-04.02', 'مبخر - الفريزر العام', 'Evaporator - General Freezer', 'تبريد', 'Friga Bohn', 'Part of cold room', 'فريزر عام / General Freezer'),
   ('SLM-04.03', 'كمبروسر - الفريزر العام', 'Compressor - General Freezer', 'تبريد', 'Carrier/Bitzer', 'Part of cold room', 'فريزر عام / General Freezer'),
-  ('SLM-05.01', 'صاعق حشرات', 'Insect control unit', 'أخرى', 'BRANDENBERG', 'EC030', 'تحضير الخضار / Veg Prep Area'),
   ('SLM-05.05', 'معقم سكاكين', 'Knife sterilizer', 'أخرى', 'Tournus', '816 422', 'تحضير الخضار / Veg Prep Area'),
   ('SLM-05.08', 'قطاعة عمودية أرضية', 'Floor standing vertical cutter', 'أخرى', 'Robot Coupe', 'R60', 'تحضير الخضار / Veg Prep Area'),
   ('SLM-05.09', 'كاونتر مبرد بابين', '2 door refrigerated counter', 'تبريد', 'INFRICO', 'BMGN 1470 II', 'تحضير الخضار / Veg Prep Area'),
@@ -44,7 +41,6 @@ from (values
   ('SLM-09.07', 'فرامة لحم طاولة', 'Table top meat mincer', 'أخرى', 'SAP Italy', 'TC22', 'تحضير اللحوم / Meat Prep Area'),
   ('SLM-09.09', 'معقم سكاكين', 'Knife sterilizer', 'أخرى', 'Tournus', '816 422', 'تحضير اللحوم / Meat Prep Area'),
   ('SLM-09.10', 'جهاز تغليف بالتفريغ', 'Vacuum packer', 'أخرى', 'Henkelman', 'Boxer 42', 'تحضير اللحوم / Meat Prep Area'),
-  ('SLM-09.12', 'صاعق حشرات', 'Insect control unit', 'أخرى', 'BRANDENBERG', 'EC030', 'تحضير اللحوم / Meat Prep Area'),
   ('SLM-10.01', 'غرفة تبريد - ثلاجة اللحوم', 'Modular cold room - Meat Chiller', 'تبريد', 'HRCO', 'CUSTOM', 'ثلاجة اللحوم / Meat Chiller'),
   ('SLM-10.02', 'مبخر - ثلاجة اللحوم', 'Evaporator - Meat Chiller', 'تبريد', 'Friga Bohn', 'Part of cold room', 'ثلاجة اللحوم / Meat Chiller'),
   ('SLM-10.03', 'كمبروسر - ثلاجة اللحوم', 'Compressor - Meat Chiller', 'تبريد', 'Carrier/Bitzer', 'Part of cold room', 'ثلاجة اللحوم / Meat Chiller'),
@@ -53,31 +49,23 @@ from (values
   ('SLM-11.03', 'كمبروسر - فريزر اللحوم', 'Compressor - Meat Freezer', 'تبريد', 'Carrier/Bitzer', 'Part of cold room', 'فريزر اللحوم / Meat Freezer'),
   ('SLM-12.04', 'كاونتر مبرد 3 أبواب', '3 door refrigerated counter', 'تبريد', 'INFRICO', 'BMGN 1960 II', 'تحضير الأسماك / Fish Prep Area'),
   ('SLM-12.08', 'معقم سكاكين', 'Knife sterilizer', 'أخرى', 'Tournus', '816 422', 'تحضير الأسماك / Fish Prep Area'),
-  ('SLM-12.09-1', 'صاعق حشرات (رقم 1)', 'Insect control unit No-1', 'أخرى', 'BRANDENBERG', 'EC030', 'تحضير الأسماك / Fish Prep Area'),
-  ('SLM-12.09-2', 'صاعق حشرات (رقم 2)', 'Insect control unit No-2', 'أخرى', 'BRANDENBERG', 'EC030', 'تحضير الأسماك / Fish Prep Area'),
   ('SLM-13.01', 'غرفة تجميد - فريزر الأسماك', 'Modular cold room - Fish Freezer', 'تبريد', 'HRCO', 'CUSTOM', 'فريزر الأسماك / Fish Freezer'),
   ('SLM-13.02', 'مبخر - فريزر الأسماك', 'Evaporator - Fish Freezer', 'تبريد', 'Friga Bohn', 'Part of cold room', 'فريزر الأسماك / Fish Freezer'),
   ('SLM-13.03', 'كمبروسر - فريزر الأسماك', 'Compressor - Fish Freezer', 'تبريد', 'Carrier/Bitzer', 'Part of cold room', 'فريزر الأسماك / Fish Freezer'),
   ('SLM-14.01', 'غرفة تبريد - ثلاجة الأسماك', 'Modular cold room - Fish Chiller', 'تبريد', 'HRCO', 'CUSTOM', 'ثلاجة الأسماك / Fish Chiller'),
   ('SLM-14.02', 'مبخر - ثلاجة الأسماك', 'Evaporator - Fish Chiller', 'تبريد', 'Friga Bohn', 'Part of cold room', 'ثلاجة الأسماك / Fish Chiller'),
   ('SLM-14.03', 'كمبروسر - ثلاجة الأسماك', 'Compressor - Fish Chiller', 'تبريد', 'Carrier/Bitzer', 'Part of cold room', 'ثلاجة الأسماك / Fish Chiller'),
-  ('SLM-16.02', 'صاعق حشرات', 'Insect control unit', 'أخرى', 'BRANDENBERG', 'EC030', 'منطقة التخزين / Storage Area'),
   ('SLM-17.01', 'ثلاجة قائمة بابين', '2 door upright refrigerator', 'تبريد', 'INFRICO', 'AGB 1402', 'المخبز / Bakery Area'),
   ('SLM-17.05', 'شواية بانيني', 'Panini grill', 'طبخ', 'Roller Grill', 'MAJESTIC', 'المخبز / Bakery Area'),
   ('SLM-17.07', 'موقد كهربائي 4 عيون', '4 burner electric range on open base', 'طبخ', 'SILKO', 'NECE94G', 'المخبز / Bakery Area'),
   ('SLM-17.08', 'فرن 3 أدوار مع مخمّر', '3-deck oven with proofer', 'طبخ', 'Pizza Master', 'PM 723ED + UBC 720 PROOFER', 'المخبز / Bakery Area'),
-  ('SLM-17.09', 'شفاط (هود)', 'Ventilation canopy', 'تكييف', 'HALTON', 'KVF', 'المخبز / Bakery Area'),
   ('SLM-17.11', 'عجانة 60 لتر', '60 L planetary mixer', 'طبخ', 'Varimixer', 'AR 60', 'المخبز / Bakery Area'),
   ('SLM-18.01', 'ثلاجة قائمة بابين', '2 door upright refrigerator', 'تبريد', 'INFRICO', 'AGB 1402', 'الحمية الخاصة / Special Diet Area'),
   ('SLM-18.02', 'موقد كهربائي 4 عيون', '4 burner electric range on open base', 'طبخ', 'SILKO', 'NECE94G', 'الحمية الخاصة / Special Diet Area'),
-  ('SLM-18.03', 'شفاط (هود)', 'Ventilation canopy', 'تكييف', 'HALTON', 'KVF', 'الحمية الخاصة / Special Diet Area'),
   ('SLM-18.06', 'عجانة 10 لتر', '10 L mixer', 'طبخ', 'Varimixer', 'CR10', 'الحمية الخاصة / Special Diet Area'),
-  ('SLM-19.01-1', 'صاعق حشرات (رقم 1)', 'Insect control unit No-1', 'أخرى', 'BRANDENBERG', 'EC030', 'الطبخ بالجملة / Bulk Cooking Area'),
-  ('SLM-19.01-2', 'صاعق حشرات (رقم 2)', 'Insect control unit No-2', 'أخرى', 'BRANDENBERG', 'EC030', 'الطبخ بالجملة / Bulk Cooking Area'),
   ('SLM-19.09-1', 'قدر غلي كهربائي 100 لتر (رقم 1)', 'Electric indirect heated boiling pan 100 L No-1', 'طبخ', 'SILKO', 'NEPE9I10', 'الطبخ بالجملة / Bulk Cooking Area'),
   ('SLM-19.09-2', 'قدر غلي كهربائي 100 لتر (رقم 2)', 'Electric indirect heated boiling pan 100 L No-2', 'طبخ', 'SILKO', 'NEPE9I10', 'الطبخ بالجملة / Bulk Cooking Area'),
   ('SLM-19.11', 'قلاية إمالة (برات بان) 100 لتر', 'Bratt pan 100 L', 'طبخ', 'Firex', 'BR9E0901', 'الطبخ بالجملة / Bulk Cooking Area'),
-  ('SLM-19.13', 'شفاط (هود)', 'Ventilation canopy', 'تكييف', 'HALTON', 'KVF', 'الطبخ بالجملة / Bulk Cooking Area'),
   ('SLM-20.02', 'محضرة طعام', 'Food processor', 'طبخ', 'Robot Coupe', 'R752', 'الطبخ الساخن / Hot Cooking Area'),
   ('SLM-20.09-1', 'فرن كومبي 20 صينية (رقم 1)', 'Combination oven 20 x 1/1 GN No-1', 'طبخ', 'Rational', 'iCombi Classic 20-1/1', 'الطبخ الساخن / Hot Cooking Area'),
   ('SLM-20.09-2', 'فرن كومبي 20 صينية (رقم 2)', 'Combination oven 20 x 1/1 GN No-2', 'طبخ', 'Rational', 'iCombi Classic 20-1/1', 'الطبخ الساخن / Hot Cooking Area'),
@@ -91,7 +79,6 @@ from (values
   ('SLM-20.12F-2', 'صاج كهربائي (فراي توب) (رقم 2)', 'Electric fry top on open base No-2', 'طبخ', 'SILKO', 'NEBE94GMC', 'الطبخ الساخن / Hot Cooking Area'),
   ('SLM-20.13-1', 'قلاية زيت كهربائية 2×22 لتر (رقم 1)', 'Electric deep fat fryer 2 x 22 L No-1', 'طبخ', 'SILKO', 'NEFE94222', 'الطبخ الساخن / Hot Cooking Area'),
   ('SLM-20.13-2', 'قلاية زيت كهربائية 2×22 لتر (رقم 2)', 'Electric deep fat fryer 2 x 22 L No-2', 'طبخ', 'SILKO', 'NEFE94222', 'الطبخ الساخن / Hot Cooking Area'),
-  ('SLM-20.14', 'شفاط (هود)', 'Ventilation canopy', 'تكييف', 'HALTON', 'KVF', 'الطبخ الساخن / Hot Cooking Area'),
   ('SLM-21.02', 'موقد حثي (إندكشن)', 'Induction hob', 'طبخ', 'HATCO', 'IRNG-PC1-30', 'تجميع الوجبات / Meal Assembly'),
   ('SLM-21.07-1', 'طاولة طعام ساخن (رقم 1)', 'Hot food table No-1', 'طبخ', 'HUPFER', 'SPA EB-4', 'تجميع الوجبات / Meal Assembly'),
   ('SLM-21.07-2', 'طاولة طعام ساخن (رقم 2)', 'Hot food table No-2', 'طبخ', 'HUPFER', 'SPA EB-4', 'تجميع الوجبات / Meal Assembly'),
@@ -104,7 +91,6 @@ from (values
   ('SLM-21.19-2', 'ثلاجة ستارة هوائية (رقم 2)', 'Air curtain refrigerator No-2', 'تبريد', 'HUPFER', 'CoolMultiMobil', 'تجميع الوجبات / Meal Assembly'),
   ('SLM-21.23', 'سير توزيع الوجبات', 'Meal distribution conveyor belt', 'أخرى', 'HUPFER', 'spv/g', 'تجميع الوجبات / Meal Assembly'),
   ('SLM-23.04', 'غسالة أطباق سير', 'Conveyor type dishwash machine', 'غسيل', 'MEIKO', 'UPster K-S 160 (L-R)', 'غسيل الأطباق / Dish Wash Area'),
-  ('SLM-23.05', 'شفاط (هود)', 'Ventilation canopy', 'تكييف', 'HRCO', 'CUSTOM', 'غسيل الأطباق / Dish Wash Area'),
   ('SLM-24.04', 'مبخر - غسيل العربات', 'Evaporator - Cart Wash', 'تبريد', 'Friga Bohn', 'Friga Bohn', 'غسيل العربات / Cart Wash'),
   ('SLM-24.05', 'كمبروسر - غسيل العربات', 'Compressor - Cart Wash', 'تبريد', 'Carrier/Bitzer', 'CUSTOM 1 hp', 'غسيل العربات / Cart Wash'),
   ('SLM-25.03', 'سطح تسخين زجاجي (كاونتر التقديم)', 'Glass-ceramic hob (servery)', 'طبخ', 'INFRICO', 'EEVC4', 'كاونتر التقديم / Servery Counter'),
@@ -112,7 +98,13 @@ from (values
 ) as v(asset_no, name_ar, name_en, category, brand, model, location_text)
 where not exists (select 1 from assets a where a.client_id = 'e9c1a2b0-5555-4a2a-9b1a-000000000005' and a.asset_no = v.asset_no);
 
--- تحقق سريع بعد التنفيذ (المتوقع 91):
+-- الشفاطات وصواعق الحشرات غير مشمولة بعقد الصيانة — إن كان الملف شُغّل سابقاً
+-- بنسخته الأولى، يحذف السطر التالي تلك الأجهزة (عميل جديد بلا زيارات بعد)
+delete from assets where client_id = 'e9c1a2b0-5555-4a2a-9b1a-000000000005' and (asset_no like 'SLM-01.01%' or asset_no in
+  ('SLM-03.01','SLM-05.01','SLM-09.12','SLM-12.09-1','SLM-12.09-2','SLM-16.02','SLM-19.01-1','SLM-19.01-2',
+   'SLM-17.09','SLM-18.03','SLM-19.13','SLM-20.14','SLM-23.05'));
+
+-- تحقق سريع بعد التنفيذ (المتوقع 77):
 -- select count(*) from assets where client_id = 'e9c1a2b0-5555-4a2a-9b1a-000000000005';
 
 -- ---------------------------------------------------------------------
@@ -122,6 +114,7 @@ where not exists (select 1 from assets a where a.client_id = 'e9c1a2b0-5555-4a2a
 --   عربات GN وعربات الصواني/الأطباق/أدوات المائدة، موزعات الصواني والأطباق،
 --   لوح تقطيع متحرك، واقيات العطس، كاونتر التقديم الثابت، Work Top On Open
 --   Base، نظام توزيع الخدمات SDU، حوض المسح، والبنود "By others" و"Spare".
+-- غير مشمولة بعقد الصيانة: الشفاطات (Ventilation canopy) وصواعق الحشرات.
 -- بنود محل قرار (لم تُضف — أخبرني إن كانت ضمن عقد الصيانة لأضيفها):
 --   موازين (1.02, 1.06, 5.06, 7.09, 9.11)، أنظمة إطفاء ANSUL R102
 --   (17.10, 18.04, 19.14, 20.15 — تحتاج عادة مقاولاً معتمداً)،
