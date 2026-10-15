@@ -654,7 +654,7 @@ async function labelsPage(id){
   for(const a of assets){
     const d = document.createElement("div");
     d.style.cssText="border:1px solid #cbd5e1;border-radius:8px;padding:8px;text-align:center;break-inside:avoid;background:#fff";
-    d.innerHTML = `<img src="${LOGO}" style="height:40px"><br>
+    d.innerHTML = `<img src="${LOGO}" style="height:85px;max-width:95%;object-fit:contain"><br>
       <div class="qrbox" style="display:flex;justify-content:center;margin:4px 0"></div>
       <b style="font-size:12px">${esc(a.asset_no)}</b>
       <div style="font-size:10.5px;color:#475569;line-height:1.3">${esc(a.name_ar)}</div>`;
