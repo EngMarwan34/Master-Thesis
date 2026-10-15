@@ -342,7 +342,7 @@ async function scanPage(code){
 async function homePage(){
   if(me.role==="client") return clientHome();
 
-  const {data:clients=[]} = await sb.from("clients").select("*").order("name_ar");
+  const {data:clients=[]} = me.role==="supervisor" ? await sb.from("clients").select("*").order("name_ar") : {data:[]};
   let body = "";
 
   if(me.role==="technician"){
@@ -416,8 +416,8 @@ async function homePage(){
     window._parts = parts;
   }
 
-  body += `<div class="card"><div class="spread"><h3>العملاء</h3>
-      ${me.role==="supervisor"?`<button class="btn ghost sm" onclick="newClient()">عميل جديد</button>`:""}</div>
+  if(me.role==="supervisor") body += `<div class="card"><div class="spread"><h3>العملاء</h3>
+      <button class="btn ghost sm" onclick="newClient()">عميل جديد</button></div>
     <div class="search-field">${icon("search")}<input type="search" placeholder="ابحث عن عميل أو مدينة…" aria-label="البحث عن عميل" oninput="filterClients(this.value)"></div>
     ${clients.length?`<div id="clientList" class="list" style="margin-top:10px">${clients.map(c=>`
       <button class="item" data-search="${esc(c.name_ar+' '+(c.city||''))}" onclick="location.hash='#/client/${c.id}'">
@@ -465,6 +465,7 @@ function exportParts(){
 
 /* ---------------------- صفحة العميل ---------------------- */
 async function clientPage(id){
+  if(me.role==="technician"){ toast("هذه الصفحة لإدارة العميل، متاحة للمشرف فقط"); return location.hash="#/"; }
   const {data:c} = await sb.from("clients").select("*").eq("id",id).single();
   if(!c) return toast("العميل غير موجود");
   const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",id).eq("active",true).order("asset_no");
@@ -711,7 +712,7 @@ async function visitPage(id){
   const pct = assets.length ? Math.round(done.size/assets.length*100) : 0;
   const readOnly = !canEditVisit(v);
 
-  let body = `<div class="spread" style="margin-bottom:12px">${back("#/client/"+v.client_id)}
+  let body = `<div class="spread" style="margin-bottom:12px">${back(me.role==="technician"?"#/":"#/client/"+v.client_id)}
     <span class="pill">${isEmergency?"⚡ طارئة":done.size+" من "+assets.length}</span></div>`;
 
   if(isEmergency) body += `<div class="card" style="border-color:var(--parts)">
@@ -1152,7 +1153,7 @@ async function reportPage(id){
 
   app.innerHTML = `
   <div class="wrap noprint"><div class="spread">
-    ${back("#/client/"+v.client_id)}
+    ${back(me.role==="technician"?"#/":"#/client/"+v.client_id)}
     <div class="row">
       <button class="btn quiet sm" onclick="exportVisitParts()">Excel للقطع</button>
       <button class="btn quiet sm" onclick="shareReport()">مشاركة</button>
