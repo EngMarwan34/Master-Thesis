@@ -346,8 +346,27 @@ async function homePage(){
   let body = "";
 
   if(me.role==="technician"){
-    const {data:myOpen,error:openError}=await sb.rpc("my_open_visits");
-    if(openError)throw openError;
+    const [{data:myOpen,error:openError},{data:scheduled,error:scheduleError}] = await Promise.all([
+      sb.rpc("my_open_visits"),
+      sb.from("scheduled_visits").select("*,contracts(*,clients(name_ar)),scheduled_visit_technicians(technician_id),visits!scheduled_visit_id(id,status)").order("due_date")
+    ]);
+    if(openError) throw openError;
+    if(scheduleError) throw scheduleError;
+    window._scheduleRows = scheduled;
+    const due = scheduled.filter(r=>scheduledForMe(r) && !r.visits?.length && !r.completed_externally_on && r.due_date<=reminderEnd());
+
+    body += `<div class="card"><h3>الصيانات الوقائية المطلوبة مني</h3>
+      ${due.length?`<div class="list" style="margin-top:10px">${due.map(r=>{
+        const state = scheduleState(r);
+        return `<div class="item schedule-item">
+          <span class="edge" style="background:var(${state.tone==="danger"?"--down":state.tone==="warning"?"--maint":"--brand"})"></span>
+          <span class="body"><span class="t">${esc(r.contracts.clients.name_ar)}</span>
+          <span class="s">${fmt(r.due_date)} · ${state.label}</span></span>
+          <button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}')">ابدأ</button></div>`;
+      }).join("")}</div>`
+        : `<p class="empty">لا توجد صيانات وقائية مستحقة قريباً.</p>`}
+      <a class="btn quiet sm" href="#/schedule" style="margin-top:10px;display:inline-flex">عرض الجدول كاملاً</a></div>`;
+
     body += `<div class="card"><h3>مهامي المفتوحة</h3>
       ${myOpen.length?`<div class="list" style="margin-top:10px">${myOpen.map(v=>`
         <button class="item" onclick="location.hash='#/visit/${v.id}'">
@@ -502,16 +521,30 @@ async function clientPage(id){
   shell(c.name_ar, body, bar);
 }
 
-async function addAsset(){
-  const c = window._client;
-  const name = prompt("اسم الجهاز"); if(!name) return;
-  const asset_no = prompt("رقم الأصل")||("NEW-"+Date.now().toString().slice(-5));
-  const category = prompt("التصنيف: "+CATS.join(" / "))||"أخرى";
-  const location_text = prompt("الموقع داخل المنشأة")||"";
-  const {error} = await sb.from("assets").insert({client_id:c.id,name_ar:name,asset_no,
-    category:CATS.includes(category)?category:"أخرى",location_text,field_added:me.role==="technician"});
-  if(error) return toast("تعذر الحفظ: "+error.message);
-  route();
+async function addAsset(fromVisitId=null){
+  openSheet(`<h2>جهاز جديد</h2>
+    <form onsubmit="saveNewAsset(event,${fromVisitId?`'${fromVisitId}'`:'null'})">
+      <label for="newAssetName">اسم الجهاز *</label><input id="newAssetName" required autofocus>
+      <label for="newAssetCategory">التصنيف</label>
+      <select id="newAssetCategory">${CATS.map(cat=>`<option>${esc(cat)}</option>`).join("")}</select>
+      <label for="newAssetLocation">الموقع (اختياري)</label>
+      <input id="newAssetLocation" placeholder="مثال: المطبخ الرئيسي">
+      <div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button>
+      <button class="btn" type="submit">إضافة</button></div>
+    </form>`);
+}
+async function saveNewAsset(event, fromVisitId){
+  event.preventDefault();
+  const c = window._client; if(!c) return;
+  const name_ar = $("#newAssetName").value.trim(); if(!name_ar) return toast("اكتب اسم الجهاز");
+  const category = $("#newAssetCategory").value;
+  const location_text = $("#newAssetLocation").value.trim() || null;
+  const asset_no = "NEW-" + Date.now().toString().slice(-6);
+  const button = event.target.querySelector("[type=submit]"); button.disabled = true;
+  const {error} = await sb.from("assets").insert({client_id:c.id, name_ar, asset_no, category, location_text, field_added:me.role==="technician"});
+  if(error){ toast("تعذر الحفظ: "+error.message); button.disabled = false; return; }
+  closeSheet(); toast("أُضيف الجهاز");
+  if(fromVisitId){ location.hash = "#/visit/"+fromVisitId; route(); } else { route(); }
 }
 
 /* ---------------------- تعديل/حذف العميل ---------------------- */
@@ -757,7 +790,7 @@ async function toggleScan(){
   }catch(e){ scanner=null; toast("تعذر فتح الكاميرا. اختر الجهاز من القائمة."); }
 }
 
-async function addAssetInVisit(){ window._client = window._v.clients; await addAsset(); location.hash="#/visit/"+window._v.id; route(); }
+function addAssetInVisit(){ window._client = window._v.clients; addAsset(window._v.id); }
 
 /* ---------------------- بيانات تذكرة CRM وعرض السعر ---------------------- */
 function editCrmInfo(){
