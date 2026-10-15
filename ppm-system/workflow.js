@@ -62,7 +62,7 @@ async function schedulePage(){
       const state=scheduleState(r),v=state.visit;
       const canStart=me.role==='supervisor'||scheduledForMe(r);
       const destination=v?(v.status==='approved'?'report':v.status==='submitted'&&me.role==='supervisor'?'review':'visit'):null;
-      return `<div class="item schedule-item" data-schedule="${state.historical?'done':v?(v.status==='approved'?'done':'progress'):state.tone==='danger'?'danger':'upcoming'}"><span class="date-tile"><strong>${r.due_date.slice(8)}</strong><small>${r.due_date.slice(0,7)}</small></span><span class="body"><span class="t">${esc(r.contracts.clients.name_ar)}</span><span class="s">${fmt(r.due_date)}${state.historical?' · نُفّذت '+fmt(r.completed_externally_on):''}${r.external_notes?' · '+esc(r.external_notes):''}</span></span><span class="status-tag ${state.tone}">${state.label}</span>${state.historical?`<span class="muted">مسجّلة خارج النظام</span>`:v?`<div class="row"><a class="btn quiet sm" href="#/${destination}/${v.id}">فتح الزيارة</a>${me.role==='supervisor'&&['draft','rejected'].includes(v.status)?`<button class="btn quiet sm" style="color:var(--down)" onclick="resetScheduledVisit('${v.id}')">إرجاعها لم تبدأ</button>`:''}</div>`:canStart?`<div class="row"><button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}','${r.contract_id}')">بدء الزيارة</button>${me.role==='supervisor'?`<button class="btn quiet sm" onclick="recordPreviousVisit('${r.id}')">نُفّذت سابقًا</button>`:''}</div>`:`<span class="muted">مكلّفة لفني آخر</span>`}</div>`;
+      return `<div class="item schedule-item" data-schedule="${state.historical?'done':v?(v.status==='approved'?'done':'progress'):state.tone==='danger'?'danger':'upcoming'}"><span class="date-tile"><strong>${r.due_date.slice(8)}</strong><small>${r.due_date.slice(0,7)}</small></span><span class="body"><span class="t">${esc(r.contracts.clients.name_ar)}</span><span class="s">${fmt(r.due_date)}${state.historical?' · نُفّذت '+fmt(r.completed_externally_on):''}${r.external_notes?' · '+esc(r.external_notes):''}</span></span><span class="status-tag ${state.tone}">${state.label}</span>${state.historical?`<span class="muted">مسجّلة خارج النظام</span>`:v?`<div class="row"><a class="btn quiet sm" href="#/${destination}/${v.id}">فتح الزيارة</a>${me.role==='supervisor'&&['draft','rejected'].includes(v.status)?`<button class="btn quiet sm" style="color:var(--down)" onclick="resetScheduledVisit('${v.id}')">إرجاعها لم تبدأ</button>`:''}</div>`:canStart?`<div class="row"><button class="btn quiet sm" onclick="previewScheduleAssets('${r.id}')">عرض الأجهزة</button><button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}','${r.contract_id}')">بدء الزيارة</button>${me.role==='supervisor'?`<button class="btn quiet sm" onclick="recordPreviousVisit('${r.id}')">نُفّذت سابقًا</button>`:''}</div>`:`<span class="muted">مكلّفة لفني آخر</span>`}</div>`;
     }).join('')}</div><p class="empty" id="emptySchedule" ${rows.length?'hidden':''}>لا توجد زيارات مطابقة. أضف خطة وقائية باسم العميل.</p></div>
     <div class="card"><h3>خطط العملاء وتقدم التنفيذ</h3><div class="list" style="margin-top:16px">${contracts.map(c=>{
       const related=rows.filter(r=>r.contract_id===c.id),done=related.filter(r=>r.completed_externally_on||r.visits?.[0]?.status==='approved').length;
@@ -150,10 +150,24 @@ async function savePreviousVisit(event,id){
     if(error)throw error;closeSheet();toast('سُجّلت الزيارة السابقة واحتُسبت في تقدم الخطة');await route();
   }catch(e){toast('تعذر التسجيل: '+e.message,5000);button.disabled=false;}
 }
+async function previewScheduleAssets(scheduleId){
+  const row=(window._scheduleRows||[]).find(r=>r.id===scheduleId);if(!row)return;
+  const clientId=row.contracts.client_id;
+  const {data:assets=[],error}=await sb.from('assets').select('*').eq('client_id',clientId).eq('active',true).order('asset_no');
+  if(error)return toast('تعذر تحميل الأجهزة: '+error.message);
+  const byCat=CATS.map(k=>[k,assets.filter(a=>a.category===k).length]).filter(x=>x[1]);
+  openSheet(`<h2>${esc(row.contracts.clients.name_ar)}</h2>
+    <p class="muted">معاينة قبل بدء الزيارة — ${assets.length} جهازاً</p>
+    <div class="row" style="margin:8px 0">${byCat.map(([k,n])=>`<span class="pill">${k} ${n}</span>`).join('')}</div>
+    <div class="list" style="margin-top:10px">${assets.map(a=>`
+      <div class="item"><span class="edge" style="background:var(--brand)"></span>
+        <span class="body"><span class="t">${esc(a.name_ar)}</span>
+        <span class="s">${esc(a.asset_no)} · ${esc(a.category)}${a.location_text?' · '+esc(a.location_text):''}</span></span></div>`).join('')||'<p class="empty">لا توجد أجهزة مسجّلة لهذا العميل.</p>'}</div>`);
+}
 async function resetScheduledVisit(visitId){
   if(me.role!=='supervisor')return;
   if(!confirm('سيُحذف سجل بدء هذه الزيارة (وأي فحوصات وصور سُجّلت فيها) وترجع الحالة "لم تبدأ". متابعة؟'))return;
-  const {error}=await sb.from('visits').delete().eq('id',visitId);
+  const {error}=await sb.rpc('admin_delete_visit',{p_visit_id:visitId});
   if(error)return toast('تعذر الإرجاع: '+error.message);
   toast('رجعت الزيارة لحالة "لم تبدأ"');await route();
 }
