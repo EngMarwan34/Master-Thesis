@@ -43,6 +43,7 @@ async function submitResolution(event,id){
 }
 async function schedulePage(){
   if(me.role==='client')return clientHome();
+  if(me.role==='technician'){toast('هذه الصفحة لإدارة الجدولة، متاحة للمشرف فقط');return location.hash='#/';}
   const clientId=location.hash.split('/')[2]||null;
   const [scheduleResult,contractResult]=await Promise.all([
     sb.from('scheduled_visits').select('*,contracts(*,clients(name_ar)),scheduled_visit_technicians(technician_id),visits!scheduled_visit_id(id,status)').order('due_date'),

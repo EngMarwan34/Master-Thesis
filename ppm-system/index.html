@@ -286,7 +286,7 @@ function shell(title, html, bar=""){
       <a class="brand-lockup" href="#/"><img src="${LOGO}" alt="شعار المحتسب"><span>${esc(preferences.display_name)}<small>إدارة الصيانة</small></span></a>
       <div class="nav-caption">مساحة العمل</div>
       <nav aria-label="القائمة الرئيسية"><a class="nav-link ${!schedule&&!settings?'active':''}" href="#/">${icon('home')}<span>${me.role==='client'?'تقاريري':'لوحة المتابعة'}</span></a>
-      ${me.role!=='client'?`<a class="nav-link ${schedule?'active':''}" href="#/schedule">${icon('calendar')}<span>جدولة الوقائية</span></a>`:''}${me.role==='supervisor'?`<a class="nav-link ${settings?'active':''}" href="#/settings">${icon('tool')}<span>الإعدادات</span></a>`:''}</nav>
+      ${me.role==='supervisor'?`<a class="nav-link ${schedule?'active':''}" href="#/schedule">${icon('calendar')}<span>جدولة الوقائية</span></a>`:''}${me.role==='supervisor'?`<a class="nav-link ${settings?'active':''}" href="#/settings">${icon('tool')}<span>الإعدادات</span></a>`:''}</nav>
       <div class="sidebar-note">كل جهاز له قصة.<br><strong>تابعها من مكان واحد.</strong>${preferences.support_phone?`<br><a href="tel:${esc(preferences.support_phone)}">${esc(preferences.support_phone)}</a>`:""}</div>
       <div class="account"><span class="avatar">${esc(me.full_name?.slice(0,1)||'م')}</span><span><strong>${esc(me.full_name)}</strong><small>${roleAr} · ${esc(me.branch||'')}</small></span><button class="icon-button" onclick="logout()" aria-label="تسجيل الخروج">${icon('logout')}</button></div>
     </aside>
@@ -364,8 +364,7 @@ async function homePage(){
           <span class="s">${fmt(r.due_date)} · ${state.label}</span></span>
           <button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}')">ابدأ</button></div>`;
       }).join("")}</div>`
-        : `<p class="empty">لا توجد صيانات وقائية مستحقة قريباً.</p>`}
-      <a class="btn quiet sm" href="#/schedule" style="margin-top:10px;display:inline-flex">عرض الجدول كاملاً</a></div>`;
+        : `<p class="empty">لا توجد صيانات وقائية مستحقة قريباً.</p>`}</div>`;
 
     body += `<div class="card"><h3>مهامي المفتوحة</h3>
       ${myOpen.length?`<div class="list" style="margin-top:10px">${myOpen.map(v=>`
