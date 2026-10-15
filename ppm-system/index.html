@@ -648,18 +648,18 @@ async function labelsPage(id){
   app.innerHTML = `<div class="wrap">
     <div class="spread noprint" style="margin-bottom:12px">${back("#/client/"+id)}
       <button class="btn sm" onclick="window.print()">طباعة الملصقات</button></div>
-    <p class="muted noprint">${assets.length} ملصقاً — اطبع على ورق لاصق A4 ثم قصّها.</p>
-    <div id="sheet" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div></div>`;
+    <p class="muted noprint">${assets.length} ملصقاً — مربعة ٤٠×٤٠مم (نحو ٢٤ بالصفحة الواحدة). اطبع على ورق لاصق A4 ثم قصّها.</p>
+    <div id="sheet" style="display:grid;grid-template-columns:repeat(auto-fill,40mm);justify-content:start;gap:3mm"></div></div>`;
   const box = $("#sheet");
   for(const a of assets){
     const d = document.createElement("div");
-    d.style.cssText="border:1px solid #cbd5e1;border-radius:8px;padding:8px;text-align:center;break-inside:avoid;background:#fff";
-    d.innerHTML = `<img src="${LOGO}" style="height:38px"><br>
-      <div class="qrbox" style="display:flex;justify-content:center;margin:4px 0"></div>
-      <b style="font-size:12px">${esc(a.asset_no)}</b>
-      <div style="font-size:10.5px;color:#475569;line-height:1.3">${esc(a.name_ar)}</div>`;
+    d.style.cssText="width:40mm;height:40mm;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px;padding:2mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1mm;text-align:center;break-inside:avoid;background:#fff;overflow:hidden";
+    d.innerHTML = `<img src="${LOGO}" style="height:18px">
+      <div class="qrbox" style="display:flex;justify-content:center"></div>
+      <b style="font-size:9px;line-height:1.1">${esc(a.asset_no)}</b>
+      <div style="font-size:7px;color:#475569;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(a.name_ar)}</div>`;
     box.appendChild(d);
-    new QRCode(d.querySelector(".qrbox"), {text:a.asset_no, width:100, height:100, correctLevel:QRCode.CorrectLevel.M});
+    new QRCode(d.querySelector(".qrbox"), {text:a.asset_no, width:65, height:65, correctLevel:QRCode.CorrectLevel.M});
   }
 }
 
