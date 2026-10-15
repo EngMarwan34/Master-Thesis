@@ -521,30 +521,16 @@ async function clientPage(id){
   shell(c.name_ar, body, bar);
 }
 
-async function addAsset(fromVisitId=null){
-  openSheet(`<h2>جهاز جديد</h2>
-    <form onsubmit="saveNewAsset(event,${fromVisitId?`'${fromVisitId}'`:'null'})">
-      <label for="newAssetName">اسم الجهاز *</label><input id="newAssetName" required autofocus>
-      <label for="newAssetCategory">التصنيف</label>
-      <select id="newAssetCategory">${CATS.map(cat=>`<option>${esc(cat)}</option>`).join("")}</select>
-      <label for="newAssetLocation">الموقع (اختياري)</label>
-      <input id="newAssetLocation" placeholder="مثال: المطبخ الرئيسي">
-      <div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button>
-      <button class="btn" type="submit">إضافة</button></div>
-    </form>`);
-}
-async function saveNewAsset(event, fromVisitId){
-  event.preventDefault();
-  const c = window._client; if(!c) return;
-  const name_ar = $("#newAssetName").value.trim(); if(!name_ar) return toast("اكتب اسم الجهاز");
-  const category = $("#newAssetCategory").value;
-  const location_text = $("#newAssetLocation").value.trim() || null;
-  const asset_no = "NEW-" + Date.now().toString().slice(-6);
-  const button = event.target.querySelector("[type=submit]"); button.disabled = true;
-  const {error} = await sb.from("assets").insert({client_id:c.id, name_ar, asset_no, category, location_text, field_added:me.role==="technician"});
-  if(error){ toast("تعذر الحفظ: "+error.message); button.disabled = false; return; }
-  closeSheet(); toast("أُضيف الجهاز");
-  if(fromVisitId){ location.hash = "#/visit/"+fromVisitId; route(); } else { route(); }
+async function addAsset(){
+  const c = window._client;
+  const name = prompt("اسم الجهاز"); if(!name) return;
+  const asset_no = prompt("رقم الأصل")||("NEW-"+Date.now().toString().slice(-5));
+  const category = prompt("التصنيف: "+CATS.join(" / "))||"أخرى";
+  const location_text = prompt("الموقع داخل المنشأة")||"";
+  const {error} = await sb.from("assets").insert({client_id:c.id,name_ar:name,asset_no,
+    category:CATS.includes(category)?category:"أخرى",location_text,field_added:me.role==="technician"});
+  if(error) return toast("تعذر الحفظ: "+error.message);
+  route();
 }
 
 /* ---------------------- تعديل/حذف العميل ---------------------- */
@@ -735,10 +721,12 @@ async function visitPage(id){
   if(v.status==="rejected") body += `<div class="card" style="border-color:var(--down)">
     <h3 style="color:var(--down)">أُعيدت الزيارة للتعديل</h3><p>${esc(v.reject_reason||"")}</p></div>`;
 
+  const canAddHelper = !readOnly && !isEmergency && (me.role==="supervisor" || v.team.some(t=>t.technician_id===me.id));
   const canEditCrm = me.role==="supervisor"; // الفني لا يتعامل مع تذكرة CRM ولا عرض السعر — هذا للمشرف فقط
   body += `<div class="card"><h3>${esc(v.clients.name_ar)}</h3>
     <p class="muted">زيارة ${fmt(v.visit_date)} · بدأت ${time(v.check_in)}</p>
-    <div class="row">${(v.team||[]).map(t=>`<span class="pill">${esc(t.full_name)}</span>`).join("")}</div>
+    <div class="row">${(v.team||[]).map(t=>`<span class="pill">${esc(t.full_name)}</span>`).join("")}
+      ${canAddHelper?`<button class="btn quiet sm" onclick="addVisitHelper('${v.id}')">+ إضافة فني للمساعدة</button>`:""}</div>
     <div class="mosaic">${assets.map(a=>{const it=done.get(a.id);
       return `<i style="background:${it?`var(${stateOf(it.condition).v})`:"#CBD5E1"}"></i>`}).join("")}</div>
     <div class="rail"><span style="width:${pct}%"></span></div>
@@ -790,7 +778,34 @@ async function toggleScan(){
   }catch(e){ scanner=null; toast("تعذر فتح الكاميرا. اختر الجهاز من القائمة."); }
 }
 
-function addAssetInVisit(){ window._client = window._v.clients; addAsset(window._v.id); }
+async function addAssetInVisit(){ window._client = window._v.clients; await addAsset(); location.hash="#/visit/"+window._v.id; route(); }
+
+/* ---------------------- إضافة فني للمساعدة بزيارة جارية ---------------------- */
+async function addVisitHelper(visitId){
+  const v = window._v;
+  const currentTeamIds = new Set((v.team||[]).map(t=>t.technician_id));
+  const {data:techs=[], error} = await sb.from("profiles").select("id,full_name")
+    .eq("role","technician").eq("branch",me.branch).eq("active",true).order("full_name");
+  if(error) return toast("تعذر تحميل الفنيين: "+error.message);
+  const available = techs.filter(t=>!currentTeamIds.has(t.id));
+  if(!available.length) return toast("كل الفنيين المفعّلين بفرعك على فريق هذه الزيارة أصلاً");
+  openSheet(`<h2>إضافة فني للمساعدة</h2>
+    <p class="muted">ينضم الفني لفريق هذه الزيارة فوراً ويقدر يفتحها من "مهامي المفتوحة".</p>
+    <form onsubmit="saveVisitHelper(event,'${visitId}')">
+      <label for="helperTech">الفني</label>
+      <select id="helperTech">${available.map(t=>`<option value="${t.id}">${esc(t.full_name)}</option>`).join("")}</select>
+      <div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button>
+      <button class="btn" type="submit">إضافة</button></div>
+    </form>`);
+}
+async function saveVisitHelper(event, visitId){
+  event.preventDefault();
+  const technician_id = $("#helperTech").value;
+  const button = event.target.querySelector("[type=submit]"); button.disabled = true;
+  const {error} = await sb.rpc("add_visit_technician", {p_visit_id:visitId, p_technician_id:technician_id});
+  if(error){ toast("تعذر الإضافة: "+error.message); button.disabled = false; return; }
+  closeSheet(); toast("انضمّ الفني لفريق الزيارة"); route();
+}
 
 /* ---------------------- بيانات تذكرة CRM وعرض السعر ---------------------- */
 function editCrmInfo(){
