@@ -158,11 +158,11 @@ async function previewScheduleAssets(scheduleId){
   const byCat=CATS.map(k=>[k,assets.filter(a=>a.category===k).length]).filter(x=>x[1]);
   openSheet(`<h2>${esc(row.contracts.clients.name_ar)}</h2>
     <p class="muted">${tr('معاينة قبل بدء الزيارة — ')}${assets.length} ${tr('جهازاً')}</p>
-    <div class="row" style="margin:8px 0">${byCat.map(([k,n])=>`<span class="pill">${isEn()?CAT_EN[k]:k} ${n}</span>`).join('')}</div>
+    <div class="row" style="margin:8px 0">${byCat.map(([k,n])=>`<span class="pill">${categoryLabel(k)} ${n}</span>`).join('')}</div>
     <div class="list" style="margin-top:10px">${assets.map(a=>`
       <div class="item"><span class="edge" style="background:var(--brand)"></span>
-        <span class="body"><span class="t">${esc(a.name_ar)}</span>
-        <span class="s">${esc(a.asset_no)} · ${isEn()?CAT_EN[a.category]||esc(a.category):esc(a.category)}${a.location_text?' · '+esc(a.location_text):''}</span></span></div>`).join('')||`<p class="empty">${tr('لا توجد أجهزة مسجّلة لهذا العميل.')}</p>`}</div>`);
+        <span class="body"><span class="t">${esc(assetName(a))}</span>
+        <span class="s">${esc(a.asset_no)} · ${esc(categoryLabel(a.category))}${assetLocation(a)?' · '+esc(assetLocation(a)):''}</span></span></div>`).join('')||`<p class="empty">${tr('لا توجد أجهزة مسجّلة لهذا العميل.')}</p>`}</div>`);
 }
 async function resetScheduledVisit(visitId){
   if(me.role!=='supervisor')return;
