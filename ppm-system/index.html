@@ -169,8 +169,83 @@ let sb=null, me=null, session=null, scanner=null;
 const $ = s => document.querySelector(s);
 const app = $("#app");
 const esc = s => (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const fmt = d => d ? new Date(d).toLocaleDateString("ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}) : "—";
-const time = d => d ? new Date(d).toLocaleTimeString("ar-SA",{hour:"2-digit",minute:"2-digit"}) : "—";
+const isEn = () => me && me.language==="en";
+const fmt = d => d ? new Date(d).toLocaleDateString(isEn()?"en-GB":"ar-SA-u-ca-gregory",{year:"numeric",month:"2-digit",day:"2-digit"}) : "—";
+const time = d => d ? new Date(d).toLocaleTimeString(isEn()?"en-GB":"ar-SA",{hour:"2-digit",minute:"2-digit"}) : "—";
+
+/* ---------------------- ترجمة واجهة الفني (اختيارية لكل حساب) ---------------------- */
+const TR = {
+  "لوحة المتابعة":"Dashboard","جدولة الوقائية":"Preventive Schedule","الإعدادات":"Settings",
+  "تسجيل الخروج":"Sign out","إدارة الصيانة":"Maintenance Management","مساحة العمل":"Workspace",
+  "الإشعارات":"Notifications","تحديد الكل كمقروء":"Mark all as read","لا توجد إشعارات.":"No notifications.",
+  "الصيانات الوقائية المطلوبة مني":"Preventive maintenance due from me",
+  "لا توجد صيانات وقائية مستحقة قريباً.":"No preventive maintenance due soon.",
+  "عرض الأجهزة":"View devices","ابدأ":"Start","مهامي المفتوحة":"My open tasks",
+  "لا توجد مهام مفتوحة حالياً.":"No open tasks right now.","متابعة":"Continue",
+  "⚡ طارئة — ":"⚡ Emergency — ","أُعيدت للتعديل":"Sent back for changes","قيد التنفيذ":"In progress",
+  "منفّذة سابقًا":"Done previously","مكتملة ومعتمدة":"Completed & approved","بانتظار الاعتماد":"Awaiting approval",
+  "متأخرة":"Overdue","مستحقة اليوم":"Due today","قادمة":"Upcoming","رجوع":"Back",
+  "+ إضافة فني للمساعدة":"+ Add a helper technician","إضافة فني للمساعدة":"Add a helper technician",
+  "الفني":"Technician","إضافة":"Add","إلغاء":"Cancel",
+  "ينضم الفني لفريق هذه الزيارة فوراً ويقدر يفتحها من \"مهامي المفتوحة\".":"The technician joins this visit's team immediately and can open it from \"My open tasks\".",
+  "إغلاق":"Close","الصورة المرجعية":"Reference photo","تغيير الصورة المرجعية":"Change reference photo",
+  "إضافة صورة مرجعية":"Add reference photo",
+  "لا توجد صورة مرجعية لهذا الجهاز بعد — أضِفها للتأكد من هوية الجهاز عند كل زيارة.":"No reference photo for this device yet — add one to confirm the device's identity on every visit.",
+  "سجل الصيانات السابقة":"Previous maintenance history","لا يوجد سجل صيانة سابق لهذا الجهاز.":"No previous maintenance history for this device.",
+  "القطع:":"Parts:","تنبيه:":"Note:","سُجّلت ملاحظات على هذا الجهاز في زيارة سابقة.":"Notes were recorded on this device in a previous visit.",
+  "حالة الجهاز":"Device condition","صورة الجهاز (إلزامية)":"Device photo (required)","صور العيب (إلزامية)":"Defect photos (required)",
+  "+ صورة":"+ Photo","القطع المطلوبة":"Parts needed","ملاحظات الفني":"Technician notes",
+  "اكتب سبب تعذر الفحص":"Write why it couldn't be inspected","اختياري":"Optional",
+  "اكتب القطع المطلوبة ووصف العطل":"List the parts needed and describe the fault",
+  "حفظ الجهاز":"Save device","لم تُفحص أي أجهزة بعد":"No devices inspected yet",
+  "التوصيات العامة (تظهر في التقرير)":"General recommendations (shown in the report)",
+  "أُرسلت الزيارة للاعتماد":"Visit sent for approval","تعذر الإرسال: ":"Couldn't submit: ",
+  "جارٍ رفع الصورة…":"Uploading photo…","تم رفع الصورة":"Photo uploaded","تعذر رفع الصورة: ":"Couldn't upload photo: ",
+  "جارٍ حفظ الفحص…":"Saving inspection…","حُفظ الفحص والصور بنجاح":"Inspection and photos saved",
+  "تعذر الحفظ. بياناتك ما زالت هنا: ":"Couldn't save. Your data is still here: ",
+  "تم حفظ الصورة المرجعية":"Reference photo saved",
+  "تعذر الدخول: تحقق من البريد وكلمة المرور":"Couldn't sign in: check your email and password",
+  "تعذر تحميل الإشعارات: ":"Couldn't load notifications: ","انضمّ الفني لفريق الزيارة":"Technician joined the visit team",
+  "تعذر الإضافة: ":"Couldn't add: ","تعذر الحفظ: ":"Couldn't save: ",
+  "هذه الصفحة لإدارة العميل، متاحة للمشرف فقط":"This page is for client management, supervisors only",
+  "هذه الصفحة لإدارة الجدولة، متاحة للمشرف فقط":"This page is for schedule management, supervisors only",
+  "تم تحديد الكل كمقروء":"All marked as read","هذا الرمز غير معروف أو لا يخص فرعك":"This code is unknown or not in your branch",
+  "تعذر بدء الزيارة: ":"Couldn't start the visit: ",
+  "كل الفنيين المفعّلين بفرعك على فريق هذه الزيارة أصلاً":"All active technicians in your branch are already on this visit's team",
+  "تعذر تحميل الفنيين: ":"Couldn't load technicians: ","فتح الزيارة":"Open visit","مكلّفة لفني آخر":"Assigned to another technician",
+  "زيارة ":"Visit ","مطلوب فحص":"Inspection required","طباعة / PDF":"Print / PDF","مشاركة":"Share",
+  "اسم الجهاز":"Device name","رقم الأصل":"Asset no.","أخرى":"Other",
+  "فحص الأجهزة":"Inspect devices","مكتمل":"Complete","خطوة":"Step",
+  " من ":" of ","⚡ طارئة":"⚡ Emergency","⚡ طلب صيانة طارئة":"⚡ Emergency maintenance request",
+  "لا يوجد وصف إضافي — افتح الجهاز أدناه وسجّل حالته.":"No extra description — open the device below and record its condition.",
+  "أُعيدت الزيارة للتعديل":"Visit sent back for changes","بدأت ":"started ",
+  "تذكرة CRM: ":"CRM ticket: ","عرض السعر ↗":"Quote ↗","مسح ملصق الجهاز":"Scan device label",
+  "فتح الكاميرا":"Open camera","الأجهزة":"Devices","لم يُفحص":"Not inspected",
+  "إنهاء الطلب":"Finish request","جهاز غير مسجّل":"Unregistered device","إنهاء الزيارة":"Finish visit",
+  "صيانة طارئة":"Emergency maintenance","زيارة صيانة وقائية":"Preventive maintenance visit",
+  "سليم":"Good","يحتاج صيانة":"Needs maintenance","يحتاج قطع غيار":"Needs spare parts",
+  "متوقف عن العمل":"Out of service","غير متاح للفحص":"Not accessible",
+  "الرقم التسلسلي: ":"Serial no.: ","الموقع: ":"Location: ","سجل الصيانات السابقة":"Previous maintenance history",
+  "جارٍ رفع الصورة…":"Uploading photo…","جارٍ رفع الملف…":"Uploading file…",
+  "صورة الجهاز (إلزامية)":"Device photo (required)","صور العيب (إلزامية)":"Defect photos (required)",
+  "+ صورة":"+ Photo","تم رفع الصورة":"Photo uploaded",
+  "حذف هذه الصورة؟":"Delete this photo?","اختر حالة الجهاز":"Choose the device condition",
+  "أضف صورة الجهاز":"Add a device photo","أضف صورة للعيب":"Add a defect photo",
+  "اكتب القطع المطلوبة أو وصف العطل":"Write the parts needed or describe the fault",
+  "جارٍ الحفظ…":"Saving…","هذه الزيارة غير قابلة للتعديل":"This visit can no longer be edited",
+  "فُحص ":"Inspected ",". إنهاء الزيارة الآن؟":". Finish the visit now?",
+  "التصنيف: ":"Category: ","الموقع داخل المنشأة":"Location within the facility",
+  "Excel للقطع":"Parts Excel",
+  "تعذر تحميل الأجهزة: ":"Couldn't load devices: ","معاينة قبل بدء الزيارة — ":"Preview before starting the visit — ",
+  "جهازاً":"devices","لا توجد أجهزة مسجّلة لهذا العميل.":"No devices registered for this client.",
+  "الزيارة غير موجودة":"Visit not found",
+  "فريق الزيارة الوقائية":"Preventive visit team","بدء زيارة الفريق":"Start team visit",
+  "اختر فنيًا واحدًا على الأقل":"Choose at least one technician","تعذر البدء: ":"Couldn't start: ",
+  "تعذر تحميل الفنيين":"Couldn't load technicians",
+  "اختر فنيًا واحدًا أو أكثر. يعمل الفريق على الزيارة نفسها.":"Choose one or more technicians. The team works on the same visit.",
+  "لا يوجد فنيون مفعّلون في الفرع.":"No active technicians in the branch."
+};
+function tr(s){ return (isEn() && TR[s]!==undefined) ? TR[s] : s; }
 
 function toast(msg,ms=2600){
   const t=document.createElement("div"); t.className="toast noprint"; t.textContent=msg;
@@ -196,6 +271,8 @@ function cfg(){
   const {data:p} = await sb.from("profiles").select("*").eq("id",session.user.id).single();
   if(!p || !p.active){ await sb.auth.signOut(); return loginScreen("الحساب غير مفعّل أو لا يوجد ملف صلاحيات له. راجع مشرف النظام."); }
   me = p;
+  document.documentElement.lang = isEn() ? "en" : "ar";
+  document.documentElement.dir = isEn() ? "ltr" : "rtl";
   try{await loadPreferences();}catch(e){toast(e.message,6000);}
   window.addEventListener("hashchange",route);
   route();
@@ -281,27 +358,27 @@ function icon(name){
   return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.home}</svg>`;
 }
 function shell(title, html, bar=""){
-  const roleAr = {supervisor:"مشرف فرع",technician:"فني ميداني",client:"حساب عميل"}[me.role];
+  const roleAr = tr({supervisor:"مشرف فرع",technician:"فني ميداني",client:"حساب عميل"}[me.role]);
   const schedule = location.hash.startsWith("#/schedule"),settings=location.hash.startsWith("#/settings");
   app.innerHTML = `<div class="workspace-shell">
     <aside class="sidebar noprint">
-      <a class="brand-lockup" href="#/"><img src="${LOGO}" alt="شعار المحتسب"><span>${esc(preferences.display_name)}<small>إدارة الصيانة</small></span></a>
-      <div class="nav-caption">مساحة العمل</div>
-      <nav aria-label="القائمة الرئيسية"><a class="nav-link ${!schedule&&!settings?'active':''}" href="#/">${icon('home')}<span>${me.role==='client'?'تقاريري':'لوحة المتابعة'}</span></a>
-      ${me.role==='supervisor'?`<a class="nav-link ${schedule?'active':''}" href="#/schedule">${icon('calendar')}<span>جدولة الوقائية</span></a>`:''}${me.role==='supervisor'?`<a class="nav-link ${settings?'active':''}" href="#/settings">${icon('tool')}<span>الإعدادات</span></a>`:''}</nav>
+      <a class="brand-lockup" href="#/"><img src="${LOGO}" alt="شعار المحتسب"><span>${esc(preferences.display_name)}<small>${tr("إدارة الصيانة")}</small></span></a>
+      <div class="nav-caption">${tr("مساحة العمل")}</div>
+      <nav aria-label="القائمة الرئيسية"><a class="nav-link ${!schedule&&!settings?'active':''}" href="#/">${icon('home')}<span>${me.role==='client'?'تقاريري':tr('لوحة المتابعة')}</span></a>
+      ${me.role==='supervisor'?`<a class="nav-link ${schedule?'active':''}" href="#/schedule">${icon('calendar')}<span>${tr('جدولة الوقائية')}</span></a>`:''}${me.role==='supervisor'?`<a class="nav-link ${settings?'active':''}" href="#/settings">${icon('tool')}<span>${tr('الإعدادات')}</span></a>`:''}</nav>
       <div class="sidebar-note">كل جهاز له قصة.<br><strong>تابعها من مكان واحد.</strong>${preferences.support_phone?`<br><a href="tel:${esc(preferences.support_phone)}">${esc(preferences.support_phone)}</a>`:""}</div>
-      <div class="account"><span class="avatar">${esc(me.full_name?.slice(0,1)||'م')}</span><span><strong>${esc(me.full_name)}</strong><small>${roleAr} · ${esc(me.branch||'')}</small></span><button class="icon-button" onclick="logout()" aria-label="تسجيل الخروج">${icon('logout')}</button></div>
+      <div class="account"><span class="avatar">${esc(me.full_name?.slice(0,1)||'م')}</span><span><strong>${esc(me.full_name)}</strong><small>${roleAr} · ${esc(me.branch||'')}</small></span><button class="icon-button" onclick="logout()" aria-label="${tr('تسجيل الخروج')}">${icon('logout')}</button></div>
     </aside>
-    <main class="main-content"><header class="workspace-header noprint"><div><span class="eyebrow">${esc(preferences.display_name)} / ${roleAr}</span><h1>${esc(title)}</h1></div>
+    <main class="main-content"><header class="workspace-header noprint"><div><span class="eyebrow">${esc(preferences.display_name)} / ${roleAr}</span><h1>${tr(title)}</h1></div>
       <div class="row">
-        ${me.role!=='client'?`<button class="icon-button" style="position:relative" onclick="openNotifications()" aria-label="الإشعارات">${icon('bell')}<span id="notifBadge" class="notif-badge" style="display:none"></span></button>`:''}
+        ${me.role!=='client'?`<button class="icon-button" style="position:relative" onclick="openNotifications()" aria-label="${tr('الإشعارات')}">${icon('bell')}<span id="notifBadge" class="notif-badge" style="display:none"></span></button>`:''}
         <span class="today">${icon('calendar')}${fmt(new Date())}</span>
       </div></header>
     <div class="wrap">${html}</div>
     ${bar?`<div class="bar noprint"><div class="inner">${bar}</div></div>`:''}</main></div>`;
   refreshNotifBadge();
 }
-const back = h => `<button class="btn quiet sm" onclick="location.hash='${h}'">رجوع</button>`;
+const back = h => `<button class="btn quiet sm" onclick="location.hash='${h}'">${tr("رجوع")}</button>`;
 
 function showLoading(){
   app.innerHTML = `<div class="loading-screen"><div class="spinner"></div></div>`;
@@ -317,13 +394,13 @@ async function refreshNotifBadge(){
 }
 async function openNotifications(){
   const {data=[],error} = await sb.from("notifications").select("*").order("created_at",{ascending:false}).limit(30);
-  if(error) return toast("تعذر تحميل الإشعارات: "+error.message);
-  openSheet(`<div class="spread"><h2>الإشعارات</h2>${data.some(n=>!n.read)?`<button class="btn quiet sm" onclick="markAllNotifsRead()">تحديد الكل كمقروء</button>`:""}</div>
+  if(error) return toast(tr("تعذر تحميل الإشعارات: ")+error.message);
+  openSheet(`<div class="spread"><h2>${tr("الإشعارات")}</h2>${data.some(n=>!n.read)?`<button class="btn quiet sm" onclick="markAllNotifsRead()">${tr("تحديد الكل كمقروء")}</button>`:""}</div>
     ${data.length?`<div class="list" style="margin-top:10px">${data.map(n=>`
       <button class="item" style="${n.read?"opacity:.6":""}" onclick="openNotif('${n.id}','${n.link||""}')">
         <span class="edge" style="background:${n.read?"#CBD5E1":"var(--brand)"}"></span>
         <span class="body"><span class="t">${esc(n.message)}</span><span class="s">${fmt(n.created_at)} · ${time(n.created_at)}</span></span>
-      </button>`).join("")}</div>` : `<p class="empty">لا توجد إشعارات.</p>`}`);
+      </button>`).join("")}</div>` : `<p class="empty">${tr("لا توجد إشعارات.")}</p>`}`);
 }
 async function openNotif(id,link){
   await sb.from("notifications").update({read:true}).eq("id",id);
@@ -332,7 +409,7 @@ async function openNotif(id,link){
 }
 async function markAllNotifsRead(){
   await sb.from("notifications").update({read:true}).eq("read",false);
-  closeSheet(); refreshNotifBadge(); toast("تم تحديد الكل كمقروء");
+  closeSheet(); refreshNotifBadge(); toast(tr("تم تحديد الكل كمقروء"));
 }
 
 async function route(){
@@ -350,13 +427,13 @@ async function route(){
     if(page==="labels")      return labelsPage(id);
     if(page==="scan")        return scanPage(id);
     return homePage();
-  }catch(e){ console.error(e); toast("تعذر تحميل البيانات: "+e.message,6000); }
+  }catch(e){ console.error(e); toast(tr("تعذر تحميل البيانات: ")+e.message,6000); }
 }
 
 /* ---------------------- الوصول عبر مسح ملصق QR ---------------------- */
 async function scanPage(code){
   const {data:a} = await sb.from("assets").select("*").eq("qr_code",code).maybeSingle();
-  if(!a){ toast("هذا الرمز غير معروف أو لا يخص فرعك"); return location.hash="#/"; }
+  if(!a){ toast(tr("هذا الرمز غير معروف أو لا يخص فرعك")); return location.hash="#/"; }
   if(me.role==="client"){ return location.hash="#/client/"+a.client_id; }
 
   // فني/مشرف: افتح زيارة اليوم المفتوحة لهذا العميل أو ابدأ واحدة، ثم افتح بطاقة الجهاز مباشرة
@@ -371,7 +448,7 @@ async function scanPage(code){
   }
   if(!v){
     const {data:nv,error} = await sb.from("visits").insert({client_id:a.client_id,technician_id:me.id}).select().single();
-    if(error){ toast("تعذر بدء الزيارة: "+error.message); return location.hash="#/"; }
+    if(error){ toast(tr("تعذر بدء الزيارة: ")+error.message); return location.hash="#/"; }
     v = nv;
   }
   sessionStorage.setItem("openAssetAfterLoad", a.id);
@@ -395,26 +472,26 @@ async function homePage(){
     window._scheduleRows = scheduled;
     const due = scheduled.filter(r=>scheduledForMe(r) && !r.visits?.length && !r.completed_externally_on && r.due_date<=reminderEnd());
 
-    body += `<div class="card"><h3>الصيانات الوقائية المطلوبة مني</h3>
+    body += `<div class="card"><h3>${tr("الصيانات الوقائية المطلوبة مني")}</h3>
       ${due.length?`<div class="list" style="margin-top:10px">${due.map(r=>{
         const state = scheduleState(r);
         return `<div class="item schedule-item">
           <span class="edge" style="background:var(${state.tone==="danger"?"--down":state.tone==="warning"?"--maint":"--brand"})"></span>
           <span class="body"><span class="t">${esc(r.contracts.clients.name_ar)}</span>
-          <span class="s">${fmt(r.due_date)} · ${state.label}</span></span>
-          <div class="row"><button class="btn quiet sm" onclick="previewScheduleAssets('${r.id}')">عرض الأجهزة</button>
-          <button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}')">ابدأ</button></div></div>`;
+          <span class="s">${fmt(r.due_date)} · ${tr(state.label)}</span></span>
+          <div class="row"><button class="btn quiet sm" onclick="previewScheduleAssets('${r.id}')">${tr("عرض الأجهزة")}</button>
+          <button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}')">${tr("ابدأ")}</button></div></div>`;
       }).join("")}</div>`
-        : `<p class="empty">لا توجد صيانات وقائية مستحقة قريباً.</p>`}</div>`;
+        : `<p class="empty">${tr("لا توجد صيانات وقائية مستحقة قريباً.")}</p>`}</div>`;
 
-    body += `<div class="card"><h3>مهامي المفتوحة</h3>
+    body += `<div class="card"><h3>${tr("مهامي المفتوحة")}</h3>
       ${myOpen.length?`<div class="list" style="margin-top:10px">${myOpen.map(v=>`
         <button class="item" onclick="location.hash='#/visit/${v.id}'">
           <span class="edge" style="background:${v.visit_type==="emergency"?"var(--down)":"var(--brand)"}"></span>
-          <span class="body"><span class="t">${v.visit_type==="emergency"?"⚡ طارئة — ":""}${esc(v.clients?.name_ar||"")}</span>
-          <span class="s">${v.visit_type==="emergency"?esc(v.target_asset?.name_ar||"")+" · ":""}${v.status==="rejected"?"أُعيدت للتعديل":"قيد التنفيذ"}</span></span>
-          <span class="pill">متابعة</span></button>`).join("")}</div>`
-        : `<p class="empty">لا توجد مهام مفتوحة حالياً.</p>`}</div>`;
+          <span class="body"><span class="t">${v.visit_type==="emergency"?tr("⚡ طارئة — "):""}${esc(v.clients?.name_ar||"")}</span>
+          <span class="s">${v.visit_type==="emergency"?esc(v.target_asset?.name_ar||"")+" · ":""}${v.status==="rejected"?tr("أُعيدت للتعديل"):tr("قيد التنفيذ")}</span></span>
+          <span class="pill">${tr("متابعة")}</span></button>`).join("")}</div>`
+        : `<p class="empty">${tr("لا توجد مهام مفتوحة حالياً.")}</p>`}</div>`;
   }
 
   if(me.role==="supervisor"){
@@ -564,13 +641,13 @@ async function clientPage(id){
 
 async function addAsset(){
   const c = window._client;
-  const name = prompt("اسم الجهاز"); if(!name) return;
-  const asset_no = prompt("رقم الأصل")||("NEW-"+Date.now().toString().slice(-5));
-  const category = prompt("التصنيف: "+CATS.join(" / "))||"أخرى";
-  const location_text = prompt("الموقع داخل المنشأة")||"";
+  const name = prompt(tr("اسم الجهاز")); if(!name) return;
+  const asset_no = prompt(tr("رقم الأصل"))||("NEW-"+Date.now().toString().slice(-5));
+  const category = prompt(tr("التصنيف: ")+CATS.join(" / "))||"أخرى";
+  const location_text = prompt(tr("الموقع داخل المنشأة"))||"";
   const {error} = await sb.from("assets").insert({client_id:c.id,name_ar:name,asset_no,
     category:CATS.includes(category)?category:"أخرى",location_text,field_added:me.role==="technician"});
-  if(error) return toast("تعذر الحفظ: "+error.message);
+  if(error) return toast(tr("تعذر الحفظ: ")+error.message);
   route();
 }
 
@@ -729,13 +806,13 @@ async function startVisit(clientId, scheduleId=null){
   const row=window._scheduleRows?.find(r=>r.id===scheduleId);
   if(row&&!row.technician_id&&!row.scheduled_visit_technicians?.length)return chooseVisitTeam(clientId,scheduleId);
   const {data,error}=await sb.rpc('start_preventive_visit',{p_client_id:clientId,p_schedule_id:scheduleId});
-  if(error)return toast('تعذر بدء الزيارة: '+error.message);
+  if(error)return toast(tr('تعذر بدء الزيارة: ')+error.message);
   location.hash='#/visit/'+data;
 }
 
 async function loadVisit(id){
   const {data:v} = await sb.from("visits").select("*,clients(*)").eq("id",id).single();
-  if(!v)throw new Error("الزيارة غير موجودة");
+  if(!v)throw new Error(tr("الزيارة غير موجودة"));
   const {data:team,error:teamError}=await sb.rpc("visit_team",{p_visit_id:id});
   if(teamError)throw teamError;v.team=team||[];
   const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",v.client_id).order("asset_no");
@@ -753,49 +830,49 @@ async function visitPage(id){
   const readOnly = !canEditVisit(v);
 
   let body = `<div class="spread" style="margin-bottom:12px">${back(me.role==="technician"?"#/":"#/client/"+v.client_id)}
-    <span class="pill">${isEmergency?"⚡ طارئة":done.size+" من "+assets.length}</span></div>`;
+    <span class="pill">${isEmergency?tr("⚡ طارئة"):done.size+tr(" من ")+assets.length}</span></div>`;
 
   if(isEmergency) body += `<div class="card" style="border-color:var(--parts)">
-    <h3 style="color:var(--parts)">⚡ طلب صيانة طارئة</h3>
-    ${v.general_notes?`<p>${esc(v.general_notes)}</p>`:`<p class="muted">لا يوجد وصف إضافي — افتح الجهاز أدناه وسجّل حالته.</p>`}</div>`;
+    <h3 style="color:var(--parts)">${tr("⚡ طلب صيانة طارئة")}</h3>
+    ${v.general_notes?`<p>${esc(v.general_notes)}</p>`:`<p class="muted">${tr("لا يوجد وصف إضافي — افتح الجهاز أدناه وسجّل حالته.")}</p>`}</div>`;
 
   if(v.status==="rejected") body += `<div class="card" style="border-color:var(--down)">
-    <h3 style="color:var(--down)">أُعيدت الزيارة للتعديل</h3><p>${esc(v.reject_reason||"")}</p></div>`;
+    <h3 style="color:var(--down)">${tr("أُعيدت الزيارة للتعديل")}</h3><p>${esc(v.reject_reason||"")}</p></div>`;
 
   const canAddHelper = !readOnly && !isEmergency && (me.role==="supervisor" || v.team.some(t=>t.technician_id===me.id));
   const canEditCrm = me.role==="supervisor"; // الفني لا يتعامل مع تذكرة CRM ولا عرض السعر — هذا للمشرف فقط
   body += `<div class="card"><h3>${esc(v.clients.name_ar)}</h3>
-    <p class="muted">زيارة ${fmt(v.visit_date)} · بدأت ${time(v.check_in)}</p>
+    <p class="muted">${tr("زيارة ")}${fmt(v.visit_date)} · ${tr("بدأت ")}${time(v.check_in)}</p>
     <div class="row">${(v.team||[]).map(t=>`<span class="pill">${esc(t.full_name)}</span>`).join("")}
-      ${canAddHelper?`<button class="btn quiet sm" onclick="addVisitHelper('${v.id}')">+ إضافة فني للمساعدة</button>`:""}</div>
+      ${canAddHelper?`<button class="btn quiet sm" onclick="addVisitHelper('${v.id}')">${tr("+ إضافة فني للمساعدة")}</button>`:""}</div>
     <div class="mosaic">${assets.map(a=>{const it=done.get(a.id);
       return `<i style="background:${it?`var(${stateOf(it.condition).v})`:"#CBD5E1"}"></i>`}).join("")}</div>
     <div class="rail"><span style="width:${pct}%"></span></div>
     ${me.role!=="client"?`<div class="row" style="margin-top:10px;flex-wrap:wrap">
-      <span class="pill">تذكرة CRM: ${esc(v.crm_ticket_no||"—")}</span>
-      ${v.quote_url?`<a class="pill" href="${v.quote_url}" target="_blank" rel="noopener">عرض السعر ↗</a>`:""}
+      <span class="pill">${tr("تذكرة CRM: ")}${esc(v.crm_ticket_no||"—")}</span>
+      ${v.quote_url?`<a class="pill" href="${v.quote_url}" target="_blank" rel="noopener">${tr("عرض السعر ↗")}</a>`:""}
       ${canEditCrm?`<button class="btn quiet sm" onclick="editCrmInfo()">تعديل بيانات CRM</button>`:""}
     </div>`:""}</div>`;
 
-  if(!readOnly) body += `<div class="card"><div class="spread"><h3>مسح ملصق الجهاز</h3>
-    <button class="btn ghost sm" onclick="toggleScan()">فتح الكاميرا</button></div>
+  if(!readOnly) body += `<div class="card"><div class="spread"><h3>${tr("مسح ملصق الجهاز")}</h3>
+    <button class="btn ghost sm" onclick="toggleScan()">${tr("فتح الكاميرا")}</button></div>
     <div id="reader" style="margin-top:10px"></div></div>`;
 
-  body += `<div class="card"><h3>الأجهزة</h3><div class="list" style="margin-top:10px">
+  body += `<div class="card"><h3>${tr("الأجهزة")}</h3><div class="list" style="margin-top:10px">
     ${assets.map(a=>{ const it=done.get(a.id); const s=it?stateOf(it.condition):null;
       return `<button class="item" onclick="openAsset('${a.id}')">
         <span class="edge" style="background:${s?`var(${s.v})`:"#CBD5E1"}"></span>
         ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}">`:""}
         <span class="body"><span class="t">${esc(a.name_ar)}</span>
         <span class="s">${esc(a.asset_no)} ${a.location_text?"· "+esc(a.location_text):""}</span></span>
-        <span class="muted" style="font-size:12.5px">${it?esc(it.condition):"لم يُفحص"}</span></button>`;
+        <span class="muted" style="font-size:12.5px">${it?tr(esc(it.condition)):tr("لم يُفحص")}</span></button>`;
     }).join("")}</div></div>`;
 
   const bar = readOnly ? "" :
-    (isEmergency ? `<button class="btn" onclick="finishVisit()">إنهاء الطلب</button>`
-      : `<button class="btn quiet" onclick="addAssetInVisit()">جهاز غير مسجّل</button>
-     <button class="btn" onclick="finishVisit()">إنهاء الزيارة</button>`);
-  shell(isEmergency?"صيانة طارئة":"زيارة صيانة وقائية", body, bar);
+    (isEmergency ? `<button class="btn" onclick="finishVisit()">${tr("إنهاء الطلب")}</button>`
+      : `<button class="btn quiet" onclick="addAssetInVisit()">${tr("جهاز غير مسجّل")}</button>
+     <button class="btn" onclick="finishVisit()">${tr("إنهاء الزيارة")}</button>`);
+  shell(isEmergency?tr("صيانة طارئة"):tr("زيارة صيانة وقائية"), body, bar);
   window._client = v.clients;
 
   const pendingAsset = sessionStorage.getItem("openAssetAfterLoad");
@@ -814,9 +891,9 @@ async function toggleScan(){
       const oldFormatCode = raw.includes("/scan/") ? raw.split("/scan/")[1] : null;
       const a = window._assets.find(x=>x.asset_no===raw || x.qr_code===raw || (oldFormatCode && x.qr_code===oldFormatCode));
       scanner.stop().then(()=>{scanner=null;});
-      if(a) openAsset(a.id); else toast("هذا الملصق لا يخص أجهزة هذا العميل");
+      if(a) openAsset(a.id); else toast(tr("هذا الملصق لا يخص أجهزة هذا العميل"));
     }, ()=>{});
-  }catch(e){ scanner=null; toast("تعذر فتح الكاميرا. اختر الجهاز من القائمة."); }
+  }catch(e){ scanner=null; toast(tr("تعذر فتح الكاميرا. اختر الجهاز من القائمة.")); }
 }
 
 async function addAssetInVisit(){ window._client = window._v.clients; await addAsset(); location.hash="#/visit/"+window._v.id; route(); }
@@ -827,16 +904,16 @@ async function addVisitHelper(visitId){
   const currentTeamIds = new Set((v.team||[]).map(t=>t.technician_id));
   const {data:techs=[], error} = await sb.from("profiles").select("id,full_name")
     .eq("role","technician").eq("branch",me.branch).eq("active",true).order("full_name");
-  if(error) return toast("تعذر تحميل الفنيين: "+error.message);
+  if(error) return toast(tr("تعذر تحميل الفنيين: ")+error.message);
   const available = techs.filter(t=>!currentTeamIds.has(t.id));
-  if(!available.length) return toast("كل الفنيين المفعّلين بفرعك على فريق هذه الزيارة أصلاً");
-  openSheet(`<h2>إضافة فني للمساعدة</h2>
-    <p class="muted">ينضم الفني لفريق هذه الزيارة فوراً ويقدر يفتحها من "مهامي المفتوحة".</p>
+  if(!available.length) return toast(tr("كل الفنيين المفعّلين بفرعك على فريق هذه الزيارة أصلاً"));
+  openSheet(`<h2>${tr("إضافة فني للمساعدة")}</h2>
+    <p class="muted">${tr("ينضم الفني لفريق هذه الزيارة فوراً ويقدر يفتحها من \"مهامي المفتوحة\".")}</p>
     <form onsubmit="saveVisitHelper(event,'${visitId}')">
-      <label for="helperTech">الفني</label>
+      <label for="helperTech">${tr("الفني")}</label>
       <select id="helperTech">${available.map(t=>`<option value="${t.id}">${esc(t.full_name)}</option>`).join("")}</select>
-      <div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button>
-      <button class="btn" type="submit">إضافة</button></div>
+      <div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">${tr("إلغاء")}</button>
+      <button class="btn" type="submit">${tr("إضافة")}</button></div>
     </form>`);
 }
 async function saveVisitHelper(event, visitId){
@@ -844,8 +921,8 @@ async function saveVisitHelper(event, visitId){
   const technician_id = $("#helperTech").value;
   const button = event.target.querySelector("[type=submit]"); button.disabled = true;
   const {error} = await sb.rpc("add_visit_technician", {p_visit_id:visitId, p_technician_id:technician_id});
-  if(error){ toast("تعذر الإضافة: "+error.message); button.disabled = false; return; }
-  closeSheet(); toast("انضمّ الفني لفريق الزيارة"); route();
+  if(error){ toast(tr("تعذر الإضافة: ")+error.message); button.disabled = false; return; }
+  closeSheet(); toast(tr("انضمّ الفني لفريق الزيارة")); route();
 }
 
 /* ---------------------- بيانات تذكرة CRM وعرض السعر ---------------------- */
@@ -920,35 +997,35 @@ async function openAsset(assetId){
     photos:(item?.photos||[]).map(p=>({url:p.url,type:p.type})) };
 
   openSheet(`
-    <div class="spread"><h3>${esc(a.name_ar)}</h3><button class="btn quiet sm" onclick="closeSheet()">إغلاق</button></div>
+    <div class="spread"><h3>${esc(a.name_ar)}</h3><button class="btn quiet sm" onclick="closeSheet()">${tr("إغلاق")}</button></div>
     <div style="text-align:center;margin:6px 0 10px">
-      ${a.base_photo_url?`<img src="${a.base_photo_url}" alt="الصورة المرجعية" style="max-width:200px;max-height:200px;border-radius:10px;border:1px solid var(--line);object-fit:cover">`
-        :`<p class="muted" style="margin:0 0 6px">لا توجد صورة مرجعية لهذا الجهاز بعد — أضِفها للتأكد من هوية الجهاز عند كل زيارة.</p>`}
+      ${a.base_photo_url?`<img src="${a.base_photo_url}" alt="${tr("الصورة المرجعية")}" style="max-width:200px;max-height:200px;border-radius:10px;border:1px solid var(--line);object-fit:cover">`
+        :`<p class="muted" style="margin:0 0 6px">${tr("لا توجد صورة مرجعية لهذا الجهاز بعد — أضِفها للتأكد من هوية الجهاز عند كل زيارة.")}</p>`}
       <div style="margin-top:6px">
-        <button class="btn quiet sm" onclick="uploadAssetPhoto('${a.id}')">${a.base_photo_url?"تغيير الصورة المرجعية":"إضافة صورة مرجعية"}</button>
+        <button class="btn quiet sm" onclick="uploadAssetPhoto('${a.id}')">${a.base_photo_url?tr("تغيير الصورة المرجعية"):tr("إضافة صورة مرجعية")}</button>
       </div>
     </div>
     <p class="muted">${esc(a.asset_no)} · ${esc(a.category)} ${a.brand?"· "+esc(a.brand):""} ${a.model?"· "+esc(a.model):""}
-      ${a.serial_no?"<br>الرقم التسلسلي: "+esc(a.serial_no):""} ${a.location_text?"<br>الموقع: "+esc(a.location_text):""}</p>
+      ${a.serial_no?"<br>"+tr("الرقم التسلسلي: ")+esc(a.serial_no):""} ${a.location_text?"<br>"+tr("الموقع: ")+esc(a.location_text):""}</p>
     ${repeated?`<div class="card" style="background:#FEF6E7;border-color:var(--maint);padding:11px">
-      <b style="color:var(--maint)">تنبيه:</b> سُجّلت ملاحظات على هذا الجهاز في زيارة سابقة.</div>`:""}
-    ${hist.length?`<details open style="margin:10px 0"><summary style="cursor:pointer;font-weight:600">سجل الصيانات السابقة (${hist.length})</summary>
+      <b style="color:var(--maint)">${tr("تنبيه:")}</b> ${tr("سُجّلت ملاحظات على هذا الجهاز في زيارة سابقة.")}</div>`:""}
+    ${hist.length?`<details open style="margin:10px 0"><summary style="cursor:pointer;font-weight:600">${tr("سجل الصيانات السابقة")} (${hist.length})</summary>
       ${hist.map(h=>`<div style="border-top:1px solid var(--line);padding:9px 0">
-        <div class="row"><span class="dot ${stateOf(h.condition)?.c}"></span><b>${esc(h.condition)}</b>
+        <div class="row"><span class="dot ${stateOf(h.condition)?.c}"></span><b>${tr(esc(h.condition))}</b>
           <span class="muted">${fmt(h.visits.visit_date)}</span></div>
-        ${h.parts_needed_text?`<div class="muted">القطع: ${esc(h.parts_needed_text)}</div>`:""}
+        ${h.parts_needed_text?`<div class="muted">${tr("القطع:")} ${esc(h.parts_needed_text)}</div>`:""}
         ${h.technician_notes?`<div class="muted">${esc(h.technician_notes)}</div>`:""}
         <div class="photos">${(h.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
-      </div>`).join("")}</details>`:`<p class="muted">لا يوجد سجل صيانة سابق لهذا الجهاز.</p>`}
+      </div>`).join("")}</details>`:`<p class="muted">${tr("لا يوجد سجل صيانة سابق لهذا الجهاز.")}</p>`}
 
-    <label>حالة الجهاز</label>
+    <label>${tr("حالة الجهاز")}</label>
     <div class="states" id="states">${STATES.map(s=>`
       <button class="state ${window._draft.condition===s.k?"on":""}" data-k="${s.k}" onclick="pickState('${s.k}')"
-        ${readOnly?"disabled":""}><b style="background:var(${s.v})"></b>${s.k}</button>`).join("")}</div>
+        ${readOnly?"disabled":""}><b style="background:var(${s.v})"></b>${tr(s.k)}</button>`).join("")}</div>
 
     <div id="extra"></div>
     ${readOnly?"":`<div style="height:16px"></div>
-      <button id="saveItemButton" class="btn" style="width:100%" onclick="saveItem()">حفظ الجهاز</button>`}
+      <button id="saveItemButton" class="btn" style="width:100%" onclick="saveItem()">${tr("حفظ الجهاز")}</button>`}
   `);
   renderExtra();
 }
@@ -958,7 +1035,7 @@ function uploadAssetPhoto(assetId){
   const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*"; inp.capture="environment";
   inp.onchange=async()=>{
     const f=inp.files[0]; if(!f) return;
-    toast("جارٍ رفع الصورة…");
+    toast(tr("جارٍ رفع الصورة…"));
     try{
       const blob = await compress(f);
       const path = `assets/${assetId}-${Date.now()}.jpg`;
@@ -967,11 +1044,11 @@ function uploadAssetPhoto(assetId){
       const {data:pub} = sb.storage.from("visit-photos").getPublicUrl(path);
       const {error} = await sb.rpc("set_asset_base_photo",{p_asset_id:assetId,p_photo_url:pub.publicUrl});
       if(error) throw error;
-      toast("تم حفظ الصورة المرجعية");
+      toast(tr("تم حفظ الصورة المرجعية"));
       (window._assets||[]).forEach(a=>{ if(a.id===assetId) a.base_photo_url = pub.publicUrl; });
       if(window._draft && window._draft.assetId===assetId){ closeSheet(); openAsset(assetId); }
       else route();
-    }catch(e){ toast("تعذر رفع الصورة: "+(e.message||"")); }
+    }catch(e){ toast(tr("تعذر رفع الصورة: ")+(e.message||"")); }
   };
   inp.click();
 }
@@ -988,18 +1065,18 @@ function renderExtra(){
   const editable=canEditVisit(window._v);
   const needDefect = d.condition && !["سليم","غير متاح للفحص"].includes(d.condition);
   box.innerHTML = `
-    <label>صورة الجهاز (إلزامية)</label>
+    <label>${tr("صورة الجهاز (إلزامية)")}</label>
     <div class="photos">${d.photos.filter(p=>p.type==="general").map((p,i)=>
       `<img src="${p.url}" onclick="dropPhoto('general',${i})">`).join("")}
-      ${editable?`<button class="addphoto" onclick="pickPhoto('general')">+ صورة</button>`:""}</div>
-    ${needDefect?`<label>صور العيب (إلزامية)</label>
+      ${editable?`<button class="addphoto" onclick="pickPhoto('general')">${tr("+ صورة")}</button>`:""}</div>
+    ${needDefect?`<label>${tr("صور العيب (إلزامية)")}</label>
       <div class="photos">${d.photos.filter(p=>p.type==="defect").map((p,i)=>
         `<img src="${p.url}" onclick="dropPhoto('defect',${i})">`).join("")}
-        ${editable?`<button class="addphoto" onclick="pickPhoto('defect')">+ صورة</button>`:""}</div>
-      <label>القطع المطلوبة</label>
-      <textarea id="parts" ${editable?"":"readonly"} placeholder="اكتب القطع المطلوبة ووصف العطل">${esc(d.parts)}</textarea>`:""}
-    <label>ملاحظات الفني</label>
-    <textarea id="notes" ${editable?"":"readonly"} placeholder="${d.condition==='غير متاح للفحص'?'اكتب سبب تعذر الفحص':'اختياري'}">${esc(d.notes)}</textarea>`;
+        ${editable?`<button class="addphoto" onclick="pickPhoto('defect')">${tr("+ صورة")}</button>`:""}</div>
+      <label>${tr("القطع المطلوبة")}</label>
+      <textarea id="parts" ${editable?"":"readonly"} placeholder="${tr("اكتب القطع المطلوبة ووصف العطل")}">${esc(d.parts)}</textarea>`:""}
+    <label>${tr("ملاحظات الفني")}</label>
+    <textarea id="notes" ${editable?"":"readonly"} placeholder="${d.condition==='غير متاح للفحص'?tr('اكتب سبب تعذر الفحص'):tr('اختياري')}">${esc(d.notes)}</textarea>`;
 }
 
 function pickPhoto(type){
@@ -1007,7 +1084,7 @@ function pickPhoto(type){
   const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*"; inp.capture="environment";
   inp.onchange=async()=>{
     const f=inp.files[0]; if(!f) return;
-    keepText(); toast("جارٍ رفع الصورة…");
+    keepText(); toast(tr("جارٍ رفع الصورة…"));
     try{
       const blob = await compress(f);
       const path = `${window._v.id}/${window._draft.assetId}-${type}-${Date.now()}.jpg`;
@@ -1015,14 +1092,14 @@ function pickPhoto(type){
       if(error) throw error;
       const {data} = sb.storage.from("visit-photos").getPublicUrl(path);
       window._draft.photos.push({url:data.publicUrl,type,isNew:true});
-      renderExtra(); toast("تم رفع الصورة");
-    }catch(e){ toast("تعذر رفع الصورة: "+(e.message||"")); }
+      renderExtra(); toast(tr("تم رفع الصورة"));
+    }catch(e){ toast(tr("تعذر رفع الصورة: ")+(e.message||"")); }
   };
   inp.click();
 }
 function dropPhoto(type,i){
   if(!canEditVisit(window._v)) return;
-  if(!confirm("حذف هذه الصورة؟")) return;
+  if(!confirm(tr("حذف هذه الصورة؟"))) return;
   keepText();
   const list = window._draft.photos.filter(p=>p.type===type);
   const target = list[i];
@@ -1058,36 +1135,36 @@ async function saveItem(){
   if(!canEditVisit(window._v) || window._savingItem) return;
   keepText();
   const d = window._draft;
-  if(!d.condition) return toast("اختر حالة الجهاز");
-  if(!d.photos.some(p=>p.type==="general")) return toast("أضف صورة الجهاز");
-  if(d.condition==='غير متاح للفحص' && !d.notes.trim()) return toast('اكتب سبب تعذر الفحص');
+  if(!d.condition) return toast(tr("اختر حالة الجهاز"));
+  if(!d.photos.some(p=>p.type==="general")) return toast(tr("أضف صورة الجهاز"));
+  if(d.condition==='غير متاح للفحص' && !d.notes.trim()) return toast(tr('اكتب سبب تعذر الفحص'));
   if(!['سليم','غير متاح للفحص'].includes(d.condition)){
-    if(!d.photos.some(p=>p.type==='defect')) return toast('أضف صورة للعيب');
-    if(!d.parts.trim()) return toast('اكتب القطع المطلوبة أو وصف العطل');
+    if(!d.photos.some(p=>p.type==='defect')) return toast(tr('أضف صورة للعيب'));
+    if(!d.parts.trim()) return toast(tr('اكتب القطع المطلوبة أو وصف العطل'));
   }
   window._savingItem=true;
-  const btn=$('#saveItemButton'); if(btn){btn.disabled=true;btn.textContent='جارٍ الحفظ…';}
+  const btn=$('#saveItemButton'); if(btn){btn.disabled=true;btn.textContent=tr('جارٍ الحفظ…');}
   try{
     const {error} = await sb.rpc('save_visit_item', {p_visit_id:window._v.id,p_asset_id:d.assetId,
       p_condition:d.condition,p_notes:d.notes,p_parts:d.parts,
       p_photos:d.photos.map(p=>({url:p.url,type:p.type}))});
     if(error) throw error;
-    closeSheet();toast('حُفظ الفحص والصور بنجاح');await route();
-  }catch(e){toast('تعذر الحفظ. بياناتك ما زالت هنا: '+e.message,5000);}
-  finally{window._savingItem=false;if(btn){btn.disabled=false;btn.textContent='حفظ الجهاز';}}
+    closeSheet();toast(tr('حُفظ الفحص والصور بنجاح'));await route();
+  }catch(e){toast(tr('تعذر الحفظ. بياناتك ما زالت هنا: ')+e.message,5000);}
+  finally{window._savingItem=false;if(btn){btn.disabled=false;btn.textContent=tr('حفظ الجهاز');}}
 }
 
 async function finishVisit(){
-  if(!canEditVisit(window._v)) return toast("هذه الزيارة غير قابلة للتعديل");
+  if(!canEditVisit(window._v)) return toast(tr("هذه الزيارة غير قابلة للتعديل"));
   const v = window._v;
   const total = window._assets.length, done = window._items.length;
-  if(done===0) return toast("لم تُفحص أي أجهزة بعد");
-  if(done<total && !confirm(`فُحص ${done} من ${total}. إنهاء الزيارة الآن؟`)) return;
-  const rec = prompt("التوصيات العامة (تظهر في التقرير)")||"";
+  if(done===0) return toast(tr("لم تُفحص أي أجهزة بعد"));
+  if(done<total && !confirm(`${tr("فُحص ")}${done}${tr(" من ")}${total}${tr(". إنهاء الزيارة الآن؟")}`)) return;
+  const rec = prompt(tr("التوصيات العامة (تظهر في التقرير)"))||"";
   const {error} = await sb.from("visits").update({status:"submitted",check_out:new Date().toISOString(),
     recommendations:rec, reject_reason:null}).eq("id",v.id);
-  if(error) return toast("تعذر الإرسال: "+error.message);
-  toast("أُرسلت الزيارة للاعتماد");
+  if(error) return toast(tr("تعذر الإرسال: ")+error.message);
+  toast(tr("أُرسلت الزيارة للاعتماد"));
   location.hash = "#/client/"+v.client_id;
 }
 
@@ -1195,9 +1272,9 @@ async function reportPage(id){
   <div class="wrap noprint"><div class="spread">
     ${back(me.role==="technician"?"#/":"#/client/"+v.client_id)}
     <div class="row">
-      <button class="btn quiet sm" onclick="exportVisitParts()">Excel للقطع</button>
-      <button class="btn quiet sm" onclick="shareReport()">مشاركة</button>
-      <button class="btn sm" onclick="window.print()">طباعة / PDF</button>
+      <button class="btn quiet sm" onclick="exportVisitParts()">${tr("Excel للقطع")}</button>
+      <button class="btn quiet sm" onclick="shareReport()">${tr("مشاركة")}</button>
+      <button class="btn sm" onclick="window.print()">${tr("طباعة / PDF")}</button>
     </div></div></div>
 
   <div class="report">

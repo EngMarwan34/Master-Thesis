@@ -80,7 +80,7 @@ function scheduledForMe(row){
   return team.length?team.some(t=>t.technician_id===me.id):!row.technician_id||row.technician_id===me.id;
 }
 function technicianFields(selected=[]){
-  return `<fieldset class="team-picker"><legend>فريق الزيارة الوقائية</legend><p class="muted">اختر فنيًا واحدًا أو أكثر. يعمل الفريق على الزيارة نفسها.</p>${(window._technicians||[]).map((t,i)=>`<label class="team-option"><input type="checkbox" name="assignedTech" value="${t.id}" ${selected.includes(t.id)||(!selected.length&&i===0)?'checked':''}><span>${esc(t.full_name)}</span></label>`).join('')||'<p class="empty">لا يوجد فنيون مفعّلون في الفرع.</p>'}</fieldset>`;
+  return `<fieldset class="team-picker"><legend>${tr('فريق الزيارة الوقائية')}</legend><p class="muted">${tr('اختر فنيًا واحدًا أو أكثر. يعمل الفريق على الزيارة نفسها.')}</p>${(window._technicians||[]).map((t,i)=>`<label class="team-option"><input type="checkbox" name="assignedTech" value="${t.id}" ${selected.includes(t.id)||(!selected.length&&i===0)?'checked':''}><span>${esc(t.full_name)}</span></label>`).join('')||`<p class="empty">${tr('لا يوجد فنيون مفعّلون في الفرع.')}</p>`}</fieldset>`;
 }
 function selectedTechnicians(){return [...document.querySelectorAll('[name=assignedTech]:checked')].map(el=>el.value);}
 async function newContract(clientId=''){
@@ -154,15 +154,15 @@ async function previewScheduleAssets(scheduleId){
   const row=(window._scheduleRows||[]).find(r=>r.id===scheduleId);if(!row)return;
   const clientId=row.contracts.client_id;
   const {data:assets=[],error}=await sb.from('assets').select('*').eq('client_id',clientId).eq('active',true).order('asset_no');
-  if(error)return toast('تعذر تحميل الأجهزة: '+error.message);
+  if(error)return toast(tr('تعذر تحميل الأجهزة: ')+error.message);
   const byCat=CATS.map(k=>[k,assets.filter(a=>a.category===k).length]).filter(x=>x[1]);
   openSheet(`<h2>${esc(row.contracts.clients.name_ar)}</h2>
-    <p class="muted">معاينة قبل بدء الزيارة — ${assets.length} جهازاً</p>
-    <div class="row" style="margin:8px 0">${byCat.map(([k,n])=>`<span class="pill">${k} ${n}</span>`).join('')}</div>
+    <p class="muted">${tr('معاينة قبل بدء الزيارة — ')}${assets.length} ${tr('جهازاً')}</p>
+    <div class="row" style="margin:8px 0">${byCat.map(([k,n])=>`<span class="pill">${isEn()?CAT_EN[k]:k} ${n}</span>`).join('')}</div>
     <div class="list" style="margin-top:10px">${assets.map(a=>`
       <div class="item"><span class="edge" style="background:var(--brand)"></span>
         <span class="body"><span class="t">${esc(a.name_ar)}</span>
-        <span class="s">${esc(a.asset_no)} · ${esc(a.category)}${a.location_text?' · '+esc(a.location_text):''}</span></span></div>`).join('')||'<p class="empty">لا توجد أجهزة مسجّلة لهذا العميل.</p>'}</div>`);
+        <span class="s">${esc(a.asset_no)} · ${isEn()?CAT_EN[a.category]||esc(a.category):esc(a.category)}${a.location_text?' · '+esc(a.location_text):''}</span></span></div>`).join('')||`<p class="empty">${tr('لا توجد أجهزة مسجّلة لهذا العميل.')}</p>`}</div>`);
 }
 async function resetScheduledVisit(visitId){
   if(me.role!=='supervisor')return;
@@ -173,14 +173,14 @@ async function resetScheduledVisit(visitId){
 }
 async function chooseVisitTeam(clientId,scheduleId=null){
   const {data,error}=await sb.from('profiles').select('id,full_name').eq('role','technician').eq('active',true);
-  if(error)return toast('تعذر تحميل الفنيين');window._technicians=data;
-  openSheet(`<h2>فريق الزيارة الوقائية</h2><form onsubmit="beginTeamVisit(event,'${clientId}',${scheduleId?`'${scheduleId}'`:'null'})">${technicianFields(me.role==='technician'?[me.id]:[])}<div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">بدء زيارة الفريق</button></div></form>`);
+  if(error)return toast(tr('تعذر تحميل الفنيين'));window._technicians=data;
+  openSheet(`<h2>${tr('فريق الزيارة الوقائية')}</h2><form onsubmit="beginTeamVisit(event,'${clientId}',${scheduleId?`'${scheduleId}'`:'null'})">${technicianFields(me.role==='technician'?[me.id]:[])}<div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">${tr('إلغاء')}</button><button type="submit" class="btn">${tr('بدء زيارة الفريق')}</button></div></form>`);
 }
 async function beginTeamVisit(event,clientId,scheduleId=null){
-  event.preventDefault();const team=selectedTechnicians();if(!team.length)return toast('اختر فنيًا واحدًا على الأقل');
+  event.preventDefault();const team=selectedTechnicians();if(!team.length)return toast(tr('اختر فنيًا واحدًا على الأقل'));
   const button=event.target.querySelector('[type=submit]');button.disabled=true;
   try{const {data,error}=await sb.rpc('start_preventive_visit',{p_client_id:clientId,p_technician_ids:team,...(scheduleId?{p_schedule_id:scheduleId}:{})});if(error)throw error;closeSheet();location.hash='#/visit/'+data;}
-  catch(e){toast('تعذر البدء: '+e.message);button.disabled=false;}
+  catch(e){toast(tr('تعذر البدء: ')+e.message);button.disabled=false;}
 }
 
 async function showResolutionHistory(){

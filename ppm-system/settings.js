@@ -42,7 +42,7 @@ async function saveOwnPassword(event){
   const {error}=await sb.auth.updateUser({password});if(error){button.disabled=false;return toast('تعذر التغيير: '+error.message);}closeSheet();toast('تم تغيير كلمة المرور');
 }
 async function userSettings(){
-  const {data,error}=await sb.from('profiles').select('id,full_name,phone,active').eq('role','technician').order('full_name');if(error)throw error;window._settingsTechnicians=data;
+  const {data,error}=await sb.from('profiles').select('id,full_name,phone,active,language').eq('role','technician').order('full_name');if(error)throw error;window._settingsTechnicians=data;
   return `<div class="card"><div class="spread"><h3>فنيّو الفرع</h3><button class="btn" onclick="inviteTechnicianForm()">+ إضافة فني</button></div><p class="muted">الفني الموقوف لا يستطيع تعديل الزيارات. تبقى زياراته السابقة محفوظة.</p><div class="list">${data.map(t=>`<div class="item"><span class="avatar">${esc(t.full_name.slice(0,1))}</span><span class="body"><span class="t">${esc(t.full_name)}</span><span class="s">${esc(t.phone||'لا يوجد هاتف')}</span></span><span class="status-tag ${t.active?'ok':'neutral'}">${t.active?'مفعّل':'موقوف'}</span><button class="btn quiet sm" onclick="editTechnician('${t.id}')">تعديل</button></div>`).join('')||'<p class="empty">أضف أول فني في فرعك.</p>'}</div></div>`;
 }
 function inviteTechnicianForm(){
@@ -60,10 +60,10 @@ async function inviteTechnician(event){
 }
 function editTechnician(id){
   const t=window._settingsTechnicians.find(t=>t.id===id);
-  openSheet(`<h2>تعديل الفني</h2><form onsubmit="saveTechnician(event,'${id}')"><label for="technicianName">الاسم الكامل</label><input id="technicianName" required maxlength="100" value="${esc(t.full_name)}"><label for="technicianPhone">الهاتف</label><input id="technicianPhone" type="tel" maxlength="40" value="${esc(t.phone||'')}"><label class="team-option"><input id="technicianActive" type="checkbox" ${t.active?'checked':''}><span>الحساب مفعّل</span></label><p class="muted">إيقاف الحساب يمنع الوصول لبيانات الفرع دون حذف سجلاته.</p><div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ التعديلات</button></div></form>`);
+  openSheet(`<h2>تعديل الفني</h2><form onsubmit="saveTechnician(event,'${id}')"><label for="technicianName">الاسم الكامل</label><input id="technicianName" required maxlength="100" value="${esc(t.full_name)}"><label for="technicianPhone">الهاتف</label><input id="technicianPhone" type="tel" maxlength="40" value="${esc(t.phone||'')}"><label for="technicianLanguage">لغة الواجهة</label><select id="technicianLanguage"><option value="ar" ${t.language!=='en'?'selected':''}>عربي</option><option value="en" ${t.language==='en'?'selected':''}>English</option></select><label class="team-option"><input id="technicianActive" type="checkbox" ${t.active?'checked':''}><span>الحساب مفعّل</span></label><p class="muted">إيقاف الحساب يمنع الوصول لبيانات الفرع دون حذف سجلاته.</p><div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ التعديلات</button></div></form>`);
 }
 async function saveTechnician(event,id){
-  event.preventDefault();await settingsMutation(event,()=>sb.rpc('update_staff_profile',{p_id:id,p_full_name:$('#technicianName').value,p_phone:$('#technicianPhone').value,p_active:$('#technicianActive').checked}));
+  event.preventDefault();await settingsMutation(event,()=>sb.rpc('update_staff_profile',{p_id:id,p_full_name:$('#technicianName').value,p_phone:$('#technicianPhone').value,p_active:$('#technicianActive').checked,p_language:$('#technicianLanguage').value}));
 }
 async function clientSettings(){
   const {data,error}=await sb.from('clients').select('*').order('name_ar');if(error)throw error;window._settingsClients=data;
