@@ -235,6 +235,7 @@ const TR = {
   "جارٍ الحفظ…":"Saving…","هذه الزيارة غير قابلة للتعديل":"This visit can no longer be edited",
   "فُحص ":"Inspected ",". إنهاء الزيارة الآن؟":". Finish the visit now?",
   "التصنيف: ":"Category: ","الموقع داخل المنشأة":"Location within the facility",
+  "تعذر تحميل الصفحة":"Couldn't load the page","حاول مرة أخرى":"Try again","الرئيسية":"Home",
   "Excel للقطع":"Parts Excel",
   "تعذر تحميل الأجهزة: ":"Couldn't load devices: ","معاينة قبل بدء الزيارة — ":"Preview before starting the visit — ",
   "جهازاً":"devices","لا توجد أجهزة مسجّلة لهذا العميل.":"No devices registered for this client.",
@@ -421,16 +422,27 @@ async function route(){
   const h = location.hash.replace(/^#\/?/,"");
   const [page,id] = h.split("/");
   try{
-    if(page==="settings")    return settingsPage(id);
-    if(page==="schedule")    return schedulePage();
-    if(page==="client")      return clientPage(id);
-    if(page==="visit")       return visitPage(id);
-    if(page==="review")      return reviewPage(id);
-    if(page==="report")      return reportPage(id);
-    if(page==="labels")      return labelsPage(id);
-    if(page==="scan")        return scanPage(id);
-    return homePage();
-  }catch(e){ console.error(e); toast(tr("تعذر تحميل البيانات: ")+e.message,6000); }
+    if(page==="settings")    return await settingsPage(id);
+    if(page==="schedule")    return await schedulePage();
+    if(page==="client")      return await clientPage(id);
+    if(page==="visit")       return await visitPage(id);
+    if(page==="review")      return await reviewPage(id);
+    if(page==="report")      return await reportPage(id);
+    if(page==="labels")      return await labelsPage(id);
+    if(page==="scan")        return await scanPage(id);
+    return await homePage();
+  }catch(e){
+    console.error(e);
+    toast(tr("تعذر تحميل البيانات: ")+e.message,6000);
+    app.innerHTML = `<div class="center">
+      <div class="card">
+        <h2>${tr("تعذر تحميل الصفحة")}</h2>
+        <p class="muted">${esc(e.message||"")}</p>
+        <div style="height:14px"></div>
+        <button class="btn" style="width:100%" onclick="route()">${tr("حاول مرة أخرى")}</button>
+        <button class="btn quiet" style="width:100%;margin-top:8px" onclick="location.hash='#/'">${tr("الرئيسية")}</button>
+      </div></div>`;
+  }
 }
 
 /* ---------------------- الوصول عبر مسح ملصق QR ---------------------- */
