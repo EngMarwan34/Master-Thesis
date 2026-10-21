@@ -1180,7 +1180,7 @@ async function finishVisit(){
     recommendations:rec, reject_reason:null}).eq("id",v.id);
   if(error) return toast(tr("تعذر الإرسال: ")+error.message);
   toast(tr("أُرسلت الزيارة للاعتماد"));
-  location.hash = "#/client/"+v.client_id;
+  location.hash = me.role==="technician" ? "#/" : "#/client/"+v.client_id;
 }
 
 /* ---------------------- المراجعة والاعتماد ---------------------- */
