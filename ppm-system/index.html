@@ -236,6 +236,7 @@ const TR = {
   "فُحص ":"Inspected ",". إنهاء الزيارة الآن؟":". Finish the visit now?",
   "التصنيف: ":"Category: ","الموقع داخل المنشأة":"Location within the facility",
   "تعذر تحميل الصفحة":"Couldn't load the page","حاول مرة أخرى":"Try again","الرئيسية":"Home",
+  "التقط الصورة":"Take Photo",
   "Excel للقطع":"Parts Excel",
   "تعذر تحميل الأجهزة: ":"Couldn't load devices: ","معاينة قبل بدء الزيارة — ":"Preview before starting the visit — ",
   "جهازاً":"devices","لا توجد أجهزة مسجّلة لهذا العميل.":"No devices registered for this client.",
@@ -1047,9 +1048,7 @@ async function openAsset(assetId){
 
 /* ---------------------- الصورة المرجعية للجهاز ---------------------- */
 function uploadAssetPhoto(assetId){
-  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*"; inp.capture="environment";
-  inp.onchange=async()=>{
-    const f=inp.files[0]; if(!f) return;
+  captureOrPickPhoto().then(async f=>{
     toast(tr("جارٍ رفع الصورة…"));
     try{
       const blob = await compress(f);
@@ -1064,8 +1063,7 @@ function uploadAssetPhoto(assetId){
       if(window._draft && window._draft.assetId===assetId){ closeSheet(); openAsset(assetId); }
       else route();
     }catch(e){ toast(tr("تعذر رفع الصورة: ")+(e.message||"")); }
-  };
-  inp.click();
+  }).catch(()=>{});
 }
 
 function pickState(k){
@@ -1096,10 +1094,9 @@ function renderExtra(){
 
 function pickPhoto(type){
   if(!canEditVisit(window._v)) return;
-  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*"; inp.capture="environment";
-  inp.onchange=async()=>{
-    const f=inp.files[0]; if(!f) return;
-    keepText(); toast(tr("جارٍ رفع الصورة…"));
+  keepText();
+  captureOrPickPhoto().then(async f=>{
+    toast(tr("جارٍ رفع الصورة…"));
     try{
       const blob = await compress(f);
       const path = `${window._v.id}/${window._draft.assetId}-${type}-${Date.now()}.jpg`;
@@ -1109,8 +1106,7 @@ function pickPhoto(type){
       window._draft.photos.push({url:data.publicUrl,type,isNew:true});
       renderExtra(); toast(tr("تم رفع الصورة"));
     }catch(e){ toast(tr("تعذر رفع الصورة: ")+(e.message||"")); }
-  };
-  inp.click();
+  }).catch(()=>{});
 }
 function dropPhoto(type,i){
   if(!canEditVisit(window._v)) return;
@@ -1126,6 +1122,52 @@ function keepText(){
   if($("#notes")) d.notes=$("#notes").value;
   if($("#parts")) d.parts=$("#parts").value;
 }
+/* ---------------------- التقاط صورة داخل الصفحة (بدون فتح تطبيق كاميرا منفصل) ---------------------- */
+function captureFromCamera(){
+  return new Promise((resolve,reject)=>{
+    if(!navigator.mediaDevices?.getUserMedia){ reject(new Error("no-camera-api")); return; }
+    const overlay=document.createElement("div");
+    overlay.className="sheet noprint";
+    overlay.style.zIndex=100;
+    overlay.innerHTML=`<div class="panel" style="padding:0;max-width:none;max-height:none;width:100%;height:100%;border-radius:0;display:flex;flex-direction:column;background:#000">
+      <video id="camVideo" autoplay playsinline muted style="flex:1;width:100%;min-height:0;object-fit:cover;background:#000"></video>
+      <div style="display:flex;gap:10px;padding:16px;background:#000">
+        <button id="camCancel" class="btn quiet" style="flex:1">${tr("إلغاء")}</button>
+        <button id="camShoot" class="btn" style="flex:2">${tr("التقط الصورة")}</button>
+      </div></div>`;
+    document.body.appendChild(overlay);
+    let stream=null, settled=false;
+    const cleanup=()=>{ stream?.getTracks().forEach(t=>t.stop()); overlay.remove(); };
+    const finish=(fn,arg)=>{ if(settled)return; settled=true; cleanup(); fn(arg); };
+    overlay.querySelector("#camCancel").onclick=()=>finish(reject,new Error("cancelled"));
+    navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false}).then(s=>{
+      if(settled){ s.getTracks().forEach(t=>t.stop()); return; }
+      stream=s; overlay.querySelector("#camVideo").srcObject=s;
+    }).catch(e=>finish(reject,e));
+    overlay.querySelector("#camShoot").onclick=()=>{
+      const video=overlay.querySelector("#camVideo");
+      if(!video.videoWidth) return;
+      const cv=document.createElement("canvas");
+      cv.width=video.videoWidth; cv.height=video.videoHeight;
+      cv.getContext("2d").drawImage(video,0,0);
+      cv.toBlob(b=>finish(b?resolve:reject, b||new Error("capture-failed")),"image/jpeg",0.85);
+    };
+  });
+}
+function pickPhotoFile(){
+  return new Promise((resolve,reject)=>{
+    const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
+    inp.onchange=()=>{ const f=inp.files[0]; f?resolve(f):reject(new Error("no-file")); };
+    inp.click();
+  });
+}
+function captureOrPickPhoto(){
+  return captureFromCamera().catch(e=>{
+    if(e.message==="cancelled") throw e;
+    return pickPhotoFile();
+  });
+}
+
 function compress(file){
   return new Promise((res,rej)=>{
     const img=new Image(), url=URL.createObjectURL(file);
