@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>رحلة طلب الصيانة</title>
+<style>
+:root{
+  --bg:#f6f4ef; --surface:#ffffff; --ink:#1d2330; --muted:#5d6678; --line:#d9dce3;
+  --band-a:#fbfaf7; --band-b:#f1efe8; --map-bg:#fbfaf7; --accent:#2563c9; --accent-ink:#ffffff;
+  --gold:#f5c518; --ok:#16794c; --ok-bg:#e4f4ec; --bad:#b3261e; --bad-bg:#fbe9e7; --tip-bg:#fff6d6;
+  --shadow:0 6px 24px rgba(20,30,50,.09);
+  --c-cust:#2563c9; --c-sup:#14806f; --c-mgr:#7444c4; --c-tech:#b85a0f; --c-ts:#be3b6b; --c-parts:#5b7a12; --c-end:#5b6370;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#12151c; --surface:#1c212c; --ink:#eef0f5; --muted:#a3acbd; --line:#323a4a;
+    --band-a:#171b24; --band-b:#1d222d; --map-bg:#171b24; --accent:#6aa0ff; --accent-ink:#0d1220;
+    --ok:#5fd09b; --ok-bg:#16301f; --bad:#ff8f86; --bad-bg:#3a1a18; --tip-bg:#3a3316;
+    --shadow:0 6px 24px rgba(0,0,0,.4);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,"Noto Sans Arabic","Noto Naskh Arabic",system-ui,sans-serif;line-height:1.7;-webkit-text-size-adjust:100%}
+button{font:inherit;cursor:pointer}
+.app{max-width:1180px;margin:0 auto;padding:16px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+h1{margin:0;font-size:1.5rem;line-height:1.3}
+.sub{margin:2px 0 0;color:var(--muted);font-size:.95rem}
+.head-actions{display:flex;gap:8px}
+.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:.92rem}
+.ghost:hover{border-color:var(--accent)}
+.ghost[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+#phases{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;padding:0;list-style:none}
+#phases li{font-size:.82rem;padding:3px 11px;border-radius:99px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+#phases li.seen{color:var(--ink);border-color:var(--muted)}
+#phases li.cur{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+
+.map{display:flex;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--map-bg);box-shadow:var(--shadow);height:clamp(280px,48vh,480px)}
+.lanes{width:72px;flex:none;overflow:hidden;border-inline-end:1px solid var(--line);background:var(--surface)}
+.lanes div.lab{display:flex;align-items:center;justify-content:center;text-align:center;font-size:.78rem;font-weight:700;line-height:1.3;padding:4px;color:#fff;border-bottom:1px solid rgba(255,255,255,.35)}
+.vp{flex:1;overflow:auto;position:relative;scrollbar-width:thin}
+.vp svg{display:block}
+
+.lane-band:nth-child(odd){fill:var(--band-a)}
+.lane-band:nth-child(even){fill:var(--band-b)}
+.edge{fill:none;stroke:var(--muted);stroke-width:1.8;stroke-dasharray:5 5;opacity:.55;marker-end:url(#ah)}
+.edge.walked{stroke:var(--accent);stroke-width:3.2;stroke-dasharray:none;opacity:1;marker-end:url(#ahw)}
+.pill rect{fill:var(--surface);stroke:var(--line)}
+.pill text{font-size:11px;font-weight:700;fill:var(--ink)}
+.node{cursor:pointer;outline:none}
+.node .shape{fill:var(--surface);stroke:var(--lc);stroke-width:3}
+.node.visited .shape{fill:var(--lc)}
+.node .ic{font-size:16px;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.node .lbl{font-size:12px;fill:var(--ink);text-anchor:middle;paint-order:stroke;stroke:var(--map-bg);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.node.visited .lbl{font-weight:700}
+.node .gold{fill:none;stroke:var(--gold);stroke-width:4;opacity:.95}
+.node .halo{fill:none;stroke:var(--accent);stroke-width:3;opacity:0}
+.node.current .halo{opacity:1;animation:pulse 1.6s ease-in-out infinite}
+.node:focus-visible .halo,.node.preview .halo{opacity:1;stroke-dasharray:4 3}
+.node.dim{opacity:.55}
+.node.visited,.node.current{opacity:1}
+#token{transition:transform .9s cubic-bezier(.5,.1,.2,1);pointer-events:none}
+#token .tk{animation:bob 1.4s ease-in-out infinite}
+#token text{font-size:24px;text-anchor:middle;dominant-baseline:central}
+@keyframes pulse{0%,100%{stroke-width:3;opacity:1}50%{stroke-width:7;opacity:.35}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@media (prefers-reduced-motion:reduce){#token{transition:none}.node.current .halo,#token .tk{animation:none}}
+
+.card{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:20px 22px;border-inline-start:8px solid var(--lc,var(--accent));min-height:210px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
+.badge{display:inline-block;font-size:.8rem;font-weight:700;color:#fff;background:var(--lc,var(--accent));border-radius:99px;padding:1px 12px}
+.badge.gold{background:var(--gold);color:#3a2d00}
+.badge.soft{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:600}
+.card h2{margin:4px 0 8px;font-size:1.3rem;line-height:1.4}
+.card p{margin:0 0 10px;font-size:1.05rem}
+.tip{background:var(--tip-bg);border-radius:10px;padding:8px 14px;margin:10px 0;font-size:.97rem}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.btn{border:0;border-radius:11px;padding:10px 20px;font-size:1rem;font-weight:700;background:var(--accent);color:var(--accent-ink)}
+.btn:hover{filter:brightness(1.08)}
+.btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:600}
+.btn.choice{background:var(--surface);color:var(--ink);border:2px solid var(--lc,var(--accent))}
+.btn.choice:hover{background:var(--lc,var(--accent));color:#fff}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.opts{display:grid;gap:10px;margin:12px 0}
+.opt{text-align:start;background:var(--surface);color:var(--ink);border:2px solid var(--line);border-radius:11px;padding:10px 16px;font-size:1rem}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt.right{border-color:var(--ok);background:var(--ok-bg)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.fb{padding:8px 14px;border-radius:10px;margin-top:8px;font-size:.98rem}
+.fb.ok{background:var(--ok-bg);color:var(--ok)}
+.fb.no{background:var(--bad-bg);color:var(--bad)}
+
+.score{font-size:2.4rem;font-weight:800;margin:4px 0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px}
+.chip{font-size:.85rem;border:1px solid var(--line);border-radius:99px;padding:2px 12px;color:var(--muted)}
+.chip.on{background:var(--ok-bg);color:var(--ok);border-color:var(--ok);font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 0;font-size:.88rem;color:var(--muted)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-inline-end:5px;vertical-align:-1px}
+footer{text-align:center;color:var(--muted);font-size:.82rem;margin:16px 0 4px}
+@media (max-width:600px){
+  .app{padding:12px}
+  h1{font-size:1.25rem}
+  .lanes{width:58px}
+  .lanes div.lab{font-size:.7rem}
+  .card{padding:16px}
+  .btn{flex:1 1 auto}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>رحلة طلب الصيانة</h1>
+      <p class="sub">دليل الموظف الجديد · <span id="co"></span></p>
+    </div>
+    <div class="head-actions">
+      <button class="ghost" id="ovBtn" aria-pressed="false">🗺️ نظرة عامة</button>
+      <button class="ghost" id="rsBtn">↺ من البداية</button>
+    </div>
+  </header>
+  <ol id="phases" aria-label="مراحل الرحلة"></ol>
+  <section class="map" aria-label="خريطة الرحلة">
+    <div class="lanes" id="lanes"><div id="lanesIn"></div></div>
+    <div class="vp" id="vp" dir="ltr"><svg id="svg" role="group" aria-label="خريطة مراحل طلب الصيانة"></svg></div>
+  </section>
+  <section class="card" id="card" aria-live="polite"></section>
+  <footer>اضغط على أي محطة في الخريطة لتتعرّف عليها في أي وقت.</footer>
+</div>
+
+<script>
+"use strict";
+/* ===== إعدادات يمكنك تعديلها ===== */
+const COMPANY = "شركتنا";
+
+/* ===== المحتوى ===== */
+const LANES = [
+  {id:"cust",  name:"العميل"},
+  {id:"sup",   name:"الدعم"},
+  {id:"mgr",   name:"مدير المنطقة"},
+  {id:"tech",  name:"الفني"},
+  {id:"ts",    name:"الدعم الفني"},
+  {id:"parts", name:"قسم قطع الغيار"},
+  {id:"end",   name:"النهاية"}
+];
+const PHASES = ["استلام الطلب","الضمان والدفع","الجدولة والفحص","عرض السعر","توفير القطع","الإصلاح","الإغلاق والتقييم"];
+
+/* kind: dec = مفترق قرار، end = نهاية. imp = نقطة مهمة. lp:"t" = اسم المحطة فوقها */
+const NODES = [
+ {id:"c_order",lane:"cust",col:0,ph:0,ic:"📞",s:"العميل يطلب|الخدمة",
+  t:"العميل يبدأ الرحلة",
+  x:"العميل يتواصل معنا بالاتصال أو واتساب أو الإيميل، أو يزورنا بنفسه. أي قناة منها تُعتبر طلب صيانة جديدًا، وكلها تسير بنفس الإجراءات.",
+  tip:"رسالة واتساب لها نفس أهمية المكالمة، فلا تؤجّل الرد عليها.",next:"s_receive"},
+ {id:"s_receive",lane:"sup",col:1,ph:0,ic:"📝",s:"الدعم يسجّل|الطلب",
+  t:"الدعم يستلم الطلب ويسجّله",
+  x:"فريق الدعم هو أول من يستقبل العميل. يُدخل بيانات الطلب كاملة في النظام، لأن كل خطوة بعدها تعتمد على هذا التسجيل.",
+  tip:"بيانات ناقصة الآن تعني اتصالات وتأخيرًا لاحقًا. خذ وقتك لتسجّل بدقة.",next:"d_warranty"},
+ {id:"d_warranty",lane:"sup",col:2,ph:0,kind:"dec",s:"هل الجهاز|تحت الضمان؟",
+  t:"هل الجهاز تحت الضمان؟",
+  x:"يسأل الدعم العميل عن الضمان، والجواب يحدد المسار. إن كان تحت الضمان نتحقق من الإثبات ونكمل. وإن لم يكن نعدّ عرض سعر للزيارة ونستلم الدفعة أولًا.",
+  ch:[{l:"نعم، تحت الضمان",s:"نعم",to:"c_proof"},{l:"لا، ليس تحت الضمان",s:"لا",to:"s_visitq"}]},
+ {id:"c_proof",lane:"cust",col:3,ph:1,ic:"🧾",s:"العميل يثبت|الضمان",
+  t:"العميل يرسل إثبات الضمان",
+  x:"نطلب من العميل إثباتًا: إما الفاتورة أو رقم الجهاز. بدون إثبات لا نعتبر الطلب ضمانًا.",next:"s_add"},
+ {id:"s_add",lane:"sup",col:4,ph:1,ic:"➕",s:"إضافة|طلب الضمان",
+  t:"الدعم يضيف طلب الضمان للنظام",
+  x:"بعد التحقق من الإثبات يُضاف الطلب في النظام كطلب ضمان، ويُمرَّر لمدير المنطقة بدون أي دفع.",next:"m_schedule"},
+ {id:"s_visitq",lane:"sup",col:3,ph:1,ic:"💬",s:"عرض سعر|الزيارة",
+  t:"الدعم يعدّ عرض سعر للزيارة",
+  x:"الجهاز ليس تحت الضمان، فنرسل للعميل عرض سعر بقيمة الزيارة (الفحص).",next:"c_pay"},
+ {id:"c_pay",lane:"cust",col:4,ph:1,ic:"💵",s:"العميل|يدفع",
+  t:"العميل يدفع قيمة الزيارة",
+  x:"إذا وافق العميل على العرض فإنه يدفع المبلغ المطلوب للزيارة.",next:"s_payconf"},
+ {id:"s_payconf",lane:"sup",col:5,ph:1,ic:"✅",imp:1,s:"تأكيد|الدفعة",
+  t:"الدعم يؤكد الدفعة",
+  x:"لا نرسل فنيًا قبل أن نتأكد أن الدفعة وصلت. بعد التأكد يمرّر الدعم الطلب إلى مدير المنطقة.",
+  tip:"نقطة مهمة: لا دفعة مؤكدة، لا زيارة.",next:"m_schedule"},
+ {id:"m_schedule",lane:"mgr",col:6,ph:2,ic:"📅",s:"المدير يجدول|الفني",
+  t:"مدير المنطقة يجدول الفني",
+  x:"يستلم مدير المنطقة الطلب الجديد، ويختار الفني المناسب والموعد المناسب.",next:"s_msg"},
+ {id:"s_msg",lane:"sup",col:7,ph:2,ic:"✉️",s:"رسالة|للعميل",
+  t:"الدعم يبلغ العميل بالموعد",
+  x:"يرسل الدعم رسالة للعميل بموعد الزيارة ليكون جاهزًا لاستقبال الفني.",next:"t_visit"},
+ {id:"t_visit",lane:"tech",col:8,ph:2,ic:"🚗",s:"الفني يذهب|للعميل",
+  t:"الفني يذهب للعميل",
+  x:"يستلم الفني الطلب ويتوجه إلى موقع العميل في الموعد المحدد.",next:"t_report"},
+ {id:"t_report",lane:"tech",col:9,ph:2,ic:"🔧",s:"فحص|وتقرير",
+  t:"الفني يفحص ويملأ التقرير",
+  x:"يفحص الفني الجهاز، ويكتب في التقرير ما وجده، ويدوّن قطع الغيار المطلوبة إن وُجدت.",
+  tip:"التقرير هو أساس كل ما بعده، فاكتبه بوضوح ودقة.",next:"d_parts"},
+ {id:"d_parts",lane:"tech",col:10,ph:2,kind:"dec",imp:1,s:"هل يلزم|قطع غيار؟",
+  t:"هل يلزم قطع غيار؟",
+  x:"هذا مفترق مهم: هل ينتهي العمل في هذه الزيارة، أم يحتاج الجهاز إلى قطعة غيار؟",
+  ch:[{l:"لا، العمل اكتمل",s:"لا",to:"s_close",route:"top"},{l:"نعم، يلزم قطع غيار",s:"نعم",to:"ts_select"}]},
+ {id:"ts_select",lane:"ts",col:11,ph:3,ic:"🔩",s:"تحديد القطع|والأسعار",
+  t:"الدعم الفني يحدد القطع وأسعارها",
+  x:"يستلم الدعم الفني تقرير الفني، ويختار قطع الغيار المطلوبة مع أسعارها.",next:"s_quote"},
+ {id:"s_quote",lane:"sup",col:12,ph:3,ic:"💬",s:"عرض سعر|القطع",
+  t:"الدعم يعدّ عرض سعر القطع",
+  x:"بناءً على القطع والأسعار يجهّز الدعم عرض سعر للعميل.",next:"m_reviewq"},
+ {id:"m_reviewq",lane:"mgr",col:13,ph:3,ic:"🔍",s:"مراجعة|وإرسال",
+  t:"مدير المنطقة يراجع العرض ويرسله",
+  x:"قبل أن يصل العرض إلى العميل يراجعه مدير المنطقة ثم يرسله له.",next:"d_accept"},
+ {id:"d_accept",lane:"cust",col:14,ph:3,kind:"dec",lp:"t",s:"هل يقبل|العميل؟",
+  t:"هل يقبل العميل العرض؟",
+  x:"القرار الآن عند العميل: يقبل عرض السعر ويحوّل المبلغ، أو يرفض.",
+  ch:[{l:"نعم، قبل العرض",s:"قبول",to:"c_transfer"},{l:"لا، رفض العرض",s:"رفض",to:"e_declined"}]},
+ {id:"e_declined",lane:"end",col:14,ph:3,kind:"end",ic:"⛔",s:"انتهى|بالرفض",
+  t:"انتهى الطلب برفض العرض",
+  x:"إذا رفض العميل العرض ينتهي الطلب هنا. الأهم أن يخرج العميل بتجربة محترمة وباب مفتوح للعودة."},
+ {id:"c_transfer",lane:"cust",col:15,ph:3,ic:"🏦",s:"العميل يحوّل|المبلغ",
+  t:"العميل يحوّل المبلغ",
+  x:"بعد قبول العرض يحوّل العميل المبلغ المطلوب.",next:"m_confirm"},
+ {id:"m_confirm",lane:"mgr",col:16,ph:3,ic:"✅",s:"تأكيد|التحويل",
+  t:"مدير المنطقة يؤكد الدفعة ويسجّل التحويل",
+  x:"يتأكد مدير المنطقة من وصول التحويل ويسجّله. بعدها فقط نبدأ بتجهيز القطع.",
+  tip:"مثل دفعة الزيارة: لا نجهّز شيئًا قبل تأكيد الدفع.",next:"ts_check"},
+ {id:"ts_check",lane:"ts",col:17,ph:4,ic:"📦",s:"فحص|التوفر",
+  t:"الدعم الفني يفحص توفر القطع",
+  x:"يتحقق الدعم الفني: هل القطع المطلوبة موجودة عندنا؟",next:"d_avail"},
+ {id:"d_avail",lane:"ts",col:18,ph:4,kind:"dec",s:"هل القطع|متوفرة؟",
+  t:"هل القطع متوفرة؟",
+  x:"إن كانت القطع موجودة نجهّزها فورًا. وإن لم تكن موجودة نطلبها من قسم قطع الغيار.",
+  ch:[{l:"نعم، متوفرة",s:"نعم",to:"ts_prepare",route:"top"},{l:"لا، غير متوفرة",s:"لا",to:"ts_sendreq"}]},
+ {id:"ts_sendreq",lane:"ts",col:19,ph:4,ic:"📤",s:"طلب القطع|الناقصة",
+  t:"إرسال طلب للقطع غير الموجودة",
+  x:"يرسل الدعم الفني طلبًا إلى قسم قطع الغيار بالقطع الناقصة.",next:"p_receive"},
+ {id:"p_receive",lane:"parts",col:20,ph:4,ic:"📥",s:"استلام|الطلب",
+  t:"قسم قطع الغيار يستلم الطلب",
+  x:"يستلم قسم قطع الغيار الطلب ويراجع القطع المطلوبة.",next:"p_order"},
+ {id:"p_order",lane:"parts",col:21,ph:4,ic:"🛒",s:"بدء طلب|القطع",
+  t:"قسم قطع الغيار يبدأ طلب القطع",
+  x:"يبدأ القسم إجراءات الطلب، ويحدد من أين ستأتي القطعة.",next:"d_supplier"},
+ {id:"d_supplier",lane:"parts",col:22,ph:4,kind:"dec",s:"مورد داخلي|أم عالمي؟",
+  t:"مورد داخلي أم مورد عالمي؟",
+  x:"يقرر القسم هل تأتي القطعة من مورد داخلي أو من مورد عالمي.",
+  ch:[{l:"مورد داخلي",s:"داخلي",to:"ts_internal"},{l:"مورد عالمي",s:"عالمي",to:"p_global"}]},
+ {id:"ts_internal",lane:"ts",col:23,ph:4,ic:"🏢",s:"طلب من|المشتريات",
+  t:"طلب القطعة من قسم المشتريات",
+  x:"عند اختيار المورد الداخلي يطلب الدعم الفني القطعة من قسم المشتريات.",next:"ts_prepare"},
+ {id:"p_global",lane:"parts",col:23,ph:4,ic:"🌍",s:"مورد عالمي|وشحنة",
+  t:"الطلب من المورد العالمي واستلام الشحنة",
+  x:"يطلب القسم القطعة من المورد العالمي، ثم يستلم الشحنة عند وصولها.",next:"ts_prepare"},
+ {id:"ts_prepare",lane:"ts",col:24,ph:4,ic:"🧰",s:"تجهيز|القطع",
+  t:"الدعم الفني يجهّز القطع",
+  x:"تُجهَّز القطع وتصبح جاهزة لتركيبها عند العميل.",next:"m_ready"},
+ {id:"m_ready",lane:"mgr",col:25,ph:5,ic:"🔔",s:"القطع|جاهزة",
+  t:"القطع جاهزة",
+  x:"يصل مدير المنطقة إشعار بأن القطع أصبحت جاهزة.",next:"m_schedule2"},
+ {id:"m_schedule2",lane:"mgr",col:26,ph:5,ic:"📅",s:"جدولة|زيارة التركيب",
+  t:"مدير المنطقة يجدول زيارة التركيب",
+  x:"يحدد مدير المنطقة الفني وموعد الزيارة الثانية لتركيب القطع.",next:"s_msg2"},
+ {id:"s_msg2",lane:"sup",col:27,ph:5,ic:"✉️",s:"رسالة|للعميل",
+  t:"الدعم يبلغ العميل بالموعد الجديد",
+  x:"يرسل الدعم رسالة للعميل بموعد زيارة الفني للتركيب.",next:"t_receive2"},
+ {id:"t_receive2",lane:"tech",col:28,ph:5,ic:"🚗",s:"الفني يذهب|للعميل",
+  t:"الفني يستلم الطلب ويذهب للعميل",
+  x:"يستلم الفني الطلب ومعه القطع ويتوجه إلى العميل.",next:"t_fix"},
+ {id:"t_fix",lane:"tech",col:29,ph:5,ic:"🛠️",s:"الإصلاح|والتقرير",
+  t:"الفني يصلح ويكتب التقرير النهائي",
+  x:"يركّب القطع ويُنهي الإصلاح، ثم يملأ التقرير: كيف تم الإصلاح ولماذا حدث العطل.",
+  tip:"سبب العطل مهم بقدر الإصلاح نفسه، فهو يساعدنا على منع تكراره.",next:"s_close"},
+ {id:"s_close",lane:"sup",col:30,ph:6,ic:"🧾",s:"إغلاق الطلب|والفاتورة",
+  t:"الدعم يغلق الطلب ويرسل الفاتورة",
+  x:"عندما يكتمل العمل يغلق الدعم الطلب في النظام ويرسل الفاتورة للعميل.",next:"m_review"},
+ {id:"m_review",lane:"mgr",col:31,ph:6,ic:"⭐",s:"تقييم|العميل",
+  t:"مدير المنطقة يطلب تقييم العميل",
+  x:"آخر خطوة: يتواصل مدير المنطقة مع العميل ليسمع رأيه في الخدمة.",
+  tip:"رأي العميل هو ما يساعدنا على التحسّن.",next:"e_done"},
+ {id:"e_done",lane:"end",col:32,ph:6,kind:"end",ic:"🏁",s:"اكتمل|الطلب",
+  t:"اكتملت الرحلة",
+  x:"أُغلق الطلب وحصلنا على تقييم العميل. هكذا يصل طلب الصيانة من أول اتصال إلى آخر تقييم."}
+];
+
+const QUIZ = [
+ {q:"اتصل عميل عبر واتساب يطلب صيانة لجهازه. ما أول إجراء يقوم به الدعم؟",
+  o:["تسجيل بيانات الطلب في النظام","إرسال الفني فورًا","مطالبة العميل بالدفع"],
+  e:"تمامًا. كل شيء يبدأ بتسجيل الطلب في النظام، وبعدها نسأل عن الضمان."},
+ {q:"جهاز العميل ليس تحت الضمان. متى يُمرَّر الطلب إلى مدير المنطقة ليجدول الفني؟",
+  o:["بعد تأكيد الدفعة","فور استلام الطلب","بعد انتهاء زيارة الفني"],
+  e:"صحيح. نتأكد من وصول الدفعة أولًا، ثم يجدول مدير المنطقة الفني."},
+ {q:"من يحدد الفني وموعد الزيارة؟",
+  o:["مدير المنطقة","العميل","قسم قطع الغيار"],
+  e:"مدير المنطقة هو من يوزّع الطلبات على الفنيين، والدعم يبلّغ العميل بالموعد."},
+ {q:"بعد تقرير الفني، من يحدد قطع الغيار المطلوبة وأسعارها؟",
+  o:["الدعم الفني","الدعم (خدمة العملاء)","العميل"],
+  e:"الدعم الفني يختار القطع والأسعار، ثم يجهّز الدعم عرض السعر للعميل."},
+ {q:"القطعة المطلوبة غير متوفرة عندنا. ماذا يفعل الدعم الفني؟",
+  o:["يرسل طلبًا إلى قسم قطع الغيار","يطلب من الفني إحضارها بنفسه","يلغي الطلب"],
+  e:"صحيح. قسم قطع الغيار يتولى طلبها من مورد داخلي أو عالمي."},
+ {q:"ماذا يكتب الفني في تقريره بعد الإصلاح؟",
+  o:["كيف تم الإصلاح ولماذا حدث العطل","اسم العميل فقط","لا يلزم تقرير بعد الإصلاح"],
+  e:"التقرير الجيد يشرح الإصلاح وسبب العطل معًا."},
+ {q:"من يتواصل مع العميل في النهاية لأخذ تقييمه؟",
+  o:["مدير المنطقة","الفني","قسم قطع الغيار"],
+  e:"مدير المنطقة يختم الرحلة بسماع رأي العميل."}
+];
+
+const COLORS = {cust:"--c-cust",sup:"--c-sup",mgr:"--c-mgr",tech:"--c-tech",ts:"--c-ts",parts:"--c-parts",end:"--c-end"};
+const cvar = lane => `var(${COLORS[lane]})`;
+
+/* ===== الهندسة ===== */
+const SP = 104, LH = 118, R = 19, PADL = 70, PADR = 30, MAXCOL = 32;
+const W = PADL + PADR + MAXCOL*SP + 40;
+const H = LANES.length * LH;
+const laneIdx = {}; LANES.forEach((l,i)=>laneIdx[l.id]=i);
+const N = {}; NODES.forEach(n=>{ n.x0 = W - PADR - 20 - n.col*SP; n.y0 = laneIdx[n.lane]*LH + 54; N[n.id]=n; });
+
+/* ===== الحالة ===== */
+const tried = new Set(); // يبقى بين المحاولات
+let S;
+function fresh(){
+  S = {started:false, cur:"c_order", path:["c_order"], visited:new Set(["c_order"]), walked:new Set(),
+       quizDone:{}, right:0, total:0, mode:"intro", preview:null, quizPh:null, pending:null, scale:1};
+}
+fresh();
+
+const $ = id => document.getElementById(id);
+const svg = $("svg"), vp = $("vp"), card = $("card");
+$("co").textContent = COMPANY;
+
+/* ===== رسم الخريطة ===== */
+function esc(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function edgeList(){
+  const e = [];
+  NODES.forEach(n=>{
+    if(n.next) e.push({a:n.id,b:n.next});
+    (n.ch||[]).forEach(c=>e.push({a:n.id,b:c.to,lab:c.s,route:c.route}));
+  });
+  return e;
+}
+function edgeGeom(e){
+  const a=N[e.a], b=N[e.b];
+  const f = n=>n.kind==="dec" ? 22 : R;
+  let d, lx, ly;
+  if(e.route==="top"){
+    const laneTop = laneIdx[a.lane]*LH, yy = laneTop + 10;
+    if(a.lane===b.lane){            // مسار علوي في نفس الحارة
+      d = `M${a.x0},${a.y0-f(a)} V${yy} H${b.x0} V${b.y0-f(b)-2}`;
+      lx = (a.x0+b.x0)/2; ly = yy;
+    } else {                       // الفني ← الدعم (إغلاق بدون قطع)
+      const xs = b.x0 + 52;
+      d = `M${a.x0},${a.y0-f(a)} V${yy} H${xs} V${b.y0} H${b.x0+f(b)+2}`;
+      lx = a.x0 - 60; ly = yy;
+    }
+  } else if(a.x0===b.x0){          // نزول عمودي
+    const dir = Math.sign(b.y0-a.y0);
+    d = `M${a.x0},${a.y0+dir*f(a)} V${b.y0-dir*f(b)-2}`;
+    lx = a.x0; ly = (a.y0+b.y0)/2;
+  } else {
+    const dir = Math.sign(b.x0-a.x0);
+    const x1=a.x0+dir*f(a), x2=b.x0-dir*(f(b)+2), y1=a.y0, y2=b.y0, k=Math.abs(x2-x1)*0.5;
+    d = `M${x1},${y1} C${x1+dir*k},${y1} ${x2-dir*k},${y2} ${x2},${y2}`;
+    lx = (x1+x2)/2; ly = (y1+y2)/2;
+  }
+  return {d,lx,ly};
+}
+function build(){
+  let h = `<defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--muted)"/></marker>
+    <marker id="ahw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--accent)"/></marker>
+  </defs>`;
+  LANES.forEach((l,i)=>{ h += `<rect class="lane-band" x="0" y="${i*LH}" width="${W}" height="${LH}"/>`; });
+  const edges = edgeList(); let labels = "";
+  edges.forEach(e=>{
+    const g = edgeGeom(e);
+    h += `<path class="edge" id="e-${e.a}-${e.b}" d="${g.d}"/>`;
+    if(e.lab){
+      const w = 12 + e.lab.length*7.5;
+      labels += `<g class="pill" transform="translate(${g.lx},${g.ly})"><rect x="${-w/2}" y="-10" width="${w}" height="20" rx="10"/><text text-anchor="middle" y="4">${e.lab}</text></g>`;
+    }
+  });
+  h += labels;
+  NODES.forEach(n=>{
+    const lines = n.s.split("|"), top = n.lp==="t";
+    const y0 = top ? -(R+10) - (lines.length-1)*13 : R+17;
+    const lbl = lines.map((t,i)=>`<tspan x="0" y="${y0+i*13}">${esc(t)}</tspan>`).join("");
+    let shape;
+    if(n.kind==="dec"){
+      shape = `<rect class="halo" x="-24" y="-24" width="48" height="48" rx="7" transform="rotate(45)"/>
+        ${n.imp?`<rect class="gold" x="-22" y="-22" width="44" height="44" rx="7" transform="rotate(45)"/>`:""}
+        <rect class="shape" x="-16" y="-16" width="32" height="32" rx="5" transform="rotate(45)"/>
+        <text class="ic" font-weight="700" fill="var(--ink)">؟</text>`;
+    } else if(n.kind==="end"){
+      shape = `<circle class="halo" r="${R+9}"/><circle class="shape" r="${R}"/><circle r="${R-6}" fill="none" stroke="#fff" stroke-width="1.5" opacity=".8"/><text class="ic">${n.ic}</text>`;
+    } else {
+      shape = `<circle class="halo" r="${R+8}"/>${n.imp?`<circle class="gold" r="${R+4}"/>`:""}<circle class="shape" r="${R}"/><text class="ic">${n.ic}</text>`;
+    }
+    h += `<g class="node dim" data-id="${n.id}" tabindex="0" role="button" aria-label="${esc(n.t)}" style="--lc:${cvar(n.lane)}" transform="translate(${n.x0},${n.y0})">${shape}<text class="lbl">${lbl}</text></g>`;
+  });
+  h += `<g id="token"><g class="tk"><text>📋</text></g></g>`;
+  svg.innerHTML = h;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  $("lanesIn").innerHTML = LANES.map(l=>`<div class="lab" style="background:${cvar(l.id)}">${l.name}</div>`).join("");
+  setScale(1,false);
+}
+function setScale(sc,keep=true){
+  S.scale = sc;
+  svg.style.width = (W*sc)+"px"; svg.style.height = (H*sc)+"px";
+  document.querySelectorAll("#lanesIn .lab").forEach(el=>el.style.height=(LH*sc)+"px");
+  $("ovBtn").setAttribute("aria-pressed", sc<1 ? "true":"false");
+  if(keep) focusNode(S.cur,false);
+}
+function focusNode(id,smooth=true){
+  const n=N[id], sc=S.scale;
+  vp.scrollTo({left:n.x0*sc - vp.clientWidth/2, top:n.y0*sc - vp.clientHeight/2, behavior: smooth?"smooth":"auto"});
+}
+vp.addEventListener("scroll",()=>{ $("lanesIn").style.transform=`translateY(${-vp.scrollTop}px)`; });
+
+/* ===== تحديث الحالة المرئية ===== */
+function paint(follow){
+  document.querySelectorAll(".node").forEach(el=>{
+    const id=el.dataset.id;
+    el.classList.toggle("visited",S.visited.has(id));
+    el.classList.toggle("dim",!S.visited.has(id));
+    el.classList.toggle("current",id===S.cur && S.started && S.mode!=="summary");
+    el.classList.toggle("preview",id===S.preview);
+  });
+  document.querySelectorAll(".edge").forEach(el=>{
+    el.classList.toggle("walked",S.walked.has(el.id.slice(2).replace("-",">")));
+  });
+  const n=N[S.cur];
+  $("token").style.transform=`translate(${n.x0}px,${n.y0-R-20}px)`;
+  // مراحل
+  const seen = new Set([...S.visited].map(id=>N[id].ph));
+  $("phases").innerHTML = PHASES.map((p,i)=>`<li class="${i===n.ph&&S.started?"cur":seen.has(i)&&S.started?"seen":""}">${seen.has(i)&&i!==n.ph&&S.started&&S.quizDone[i]?"✓ ":""}${p}</li>`).join("");
+  if(follow) focusNode(S.cur);
+}
+
+/* ===== البطاقة ===== */
+function badgeHtml(n){
+  const lane=LANES[laneIdx[n.lane]].name;
+  return `<div class="badges"><span class="badge">${lane}</span>${n.imp?`<span class="badge gold">⭐ نقطة مهمة</span>`:""}<span class="badge soft">${PHASES[n.ph]}</span></div>`;
+}
+function render(){
+  const n = N[S.preview||S.cur];
+  card.style.setProperty("--lc", cvar(n.lane));
+  if(S.mode==="intro" && !S.preview){
+    card.style.setProperty("--lc","var(--accent)");
+    card.innerHTML = `<div class="badges"><span class="badge">أهلًا بك 👋</span></div>
+      <h2>مرحبًا بك في ${esc(COMPANY)}</h2>
+      <p>في هذه الرحلة ستكون أنت <b>طلب صيانة</b> جديدًا يدخل الشركة. ستنتقل بين الأقسام وترى من يستلمك في كل مرحلة وماذا يفعل، وعند كل مفترق ستقرّر المسار بنفسك.</p>
+      <p>في نهاية كل مرحلة سؤال قصير للتأكد من الفهم. خذ وقتك، لا يوجد وقت محدد.</p>
+      <div class="legend">${LANES.slice(0,6).map(l=>`<span><i style="background:${cvar(l.id)}"></i>${l.name}</span>`).join("")}</div>
+      <div class="actions"><button class="btn" id="startBtn">ابدأ الرحلة ←</button></div>`;
+    $("startBtn").onclick=()=>{S.started=true;S.mode="step";refresh(true);};
+    return;
+  }
+  if(S.mode==="quiz" && !S.preview) return renderQuiz();
+  if(S.mode==="summary" && !S.preview) return renderSummary();
+
+  const isPrev = S.preview && S.preview!==S.cur || (S.preview && S.mode==="intro");
+  let acts = "";
+  if(isPrev){
+    acts = `<button class="btn" id="backCur">${S.mode==="intro"?"العودة للبداية":"العودة إلى موقعي في الرحلة"}</button>`;
+  } else if(n.kind==="dec"){
+    acts = n.ch.map((c,i)=>`<button class="btn choice" data-to="${c.to}" data-i="${i}">${c.l}</button>`).join("");
+  } else if(n.kind==="end"){
+    acts = `<button class="btn" id="finBtn">إنهاء الرحلة 🏁</button>`;
+  } else {
+    acts = `<button class="btn" id="nextBtn">التالي ←</button>`;
+  }
+  if(!isPrev && S.path.length>1) acts += `<button class="btn sec" id="prevBtn">→ السابق</button>`;
+  card.innerHTML = `${badgeHtml(n)}
+    ${isPrev?`<div class="fb" style="background:var(--tip-bg);margin:0 0 8px">أنت تستعرض هذه المحطة فقط.</div>`:""}
+    <h2>${n.t}</h2><p>${n.x}</p>
+    ${n.tip?`<div class="tip">💡 ${n.tip}</div>`:""}
+    ${n.kind==="dec"&&!isPrev?`<p style="color:var(--muted);font-size:.95rem;margin-top:12px">اختر المسار:</p>`:""}
+    <div class="actions">${acts}</div>`;
+  const q=id=>card.querySelector("#"+id);
+  if(q("backCur")) q("backCur").onclick=()=>{S.preview=null;refresh(true);};
+  if(q("nextBtn")) q("nextBtn").onclick=()=>go(n.next);
+  if(q("finBtn")) q("finBtn").onclick=finish;
+  if(q("prevBtn")) q("prevBtn").onclick=back;
+  card.querySelectorAll(".choice").forEach(b=>b.onclick=()=>{
+    tried.add(n.id+">"+b.dataset.to); go(b.dataset.to);
+  });
+}
+function renderQuiz(){
+  const ph=S.quizPh, qz=QUIZ[ph];
+  card.style.setProperty("--lc","var(--accent)");
+  const order = qz.o.map((t,i)=>i).sort(()=>Math.random()-.5);
+  card.innerHTML = `<div class="badges"><span class="badge">سؤال سريع</span><span class="badge soft">${PHASES[ph]}</span></div>
+    <h2>${qz.q}</h2>
+    <div class="opts">${order.map(i=>`<button class="opt" data-i="${i}">${qz.o[i]}</button>`).join("")}</div>
+    <div id="fb"></div><div class="actions" id="qa"></div>`;
+  let first=true, done=false;
+  card.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{
+    if(done) return;
+    const ok = +b.dataset.i===0;
+    if(first){ S.total++; if(ok) S.right++; first=false; }
+    if(ok){
+      done=true; b.classList.add("right");
+      card.querySelectorAll(".opt").forEach(x=>x.disabled=true);
+      $("fb").innerHTML=`<div class="fb ok">✅ ${qz.e}</div>`;
+      $("qa").innerHTML=`<button class="btn" id="cont">متابعة ←</button>`;
+      S.quizDone[ph]=true;
+      $("cont").onclick=()=>{const p=S.pending;S.pending=null;S.mode="step";p();};
+    } else {
+      b.classList.add("wrong"); b.disabled=true;
+      $("fb").innerHTML=`<div class="fb no">ليست هذه الإجابة. فكّر قليلًا وجرّب مرة أخرى.</div>`;
+    }
+  });
+}
+function renderSummary(){
+  card.style.setProperty("--lc","var(--ok)");
+  const all=[]; NODES.forEach(n=>(n.ch||[]).forEach(c=>all.push({k:n.id+">"+c.to,l:`${n.t.replace("؟","")}: ${c.l}`})));
+  const done = all.filter(a=>tried.has(a.k)).length;
+  const ratio = S.total? S.right/S.total : 1;
+  const msg = ratio>=.85 ? "ممتاز! أنت جاهز لتفهم أي طلب صيانة يمر أمامك." : ratio>=.5 ? "جيد! راجع المحطات التي أخطأت فيها بالضغط عليها في الخريطة." : "لا بأس، أعد الرحلة وانتبه لمن يستلم الطلب في كل مرحلة.";
+  card.innerHTML = `<div class="badges"><span class="badge">🎉 أنهيت الرحلة</span></div>
+    <h2>أحسنت!</h2>
+    <div class="score">${S.right} / ${S.total}</div>
+    <p>${msg}</p>
+    <p style="margin-bottom:4px">المسارات التي جرّبتها (${done} من ${all.length}):</p>
+    <div class="chips">${all.map(a=>`<span class="chip ${tried.has(a.k)?"on":""}">${tried.has(a.k)?"✓ ":""}${a.l}</span>`).join("")}</div>
+    <p style="color:var(--muted);font-size:.95rem">ابدأ من جديد واختر مسارات مختلفة لترى كل الاحتمالات.</p>
+    <div class="actions"><button class="btn" id="again">ابدأ من جديد ↺</button></div>`;
+  $("again").onclick=restart;
+}
+
+/* ===== الحركة ===== */
+function go(to){
+  const from=N[S.cur];
+  if(from.ph!==N[to].ph && !S.quizDone[from.ph]){ S.pending=()=>move(to); return showQuiz(from.ph); }
+  move(to);
+}
+function move(to){
+  S.walked.add(S.cur+">"+to); S.path.push(to); S.cur=to; S.visited.add(to); S.preview=null; S.mode="step";
+  refresh(true);
+}
+function back(){
+  if(S.path.length<2) return;
+  S.path.pop(); S.cur=S.path[S.path.length-1];
+  S.walked=new Set(); for(let i=1;i<S.path.length;i++) S.walked.add(S.path[i-1]+">"+S.path[i]);
+  S.visited=new Set(S.path); S.preview=null; refresh(true);
+}
+function showQuiz(ph){ S.mode="quiz"; S.quizPh=ph; S.preview=null; refresh(false); }
+function finish(){
+  const ph=N[S.cur].ph;
+  S.pending=()=>{S.mode="summary";refresh(false);};
+  if(!S.quizDone[ph]) showQuiz(ph); else { const p=S.pending; S.pending=null; p(); }
+}
+function restart(){ fresh(); S.started=true; S.mode="step"; refresh(true); }
+function refresh(follow){ paint(follow); render(); }
+
+/* ===== تفاعل الخريطة ===== */
+function nodeActivate(el){
+  const id=el.dataset.id;
+  if(S.mode==="quiz") return;
+  S.preview = (id===S.cur && S.started && S.mode==="step") ? null : id;
+  if(S.mode==="summary" && id===S.cur) S.preview=id;
+  paint(false); render(); focusNode(id);
+}
+svg.addEventListener("click",e=>{const g=e.target.closest(".node"); if(g) nodeActivate(g);});
+svg.addEventListener("keydown",e=>{ if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("node")){e.preventDefault();nodeActivate(e.target);} });
+$("rsBtn").onclick=()=>{ if(!S.started || confirm("هل تريد البدء من جديد؟")){ fresh(); refresh(true);} };
+$("ovBtn").onclick=()=>setScale(S.scale<1?1:Math.max(.25,Math.min(1,(vp.clientWidth-4)/W)));
+
+build();
+refresh(false);
+setTimeout(()=>focusNode(S.cur,false),50);
+</script>
+</body>
+</html>
