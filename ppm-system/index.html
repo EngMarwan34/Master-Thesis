@@ -230,6 +230,8 @@ const TR = {
   "صورة الجهاز (إلزامية)":"Device photo (required)","صور العيب (إلزامية)":"Defect photos (required)",
   "+ صورة":"+ Photo","تم رفع الصورة":"Photo uploaded",
   "حذف هذه الصورة؟":"Delete this photo?","اختر حالة الجهاز":"Choose the device condition",
+  "تنزيل":"Download","تغيير":"Change","الفني: ":"Technician: ","تم استبدال الصورة":"Photo replaced",
+  "تعذر تنزيل الصورة: ":"Couldn't download photo: ",
   "أضف صورة الجهاز":"Add a device photo","أضف صورة للعيب":"Add a defect photo",
   "اكتب القطع المطلوبة أو وصف العطل":"Write the parts needed or describe the fault",
   "جارٍ الحفظ…":"Saving…","هذه الزيارة غير قابلة للتعديل":"This visit can no longer be edited",
@@ -626,7 +628,7 @@ async function clientPage(id){
       ${staff?`<button class="btn quiet sm" onclick="addAsset()">إضافة جهاز</button>`:""}</div>
     ${assets.length?`<div class="list" style="margin-top:10px">${assets.map(a=>`
       <div class="item"><span class="edge" style="background:var(--brand)"></span>
-        ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}" alt="">`:""}
+        ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}" alt="" style="cursor:pointer" onclick="event.stopPropagation();openPhotoViewer('${a.base_photo_url}')">`:""}
         <span class="body"><span class="t">${esc(a.name_ar)}</span>
         <span class="s">${esc(a.asset_no)} · ${esc(a.category)} ${a.brand?"· "+esc(a.brand):""} ${a.location_text?"· "+esc(a.location_text):""}</span></span>
         ${staff?`<button class="btn quiet sm" onclick="uploadAssetPhoto('${a.id}')" title="الصورة المرجعية">📷</button>`:""}
@@ -878,7 +880,7 @@ async function visitPage(id){
     ${assets.map(a=>{ const it=done.get(a.id); const s=it?stateOf(it.condition):null;
       return `<button class="item" onclick="openAsset('${a.id}')">
         <span class="edge" style="background:${s?`var(${s.v})`:"#CBD5E1"}"></span>
-        ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}">`:""}
+        ${a.base_photo_url?`<img class="thumb" src="${a.base_photo_url}" style="cursor:pointer" onclick="event.stopPropagation();openPhotoViewer('${a.base_photo_url}')">`:""}
         <span class="body"><span class="t">${esc(assetName(a))}</span>
         <span class="s">${esc(a.asset_no)} ${assetLocation(a)?"· "+esc(assetLocation(a)):""}</span></span>
         <span class="muted" style="font-size:12.5px">${it?tr(esc(it.condition)):tr("لم يُفحص")}</span></button>`;
@@ -1003,9 +1005,15 @@ async function openAsset(assetId){
 
   // سجل الجهاز السابق
   const {data:hist=[]} = await sb.from("visit_items")
-    .select("condition,technician_notes,parts_needed_text,photos(url,type),visits!inner(visit_date,status,id)")
+    .select("condition,technician_notes,parts_needed_text,photos(url,type),visits!inner(visit_date,status,id,technician_id)")
     .eq("asset_id",assetId).neq("visit_id",window._v.id)
     .order("visits(visit_date)",{ascending:false}).limit(10);
+  const histTechIds = [...new Set(hist.map(h=>h.visits.technician_id).filter(Boolean))];
+  const histTechMap = new Map();
+  if(histTechIds.length){
+    const {data:histTechs=[]} = await sb.from("profiles").select("id,full_name").in("id",histTechIds);
+    histTechs.forEach(t=>histTechMap.set(t.id,t.full_name));
+  }
   const repeated = item ? false : hist.some(h=>h.condition!=="سليم" && h.condition!=="غير متاح للفحص");
 
   window._draft = { assetId, condition:item?.condition||null, itemId:item?.id||null,
@@ -1015,7 +1023,7 @@ async function openAsset(assetId){
   openSheet(`
     <div class="spread"><h3>${esc(assetName(a))}</h3><button class="btn quiet sm" onclick="closeSheet()">${tr("إغلاق")}</button></div>
     <div style="text-align:center;margin:6px 0 10px">
-      ${a.base_photo_url?`<img src="${a.base_photo_url}" alt="${tr("الصورة المرجعية")}" style="max-width:200px;max-height:200px;border-radius:10px;border:1px solid var(--line);object-fit:cover">`
+      ${a.base_photo_url?`<img src="${a.base_photo_url}" alt="${tr("الصورة المرجعية")}" style="max-width:200px;max-height:200px;border-radius:10px;border:1px solid var(--line);object-fit:cover;cursor:pointer" onclick="openPhotoViewer('${a.base_photo_url}')">`
         :`<p class="muted" style="margin:0 0 6px">${tr("لا توجد صورة مرجعية لهذا الجهاز بعد — أضِفها للتأكد من هوية الجهاز عند كل زيارة.")}</p>`}
       <div style="margin-top:6px">
         <button class="btn quiet sm" onclick="uploadAssetPhoto('${a.id}')">${a.base_photo_url?tr("تغيير الصورة المرجعية"):tr("إضافة صورة مرجعية")}</button>
@@ -1031,7 +1039,7 @@ async function openAsset(assetId){
           <span class="muted">${fmt(h.visits.visit_date)}</span></div>
         ${h.parts_needed_text?`<div class="muted">${tr("القطع:")} ${esc(h.parts_needed_text)}</div>`:""}
         ${h.technician_notes?`<div class="muted">${esc(h.technician_notes)}</div>`:""}
-        <div class="photos">${(h.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
+        <div class="photos">${(h.photos||[]).map(p=>`<img src="${p.url}" onclick="openPhotoViewer('${p.url}',{technicianNames:'${esc(histTechMap.get(h.visits.technician_id)||"")}'})">`).join("")}</div>
       </div>`).join("")}</details>`:`<p class="muted">${tr("لا يوجد سجل صيانة سابق لهذا الجهاز.")}</p>`}
 
     <label>${tr("حالة الجهاز")}</label>
@@ -1080,11 +1088,11 @@ function renderExtra(){
   box.innerHTML = `
     <label>${tr("صورة الجهاز (إلزامية)")}</label>
     <div class="photos">${d.photos.filter(p=>p.type==="general").map((p,i)=>
-      `<img src="${p.url}" onclick="dropPhoto('general',${i})">`).join("")}
+      `<img src="${p.url}" onclick="openDraftPhoto('general',${i})">`).join("")}
       ${editable?`<button class="addphoto" onclick="pickPhoto('general')">${tr("+ صورة")}</button>`:""}</div>
     ${needDefect?`<label>${tr("صور العيب (إلزامية)")}</label>
       <div class="photos">${d.photos.filter(p=>p.type==="defect").map((p,i)=>
-        `<img src="${p.url}" onclick="dropPhoto('defect',${i})">`).join("")}
+        `<img src="${p.url}" onclick="openDraftPhoto('defect',${i})">`).join("")}
         ${editable?`<button class="addphoto" onclick="pickPhoto('defect')">${tr("+ صورة")}</button>`:""}</div>
       <label>${tr("القطع المطلوبة")}</label>
       <textarea id="parts" ${editable?"":"readonly"} placeholder="${tr("اكتب القطع المطلوبة ووصف العطل")}">${esc(d.parts)}</textarea>`:""}
@@ -1116,6 +1124,71 @@ function dropPhoto(type,i){
   const target = list[i];
   window._draft.photos = window._draft.photos.filter(p=>p!==target);
   renderExtra();
+}
+function replaceDraftPhoto(type,i){
+  if(!canEditVisit(window._v)) return;
+  keepText();
+  captureOrPickPhoto().then(async f=>{
+    toast(tr("جارٍ رفع الصورة…"));
+    try{
+      const blob = await compress(f);
+      const path = `${window._v.id}/${window._draft.assetId}-${type}-${Date.now()}.jpg`;
+      const {error} = await sb.storage.from("visit-photos").upload(path,blob,{contentType:"image/jpeg"});
+      if(error) throw error;
+      const {data} = sb.storage.from("visit-photos").getPublicUrl(path);
+      const list = window._draft.photos.filter(p=>p.type===type);
+      const target = list[i];
+      window._draft.photos = window._draft.photos.filter(p=>p!==target);
+      window._draft.photos.push({url:data.publicUrl,type,isNew:true});
+      renderExtra(); toast(tr("تم استبدال الصورة"));
+    }catch(e){ toast(tr("تعذر رفع الصورة: ")+(e.message||"")); }
+  }).catch(()=>{});
+}
+function openDraftPhoto(type,i){
+  const editable = canEditVisit(window._v);
+  const list = window._draft.photos.filter(p=>p.type===type);
+  const p = list[i]; if(!p) return;
+  const techNames = (window._v?.team||[]).map(t=>t.full_name).join("، ");
+  openPhotoViewer(p.url,{
+    technicianNames: techNames,
+    canDelete: editable, canReplace: editable,
+    onDelete: ()=>dropPhoto(type,i),
+    onReplace: ()=>replaceDraftPhoto(type,i)
+  });
+}
+/* ---------------------- عارض الصورة (فتح/تنزيل/تغيير) ---------------------- */
+async function downloadImage(url,filename){
+  try{
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=filename||url.split("/").pop().split("?")[0]||"photo.jpg";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  }catch(e){ toast(tr("تعذر تنزيل الصورة: ")+(e.message||"")); }
+}
+function openPhotoViewer(url,opts={}){
+  const {technicianNames="",canDelete=false,canReplace=false,onDelete=null,onReplace=null} = opts;
+  const d=document.createElement("div");
+  d.className="sheet noprint"; d.style.zIndex=95;
+  d.innerHTML=`<div class="panel" style="padding:0;max-width:none;max-height:none;width:100%;height:100%;border-radius:0;display:flex;flex-direction:column;background:#000">
+    <div style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;min-height:0">
+      <img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain">
+    </div>
+    ${technicianNames?`<div style="color:#fff;text-align:center;padding:6px 16px;font-size:13px">${tr("الفني: ")}${esc(technicianNames)}</div>`:""}
+    <div style="display:flex;gap:10px;padding:16px;background:#000;flex-wrap:wrap">
+      <button class="btn quiet" style="flex:1" id="pvClose">${tr("إغلاق")}</button>
+      <button class="btn quiet" style="flex:1" id="pvDownload">${tr("تنزيل")}</button>
+      ${canReplace?`<button class="btn quiet" style="flex:1" id="pvReplace">${tr("تغيير")}</button>`:""}
+      ${canDelete?`<button class="btn" style="flex:1;background:var(--down);border-color:var(--down)" id="pvDelete">${tr("حذف")}</button>`:""}
+    </div></div>`;
+  document.body.appendChild(d);
+  d.addEventListener("click",e=>{ if(e.target===d) d.remove(); });
+  d.querySelector("#pvClose").onclick=()=>d.remove();
+  d.querySelector("#pvDownload").onclick=()=>downloadImage(url);
+  if(canReplace) d.querySelector("#pvReplace").onclick=()=>{ d.remove(); onReplace?.(); };
+  if(canDelete) d.querySelector("#pvDelete").onclick=()=>{ d.remove(); onDelete?.(); };
 }
 function keepText(){
   const d=window._draft;
@@ -1258,7 +1331,7 @@ async function reviewPage(id){
           <textarea id="parts_${i.id}" style="min-height:44px">${esc(i.parts_needed_text||"")}</textarea>`:""}
           <label style="margin-top:8px">ملاحظة الفني</label>
           <textarea id="note_${i.id}" style="min-height:56px">${esc(i.technician_notes||"")}</textarea>
-          <div class="photos">${(i.photos||[]).map(p=>`<img src="${p.url}">`).join("")}</div>
+          <div class="photos">${(i.photos||[]).map(p=>`<img src="${p.url}" style="cursor:pointer" onclick="openPhotoViewer('${p.url}',{technicianNames:'${esc((v.team||[]).map(t=>t.full_name).join('، '))}'})">`).join("")}</div>
         </span></div>`;}).join("")}</div></div>`;
 
   shell("مراجعة الزيارة", body,
@@ -1377,7 +1450,7 @@ async function reportPage(id){
           <td>${esc(a.brand||"")} ${esc(a.model||"")}</td>
           <td><span class="dot ${s.c}"></span> ${esc(i.condition)}<div class="bi">${s.en}</div></td>
           <td>${esc(i.parts_needed_text||"—")}${i.technician_notes?`<div class="bi">${esc(i.technician_notes)}</div>`:""}</td>
-          <td>${ph?`<img src="${ph.url}">`:"—"}</td></tr>`;}).join("")}
+          <td>${ph?`<img src="${ph.url}" style="cursor:pointer" onclick="openPhotoViewer('${ph.url}',{technicianNames:'${esc(teamNames)}'})">`:"—"}</td></tr>`;}).join("")}
       </tbody></table>
 
     ${v.recommendations?`<div style="margin-top:16px"><b>التوصيات العامة / Recommendations</b>
