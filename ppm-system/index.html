@@ -232,6 +232,12 @@ const TR = {
   "حذف هذه الصورة؟":"Delete this photo?","اختر حالة الجهاز":"Choose the device condition",
   "تنزيل":"Download","تغيير":"Change","الفني: ":"Technician: ","تم استبدال الصورة":"Photo replaced",
   "تعذر تنزيل الصورة: ":"Couldn't download photo: ",
+  "حذف الجهاز":"Remove device","سبب الحذف":"Reason for removal","تفاصيل إضافية (اختياري)":"Additional details (optional)",
+  "تم بيع الجهاز":"Device was sold","الجهاز غير موجود في الموقع":"Device is not at the location",
+  "تالف ولا يمكن إصلاحه":"Damaged beyond repair","سبب آخر":"Other reason","اختر سبب الحذف":"Choose a reason for removal",
+  "تأكيد الحذف":"Confirm removal","حذف هذا الجهاز من القائمة":"Remove this device from the list",
+  "سيُحذف هذا الجهاز نهائياً مع كل سجل صياناته وصوره. متابعة؟":"This device will be permanently removed along with its maintenance history and photos. Continue?",
+  "تم حذف الجهاز":"Device removed",
   "أضف صورة الجهاز":"Add a device photo","أضف صورة للعيب":"Add a defect photo",
   "اكتب القطع المطلوبة أو وصف العطل":"Write the parts needed or describe the fault",
   "جارٍ الحفظ…":"Saving…","هذه الزيارة غير قابلة للتعديل":"This visit can no longer be edited",
@@ -634,7 +640,7 @@ async function clientPage(id){
         ${staff?`<button class="btn quiet sm" onclick="uploadAssetPhoto('${a.id}')" title="الصورة المرجعية">📷</button>`:""}
         ${isSup?`<button class="btn quiet sm" onclick="editAsset('${a.id}')" title="تعديل">✏️</button>
         <button class="btn quiet sm" onclick="requestEmergency('${a.id}')" title="طلب صيانة طارئة">⚡</button>
-        <button class="btn quiet sm" style="color:var(--down)" onclick="deleteAsset('${a.id}')" title="حذف">🗑</button>`:""}
+        <button class="btn quiet sm" style="color:var(--down)" onclick="deleteAssetWithReason('${a.id}')" title="حذف">🗑</button>`:""}
       </div>`).join("")}</div>` : `<p class="empty">لا توجد أجهزة. ابدأ باستيراد ملف Excel.</p>`}</div>`;
 
   body += `<div class="card"><h3>الزيارات</h3>
@@ -706,12 +712,35 @@ async function editAsset(assetId){
   if(error) return toast("تعذر الحفظ: "+error.message);
   toast("تم تحديث بيانات الجهاز"); route();
 }
-async function deleteAsset(assetId){
+const ASSET_REMOVE_REASONS = ["تم بيع الجهاز","الجهاز غير موجود في الموقع","تالف ولا يمكن إصلاحه","سبب آخر"];
+function deleteAssetWithReason(assetId){
   const a = (window._assets||[]).find(x=>x.id===assetId); if(!a) return;
-  if(!confirm(`سيُحذف الجهاز "${a.name_ar}" (${a.asset_no}) وكل سجل صياناته وصوره نهائياً. متابعة؟`)) return;
-  const {error} = await sb.from("assets").delete().eq("id",assetId);
-  if(error) return toast("تعذر الحذف: "+error.message);
-  toast("تم حذف الجهاز"); route();
+  openSheet(`
+    <div class="spread"><h3>${tr("حذف الجهاز")}</h3><button class="btn quiet sm" onclick="closeSheet()">${tr("إغلاق")}</button></div>
+    <p class="muted">${esc(assetName(a))} · ${esc(a.asset_no)}</p>
+    <label>${tr("سبب الحذف")}</label>
+    <div class="states" id="removeReasons">${ASSET_REMOVE_REASONS.map((r,i)=>`
+      <button type="button" class="state ${i===0?"on":""}" data-r="${esc(r)}" onclick="pickRemoveReason(this)">${tr(r)}</button>`).join("")}</div>
+    <label>${tr("تفاصيل إضافية (اختياري)")}</label>
+    <textarea id="removeDetails"></textarea>
+    <div class="form-actions">
+      <button type="button" class="btn quiet" onclick="closeSheet()">${tr("إلغاء")}</button>
+      <button type="button" class="btn" style="background:var(--down);border-color:var(--down)" onclick="confirmDeleteAsset('${assetId}')">${tr("تأكيد الحذف")}</button>
+    </div>`);
+}
+function pickRemoveReason(btn){
+  btn.parentElement.querySelectorAll(".state").forEach(b=>b.classList.remove("on"));
+  btn.classList.add("on");
+}
+async function confirmDeleteAsset(assetId){
+  const chosen = document.querySelector("#removeReasons .state.on")?.dataset.r || "";
+  const details = $("#removeDetails")?.value.trim() || "";
+  if(!chosen) return toast(tr("اختر سبب الحذف"));
+  const reason = details ? `${chosen} — ${details}` : chosen;
+  if(!confirm(tr("سيُحذف هذا الجهاز نهائياً مع كل سجل صياناته وصوره. متابعة؟"))) return;
+  const {error} = await sb.rpc("admin_delete_asset",{p_asset_id:assetId,p_reason:reason});
+  if(error) return toast(tr("تعذر الحذف: ")+error.message);
+  closeSheet(); toast(tr("تم حذف الجهاز")); route();
 }
 
 /* ---------------------- حذف زيارة ---------------------- */
@@ -1049,7 +1078,8 @@ async function openAsset(assetId){
 
     <div id="extra"></div>
     ${readOnly?"":`<div style="height:16px"></div>
-      <button id="saveItemButton" class="btn" style="width:100%" onclick="saveItem()">${tr("حفظ الجهاز")}</button>`}
+      <button id="saveItemButton" class="btn" style="width:100%" onclick="saveItem()">${tr("حفظ الجهاز")}</button>
+      <button class="btn quiet" style="width:100%;margin-top:8px;color:var(--down)" onclick="closeSheet();deleteAssetWithReason('${a.id}')">${tr("حذف هذا الجهاز من القائمة")}</button>`}
   `);
   renderExtra();
 }
