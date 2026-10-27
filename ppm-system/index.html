@@ -1345,7 +1345,11 @@ async function reviewPage(id){
       ${v.quote_url?`<a class="pill" href="${v.quote_url}" target="_blank" rel="noopener">عرض السعر ↗</a>`:""}
       <button class="btn quiet sm" onclick="editCrmInfo()">تعديل بيانات CRM</button>
     </div>
-    <label>التوصيات العامة</label><textarea id="rec">${esc(v.recommendations||"")}</textarea></div>`;
+    <label>التعليق المعتمد — عربي <span class="muted">(يظهر للعميل بالتقرير)</span></label>
+    <textarea id="rec">${esc(v.recommendations||"")}</textarea>
+    <label style="margin-top:10px">Approved Comment — English <span class="muted">(shown to the client if they request the English report)</span></label>
+    <textarea id="recEn">${esc(v.recommendations_en||"")}</textarea>
+    <p class="muted" style="font-size:12px">هذا التعليق منفصل عن ملاحظات الفني لكل جهاز أدناه — اكتبه أو اتركه فاضياً لتعبّئته لاحقاً.</p></div>`;
 
   body += `<div class="card"><div class="spread"><h3>البنود</h3>
       <button class="btn ghost sm" id="aiFixBtn" onclick="aiFixReport('${id}')">✨ صحّح الكشف إملائياً بالذكاء الاصطناعي</button></div>
@@ -1409,7 +1413,7 @@ async function approveVisit(id){
     const items=(window._items||[]).map(i=>({id:i.id,
       notes:$('#note_'+i.id)?.value??i.technician_notes??'',
       parts:$('#parts_'+i.id)?.value??i.parts_needed_text??''}));
-    const {error}=await sb.rpc('approve_visit',{p_visit_id:id,p_recommendations:$('#rec')?.value||'',p_items:items});
+    const {error}=await sb.rpc('approve_visit',{p_visit_id:id,p_recommendations:$('#rec')?.value||'',p_recommendations_en:$('#recEn')?.value||'',p_items:items});
     if(error) throw error;
     location.hash='#/report/'+id;
   }catch(e){toast('تعذر الاعتماد: '+e.message,5000);}
@@ -1483,8 +1487,17 @@ async function reportPage(id){
           <td>${ph?`<img src="${ph.url}" style="cursor:pointer" onclick="openPhotoViewer('${ph.url}',{technicianNames:'${esc(teamNames)}'})">`:"—"}</td></tr>`;}).join("")}
       </tbody></table>
 
-    ${v.recommendations?`<div style="margin-top:16px"><b>التوصيات العامة / Recommendations</b>
-      <p style="font-size:12.5px">${esc(v.recommendations)}</p></div>`:""}
+    ${(v.recommendations||v.recommendations_en)?`<div style="margin-top:16px">
+      <div class="spread noprint" style="margin-bottom:6px">
+        <b>التعليق المعتمد / Approved Comment</b>
+        <div class="row">
+          <button class="btn quiet sm" onclick="setReportLang('ar')">عربي</button>
+          <button class="btn quiet sm" onclick="setReportLang('en')">English</button>
+        </div>
+      </div>
+      <p id="recAr" style="font-size:12.5px;display:${v.recommendations?"block":"none"}">${esc(v.recommendations||"")}</p>
+      <p id="recEnP" dir="ltr" style="font-size:12.5px;display:${v.recommendations?"none":"block"}">${esc(v.recommendations_en||"")}</p>
+    </div>`:""}
 
     <div class="sign">
       <div>ممثل شركة المحتسب<div class="bi">Al-Mohtaseb representative</div></div>
@@ -1493,6 +1506,11 @@ async function reportPage(id){
   </div>`;
   window._reportItems = items.map(i=>({...i,asset:map.get(i.asset_id)}));
   window._reportVisit = v;
+}
+function setReportLang(lang){
+  const ar=$("#recAr"), en=$("#recEnP");
+  if(ar) ar.style.display = lang==="ar" ? "block":"none";
+  if(en) en.style.display = lang==="en" ? "block":"none";
 }
 
 function exportVisitParts(){
