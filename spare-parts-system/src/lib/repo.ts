@@ -13,10 +13,19 @@ import type {
 // Maintenance requests
 // ---------------------------------------------------------------------------
 
-export function listMaintenanceRequests(): MaintenanceRequest[] {
+export function listMaintenanceRequests(includeClosed = false): MaintenanceRequest[] {
+  const where = includeClosed ? "" : "WHERE status = 'open'";
   return toPlainRows<MaintenanceRequest>(
-    db.prepare(`SELECT * FROM maintenance_requests ORDER BY created_at DESC`).all(),
+    db.prepare(`SELECT * FROM maintenance_requests ${where} ORDER BY created_at DESC`).all(),
   );
+}
+
+export function countClosedMaintenanceRequests(): number {
+  return (
+    db.prepare(`SELECT COUNT(*) AS c FROM maintenance_requests WHERE status = 'closed'`).get() as {
+      c: number;
+    }
+  ).c;
 }
 
 export function getMaintenanceRequest(id: number): MaintenanceRequest | undefined {
@@ -25,10 +34,12 @@ export function getMaintenanceRequest(id: number): MaintenanceRequest | undefine
   );
 }
 
-export function requestNumberExists(request_number: string): boolean {
-  const row = db
-    .prepare(`SELECT id FROM maintenance_requests WHERE request_number = ?`)
-    .get(request_number);
+export function requestNumberExists(request_number: string, excludeId?: number): boolean {
+  const row = excludeId
+    ? db
+        .prepare(`SELECT id FROM maintenance_requests WHERE request_number = ? AND id != ?`)
+        .get(request_number, excludeId)
+    : db.prepare(`SELECT id FROM maintenance_requests WHERE request_number = ?`).get(request_number);
   return Boolean(row);
 }
 
@@ -49,6 +60,27 @@ export function createMaintenanceRequest(data: {
 
 export function setMaintenanceRequestStatus(id: number, status: "open" | "closed") {
   db.prepare(`UPDATE maintenance_requests SET status = ? WHERE id = ?`).run(status, id);
+}
+
+export function updateMaintenanceRequest(
+  id: number,
+  data: {
+    request_number: string;
+    customer_name: string | null;
+    machine_name: string | null;
+    notes: string | null;
+  },
+) {
+  db.prepare(
+    `UPDATE maintenance_requests
+     SET request_number = ?, customer_name = ?, machine_name = ?, notes = ?
+     WHERE id = ?`,
+  ).run(data.request_number, data.customer_name, data.machine_name, data.notes, id);
+}
+
+export function deleteMaintenanceRequest(id: number) {
+  // part_requests and their part_sourcing rows cascade via ON DELETE CASCADE.
+  db.prepare(`DELETE FROM maintenance_requests WHERE id = ?`).run(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +113,25 @@ export function createPartRequest(data: {
       data.notes,
     );
   return Number(info.lastInsertRowid);
+}
+
+export function updatePartRequest(
+  id: number,
+  data: {
+    part_code: string;
+    part_name: string | null;
+    quantity_needed: number;
+    notes: string | null;
+  },
+) {
+  db.prepare(
+    `UPDATE part_requests SET part_code = ?, part_name = ?, quantity_needed = ?, notes = ? WHERE id = ?`,
+  ).run(data.part_code, data.part_name, data.quantity_needed, data.notes, id);
+}
+
+export function deletePartRequest(id: number) {
+  // part_sourcing rows cascade via ON DELETE CASCADE.
+  db.prepare(`DELETE FROM part_requests WHERE id = ?`).run(id);
 }
 
 export interface PartRequestSummary extends PartRequest {
@@ -117,6 +168,12 @@ export function listSourcingForPartRequest(partRequestId: number): PartSourcing[
   );
 }
 
+export function getSourcing(id: number): PartSourcing | undefined {
+  return toPlainRow<PartSourcing | undefined>(
+    db.prepare(`SELECT * FROM part_sourcing WHERE id = ?`).get(id),
+  );
+}
+
 export function createSourcing(data: {
   part_request_id: number;
   branch: Branch;
@@ -130,6 +187,10 @@ export function createSourcing(data: {
     )
     .run(data.part_request_id, data.branch, data.quantity, data.source_type);
   return Number(info.lastInsertRowid);
+}
+
+export function deleteSourcing(id: number) {
+  db.prepare(`DELETE FROM part_sourcing WHERE id = ?`).run(id);
 }
 
 export interface SourcingWithContext extends PartSourcing {
@@ -229,6 +290,16 @@ export function upsertBranchStock(data: {
 export function decrementBranchStock(branch: Branch, part_code: string, quantity: number) {
   db.prepare(
     `UPDATE branch_stock SET quantity_available = MAX(0, quantity_available - ?), updated_at = datetime('now')
+     WHERE branch = ? AND part_code = ?`,
+  ).run(quantity, branch, part_code);
+}
+
+// Puts quantity back when a stock-pull sourcing line is deleted. Only touches
+// an existing stock row — if that row was later removed, there is nothing to
+// restore and this is a silent no-op.
+export function incrementBranchStock(branch: Branch, part_code: string, quantity: number) {
+  db.prepare(
+    `UPDATE branch_stock SET quantity_available = quantity_available + ?, updated_at = datetime('now')
      WHERE branch = ? AND part_code = ?`,
   ).run(quantity, branch, part_code);
 }

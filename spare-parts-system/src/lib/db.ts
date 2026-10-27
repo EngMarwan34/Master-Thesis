@@ -125,6 +125,9 @@ function openAndInitialize(): DatabaseSync {
   // the retry loop in init() below for the belt-and-suspenders fix.
   database.exec("PRAGMA busy_timeout = 5000;");
   database.exec("PRAGMA journal_mode = WAL;");
+  // Connection-level, so set it on every open — ON DELETE CASCADE (deleting a
+  // request removes its parts and their sourcing rows) depends on it.
+  database.exec("PRAGMA foreign_keys = ON;");
   database.exec(SCHEMA);
   migrateAwayFromBranchCheckConstraint(database);
   return database;

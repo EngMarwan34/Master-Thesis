@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import Logo from "./Logo";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -9,21 +13,38 @@ const LINKS = [
   { href: "/settings", label: "Settings" },
 ];
 
+function isActive(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export default function Nav() {
+  const pathname = usePathname();
+
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
-        <span className="text-lg font-bold text-slate-800">📦 Spare Parts – Madinah Branch</span>
-        <nav className="flex flex-wrap gap-1">
-          {LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            >
-              {link.label}
-            </Link>
-          ))}
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/85 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:gap-4">
+        <Link href="/" className="shrink-0">
+          <Logo />
+        </Link>
+        <nav className="flex flex-wrap gap-1 sm:ml-auto">
+          {LINKS.map((link) => {
+            const active = isActive(pathname, link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? "page" : undefined}
+                className={
+                  active
+                    ? "rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700"
+                    : "rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
       </div>
     </header>

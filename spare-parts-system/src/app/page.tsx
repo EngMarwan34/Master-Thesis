@@ -10,14 +10,34 @@ export default function DashboardPage() {
   const stats = repo.dashboardStats();
 
   const cards = [
-    { label: "Open maintenance requests", value: stats.openRequests, href: "/maintenance-requests" },
-    { label: "Parts awaiting a WhatsApp message", value: stats.pendingMessages, href: "/whatsapp-center" },
+    {
+      label: "Open maintenance requests",
+      value: stats.openRequests,
+      href: "/maintenance-requests",
+      accent: "text-blue-600",
+      ring: "bg-blue-50",
+    },
+    {
+      label: "Parts awaiting a WhatsApp message",
+      value: stats.pendingMessages,
+      href: "/whatsapp-center",
+      accent: "text-amber-600",
+      ring: "bg-amber-50",
+    },
     {
       label: `Parts awaiting receipt at ${DESTINATION_BRANCH_LABEL}`,
       value: stats.awaitingReceipt,
       href: "/receiving",
+      accent: "text-purple-600",
+      ring: "bg-purple-50",
     },
-    { label: "Parts received today", value: stats.receivedToday, href: "/receiving" },
+    {
+      label: "Parts received today",
+      value: stats.receivedToday,
+      href: "/receiving",
+      accent: "text-emerald-600",
+      ring: "bg-emerald-50",
+    },
   ];
 
   return (
@@ -29,15 +49,27 @@ export default function DashboardPage() {
           <Link
             key={card.label}
             href={card.href}
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+            className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
           >
-            <div className="text-3xl font-bold text-slate-900">{card.value}</div>
-            <div className="mt-1 text-sm text-slate-500">{card.label}</div>
+            <div className="flex items-center justify-between">
+              <div className={`text-4xl font-bold ${card.accent}`}>{card.value}</div>
+              <span
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${card.ring} ${card.accent}`}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m7.5 4.27 9 5.15" />
+                  <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+                  <path d="M3.3 7 12 12l8.7-5" />
+                  <path d="M12 22V12" />
+                </svg>
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-slate-500">{card.label}</div>
           </Link>
         ))}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="mb-2 font-semibold text-slate-800">How the workflow works</h2>
         <ol className="list-inside list-decimal space-y-1.5 text-sm text-slate-600">
           <li>

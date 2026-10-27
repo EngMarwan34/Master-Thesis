@@ -44,6 +44,36 @@ export async function setMaintenanceRequestStatus(
   repo.setMaintenanceRequestStatus(id, status);
   revalidatePath(`/maintenance-requests/${id}`);
   revalidatePath("/maintenance-requests");
+  revalidatePath("/");
+}
+
+export async function updateMaintenanceRequest(id: number, formData: FormData) {
+  const request_number = requireString(formData, "request_number");
+  if (!request_number) throw new Error("Maintenance request number is required");
+  if (repo.requestNumberExists(request_number, id)) {
+    throw new Error(`Maintenance request number "${request_number}" is already in use`);
+  }
+
+  repo.updateMaintenanceRequest(id, {
+    request_number,
+    customer_name: optionalString(formData, "customer_name"),
+    machine_name: optionalString(formData, "machine_name"),
+    notes: optionalString(formData, "notes"),
+  });
+
+  revalidatePath(`/maintenance-requests/${id}`);
+  revalidatePath("/maintenance-requests");
+  revalidatePath("/whatsapp-center");
+  revalidatePath("/receiving");
+}
+
+export async function deleteMaintenanceRequest(id: number) {
+  repo.deleteMaintenanceRequest(id);
+  revalidatePath("/maintenance-requests");
+  revalidatePath("/whatsapp-center");
+  revalidatePath("/receiving");
+  revalidatePath("/");
+  redirect("/maintenance-requests");
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +102,39 @@ export async function addPartRequest(formData: FormData) {
   revalidatePath(`/maintenance-requests/${maintenance_request_id}`);
 }
 
+export async function updatePartRequest(
+  id: number,
+  maintenance_request_id: number,
+  formData: FormData,
+) {
+  const part_code = requireString(formData, "part_code");
+  const quantity_needed = Number(formData.get("quantity_needed"));
+
+  if (!part_code) throw new Error("Part code is required");
+  if (!Number.isFinite(quantity_needed) || quantity_needed <= 0) {
+    throw new Error("Quantity needed must be a number greater than zero");
+  }
+
+  repo.updatePartRequest(id, {
+    part_code,
+    part_name: optionalString(formData, "part_name"),
+    quantity_needed,
+    notes: optionalString(formData, "notes"),
+  });
+
+  revalidatePath(`/maintenance-requests/${maintenance_request_id}`);
+  revalidatePath("/whatsapp-center");
+  revalidatePath("/receiving");
+}
+
+export async function deletePartRequest(id: number, maintenance_request_id: number) {
+  repo.deletePartRequest(id);
+  revalidatePath(`/maintenance-requests/${maintenance_request_id}`);
+  revalidatePath("/whatsapp-center");
+  revalidatePath("/receiving");
+  revalidatePath("/");
+}
+
 // ---------------------------------------------------------------------------
 // Part sourcing (branch splits)
 // ---------------------------------------------------------------------------
@@ -97,6 +160,25 @@ export async function addSourcing(formData: FormData) {
     if (partRequest) repo.decrementBranchStock(branch, partRequest.part_code, quantity);
     revalidatePath("/branch-stock");
   }
+
+  revalidatePath(`/maintenance-requests/${maintenance_request_id}`);
+  revalidatePath("/whatsapp-center");
+  revalidatePath("/receiving");
+  revalidatePath("/");
+}
+
+export async function deleteSourcing(id: number, maintenance_request_id: number) {
+  const sourcing = repo.getSourcing(id);
+  // A stock-pull line decremented branch stock when created; deleting it puts
+  // that quantity back so the inventory count stays honest.
+  if (sourcing && sourcing.source_type === "stock_pull") {
+    const partRequest = repo.getPartRequest(sourcing.part_request_id);
+    if (partRequest) {
+      repo.incrementBranchStock(sourcing.branch, partRequest.part_code, sourcing.quantity);
+      revalidatePath("/branch-stock");
+    }
+  }
+  repo.deleteSourcing(id);
 
   revalidatePath(`/maintenance-requests/${maintenance_request_id}`);
   revalidatePath("/whatsapp-center");
