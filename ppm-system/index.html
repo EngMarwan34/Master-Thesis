@@ -15,19 +15,20 @@
   --ok:#0E7C66; --maint:#B7791F; --parts:#C2410C; --down:#B0233A; --na:#64748B;
   --r:14px; --shadow:0 1px 2px rgba(11,34,57,.06),0 8px 24px rgba(11,34,57,.06);
 }
-/* المظهر المتوسط — أزرق ليلي مريح، بين الداكن والفاتح */
+/* المظهر المتوسط — رمادي داكن محايد (كما تستخدمه برامج الأعمال الاحترافية)،
+   مع إبقاء اللون الأزرق للأزرار والروابط فقط لا لخلفية الصفحة كاملة */
 :root[data-theme="medium"]{
-  --brand:#4F9CF9; --brand-deep:#2F7AD4; --brand-soft:#1A3350;
-  --ink:#E6EEF8; --muted:#8DA3BF; --surface:#152238; --card:#1C2F4B; --line:#2E4565;
-  --ok:#3DBD93; --maint:#E0A83F; --parts:#E8835C; --down:#EC5E78; --na:#7C93AE;
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+  --brand:#4F94E8; --brand-deep:#3578C4; --brand-soft:#223349;
+  --ink:#EBEEF2; --muted:#A3ADB8; --surface:#1F242C; --card:#2A313C; --line:#3C4452;
+  --ok:#43B96B; --maint:#D9A441; --parts:#E8835C; --down:#F0576B; --na:#8A96A3;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.4);
 }
-/* المظهر الداكن */
+/* المظهر الداكن — رمادي قريب من الأسود */
 :root[data-theme="dark"]{
-  --brand:#57A3EE; --brand-deep:#3C84D1; --brand-soft:#15202C;
-  --ink:#ECF1F7; --muted:#99A9BB; --surface:#0C1420; --card:#121B29; --line:#223044;
-  --ok:#3FCC9C; --maint:#E6B44E; --parts:#F0835D; --down:#F15D77; --na:#8294A8;
-  --shadow:0 1px 2px rgba(0,0,0,.45),0 8px 24px rgba(0,0,0,.5);
+  --brand:#4F94E8; --brand-deep:#3578C4; --brand-soft:#182633;
+  --ink:#E6EDF3; --muted:#8B939D; --surface:#0D1117; --card:#161B22; --line:#2B3240;
+  --ok:#3FB964; --maint:#D9A441; --parts:#E8835C; --down:#F0576B; --na:#8B939D;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.55);
 }
 :root[data-theme="dark"] body,:root[data-theme="medium"] body{color-scheme:dark}
 *{box-sizing:border-box}
@@ -590,7 +591,7 @@ async function homePage(){
       .select("*,contracts(*,clients(name_ar)),scheduled_visit_technicians(technician_id),visits!scheduled_visit_id(id,status)").order("due_date");
     if(scheduleError) throw scheduleError;
     const due = scheduled.filter(x=>!x.visits?.length && !x.completed_externally_on && x.due_date < todayISO());
-    body += `<section class="dashboard-hero"><div><span class="eyebrow">وضوح أكبر. متابعة أسرع.</span><h2>الصيانة تحت السيطرة</h2><p>راجع الزيارات، تابع الأعطال، وخطّط للخطوة التالية.</p></div><a class="btn hero-action" href="#/schedule">${icon('calendar')}جدولة الزيارات</a></section>`;
+    body += `<section class="dashboard-hero"><div><span class="eyebrow">لوحة متابعة الصيانة</span><h2>نظرة عامة على أعمال الصيانة الوقائية</h2><p>تابع الزيارات المجدولة وحالة الأعطال من مكان واحد.</p></div><a class="btn hero-action" href="#/schedule">${icon('calendar')}جدولة الزيارات</a></section>`;
 
     body += `<div class="kpi">
       <div class="b"><span class="metric-icon">${icon("check")}</span><div class="n">${pending.length}</div><div class="muted">زيارة بانتظار اعتمادك</div></div>

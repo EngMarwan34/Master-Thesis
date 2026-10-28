@@ -55,15 +55,23 @@ async function schedulePage(){
   window._scheduleRows=rows;
   const overdue=rows.filter(r=>scheduleState(r).tone==='danger').length;
   const upcoming=rows.filter(r=>!r.visits?.length&&!r.completed_externally_on&&r.due_date>=todayISO()&&r.due_date<=reminderEnd()).length;
-  let body=`<section class="dashboard-hero"><div><span class="eyebrow">من الخطة إلى التنفيذ</span><h2>كل زيارة في موعدها</h2><p>جدول الوقائية باسم العميل، كلّف فريق العمل، وسجّل الزيارات السابقة.</p></div>${me.role==='supervisor'?`<button class="btn hero-action" onclick="newContract('${clientId||''}')">+ خطة وقائية جديدة</button>`:''}</section>
+  const showAll=window._scheduleShowAll===true;
+  const today=new Date(todayISO()+'T12:00:00Z');
+  const rangeStart=new Date(today);rangeStart.setUTCMonth(rangeStart.getUTCMonth()-2);
+  const rangeEnd=new Date(today);rangeEnd.setUTCMonth(rangeEnd.getUTCMonth()+2);
+  const rangeStartISO=rangeStart.toISOString().slice(0,10),rangeEndISO=rangeEnd.toISOString().slice(0,10);
+  const visibleRows=showAll?rows:rows.filter(r=>r.due_date>=rangeStartISO&&r.due_date<=rangeEndISO);
+  const hiddenCount=rows.length-visibleRows.length;
+  let body=`<section class="dashboard-hero"><div><span class="eyebrow">جدولة الصيانة الوقائية</span><h2>خطة الصيانة الوقائية</h2><p>جدول الزيارات حسب العميل، وكلّف فريق التنفيذ، وراجع سجل الزيارات.</p></div>${me.role==='supervisor'?`<button class="btn hero-action" onclick="newContract('${clientId||''}')">+ خطة وقائية جديدة</button>`:''}</section>
     <div class="kpi"><div class="b"><span class="metric-icon">${icon('calendar')}</span><div class="n">${contracts.length}</div><div class="muted">خطة وقائية</div></div><div class="b"><span class="metric-icon danger">${icon('calendar')}</span><div class="n">${overdue}</div><div class="muted">زيارة متأخرة لم تبدأ</div></div><div class="b"><span class="metric-icon">${icon('check')}</span><div class="n">${upcoming}</div><div class="muted">زيارة خلال ${preferences.reminder_days} أيام</div></div></div>
     <div class="card"><div class="spread"><h3>جدول الزيارات</h3><select id="scheduleFilter" aria-label="تصفية الزيارات" class="compact-select" onchange="filterSchedule(this.value)"><option value="all">كل الزيارات</option><option value="danger">المتأخرة</option><option value="upcoming">القادمة والمستحقة</option><option value="done">المكتملة</option></select></div>
-    <div class="list" style="margin-top:16px">${rows.map(r=>{
+    <p class="muted" style="margin-top:4px">${showAll?'عرض كل الزيارات.':'الزيارات من شهرين قبل اليوم إلى شهرين بعده.'} ${!showAll&&hiddenCount?`<a href="#" onclick="toggleScheduleRange();return false">إظهار كل الزيارات (+${hiddenCount})</a>`:showAll?`<a href="#" onclick="toggleScheduleRange();return false">إظهار الزيارات القريبة فقط</a>`:''}</p>
+    <div class="list" style="margin-top:16px">${visibleRows.map(r=>{
       const state=scheduleState(r),v=state.visit;
       const canStart=me.role==='supervisor'||scheduledForMe(r);
       const destination=v?(v.status==='approved'?'report':v.status==='submitted'&&me.role==='supervisor'?'review':'visit'):null;
       return `<div class="item schedule-item" data-schedule="${state.historical?'done':v?(v.status==='approved'?'done':'progress'):state.tone==='danger'?'danger':'upcoming'}"><span class="date-tile"><strong>${r.due_date.slice(8)}</strong><small>${r.due_date.slice(0,7)}</small></span><span class="body"><span class="t">${esc(r.contracts.clients.name_ar)}</span><span class="s">${fmt(r.due_date)}${state.historical?' · نُفّذت '+fmt(r.completed_externally_on):''}${r.external_notes?' · '+esc(r.external_notes):''}</span></span><span class="status-tag ${state.tone}">${state.label}</span>${state.historical?`<span class="muted">مسجّلة خارج النظام</span>`:v?`<div class="row"><a class="btn quiet sm" href="#/${destination}/${v.id}">فتح الزيارة</a>${me.role==='supervisor'&&['draft','rejected'].includes(v.status)?`<button class="btn quiet sm" style="color:var(--down)" onclick="resetScheduledVisit('${v.id}')">إرجاعها لم تبدأ</button>`:''}</div>`:canStart?`<div class="row"><button class="btn quiet sm" onclick="previewScheduleAssets('${r.id}')">عرض الأجهزة</button><button class="btn sm" onclick="startVisit('${r.contracts.client_id}','${r.id}','${r.contract_id}')">بدء الزيارة</button>${me.role==='supervisor'?`<button class="btn quiet sm" onclick="recordPreviousVisit('${r.id}')">نُفّذت سابقًا</button>`:''}</div>`:`<span class="muted">مكلّفة لفني آخر</span>`}</div>`;
-    }).join('')}</div><p class="empty" id="emptySchedule" ${rows.length?'hidden':''}>لا توجد زيارات مطابقة. أضف خطة وقائية باسم العميل.</p></div>
+    }).join('')}</div><p class="empty" id="emptySchedule" ${visibleRows.length?'hidden':''}>${rows.length&&!showAll?'لا توجد زيارات ضمن هذا المدى.':'لا توجد زيارات مطابقة. أضف خطة وقائية باسم العميل.'}</p></div>
     <div class="card"><h3>خطط العملاء وتقدم التنفيذ</h3><div class="list" style="margin-top:16px">${contracts.map(c=>{
       const related=rows.filter(r=>r.contract_id===c.id),done=related.filter(r=>r.completed_externally_on||r.visits?.[0]?.status==='approved').length;
       const total=related.length||c.visits_planned||0,pct=total?Math.round(done/total*100):0;
@@ -74,6 +82,10 @@ async function schedulePage(){
 function filterSchedule(value){
   let count=0;document.querySelectorAll('[data-schedule]').forEach(el=>{el.hidden=value!=='all'&&el.dataset.schedule!==value;if(!el.hidden)count++;});
   $('#emptySchedule').hidden=count>0;
+}
+function toggleScheduleRange(){
+  window._scheduleShowAll=!window._scheduleShowAll;
+  schedulePage();
 }
 function scheduledForMe(row){
   const team=row.scheduled_visit_technicians||[];
