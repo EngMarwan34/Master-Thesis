@@ -188,6 +188,12 @@ const esc = s => (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;
 const isEn = () => me && me.language==="en";
 const fmt = d => d ? new Date(d).toLocaleDateString(isEn()?"en-GB":"ar-SA-u-ca-gregory-nu-latn",{year:"numeric",month:"2-digit",day:"2-digit"}) : "—";
 const time = d => d ? new Date(d).toLocaleTimeString(isEn()?"en-GB":"ar-SA-u-nu-latn",{hour:"2-digit",minute:"2-digit"}) : "—";
+/* الصيغة العربية لبعض اللغات تُضيف علامات اتجاه خفية (RLM) بين الأرقام
+   والشرطات المائلة، تظهر صحيحة داخل سياق RTL لكنها تُشوَّه الترتيب إذا
+   عُرضت داخل عنصر LTR — لذا للتقرير ثنائي اللغة نستخدم صيغة مستقلة عن
+   لغة حساب المستخدم ونظيفة من أي علامات اتجاه لكل لغة على حدة. */
+const fmtArStrict = d => d ? new Date(d).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn",{year:"numeric",month:"2-digit",day:"2-digit"}) : "—";
+const fmtEnStrict = d => d ? new Date(d).toLocaleDateString("en-GB",{year:"numeric",month:"2-digit",day:"2-digit"}) : "—";
 
 /* ---------------------- ترجمة واجهة الفني (اختيارية لكل حساب) ---------------------- */
 const TR = {
@@ -1707,7 +1713,7 @@ async function reportPage(id){
       </div>
       <div style="text-align:end;font-size:12px">
         <div><b>${v.report_no?esc(v.report_no):`<span data-lang="ar">مسودة</span><span data-lang="en" dir="ltr" style="display:none">Draft</span>`}</b></div>
-        <div><span data-lang="ar">التاريخ: ${fmt(v.visit_date)}</span><span data-lang="en" dir="ltr" style="display:none">Date: ${fmt(v.visit_date)}</span></div>
+        <div><span data-lang="ar">التاريخ: ${fmtArStrict(v.visit_date)}</span><span data-lang="en" dir="ltr" style="display:none">Date: ${fmtEnStrict(v.visit_date)}</span></div>
         <div><span data-lang="ar">الفني: ${esc(teamNamesAr)}</span><span data-lang="en" dir="ltr" style="display:none">Technician: ${esc(teamNamesEn)}</span></div>
       </div>
     </div>
