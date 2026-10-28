@@ -122,9 +122,16 @@ th{color:var(--muted);font-size:12px;font-weight:600}
 .sum{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
 .sum div{border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:96px}
 .sum .n{font-family:"Zain";font-size:24px;font-weight:800;line-height:1.1}
-.rtable th{background:#F1F5F9;color:#000;font-size:11.5px}
-.rtable td{font-size:12px}
-.rtable img{width:74px;height:56px;object-fit:cover;border-radius:6px}
+.ritems{display:flex;flex-direction:column;gap:14px;margin-top:14px}
+.ritem{border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.rihead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
+.rihead .t{font-weight:700;font-size:14px}
+.rihead .cond{text-align:end;white-space:nowrap;font-size:12.5px}
+.risub{display:flex;gap:18px;flex-wrap:wrap;font-size:11.5px;color:#555}
+.rifield{margin-top:10px;font-size:12.5px}
+.rifield b{display:block;font-size:10.5px;color:#777;font-weight:700;margin-bottom:2px}
+.rphotos{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.rphotos img{width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .sign{display:flex;gap:40px;margin-top:34px}
 .sign div{flex:1;border-top:1px solid #000;padding-top:7px;font-size:12px}
 @media print{
@@ -132,7 +139,7 @@ th{color:var(--muted);font-size:12px;font-weight:600}
   .noprint{display:none!important}
   body{background:#fff}
   .report{padding:0;max-width:none}
-  .rtable tr{break-inside:avoid}
+  .ritem{break-inside:avoid}
 }
 </style>
 <link rel="stylesheet" href="style.css">
@@ -1589,32 +1596,30 @@ async function reportPage(id){
         <div style="font-size:11.5px">نسبة السليم</div><div class="bi" style="font-size:10px">Healthy rate</div></div>
     </div>
 
-    <table class="rtable"><thead><tr>
-      <th>رقم الأصل<div class="bi">Asset No.</div></th>
-      <th>الجهاز<div class="bi">Equipment</div></th>
-      <th>الموقع<div class="bi">Location</div></th>
-      <th>الماركة والموديل<div class="bi">Brand / Model</div></th>
-      <th>الحالة<div class="bi">Condition</div></th>
-      <th>القطع المطلوبة<div class="bi">Spare parts</div></th>
-      <th>الصورة<div class="bi">Photo</div></th></tr></thead>
-      <tbody>${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
-        const ph=(i.photos||[])[0];
-        const partsArText=i.parts_ar||i.parts_needed_text||"—", partsEnText=i.parts_en||i.parts_needed_text||"—";
-        const notesArText=i.notes_ar||i.technician_notes||"", notesEnText=i.notes_en||i.technician_notes||"";
-        const missingAr=(i.parts_needed_text&&!i.parts_ar)||(i.technician_notes&&!i.notes_ar);
-        const missingEn=(i.parts_needed_text&&!i.parts_en)||(i.technician_notes&&!i.notes_en);
-        return `<tr>
-          <td>${esc(a.asset_no||"")}</td>
-          <td>${esc(a.name_ar||"")}<div class="bi">${esc(a.name_en||CAT_EN[a.category]||"")}</div></td>
-          <td>${esc(a.location_text||"—")}</td>
-          <td>${esc(a.brand||"")} ${esc(a.model||"")}</td>
-          <td><span class="dot ${s.c}"></span> ${esc(i.condition)}<div class="bi">${s.en}</div></td>
-          <td>
-            <span data-lang="ar">${esc(partsArText)}${notesArText?`<div style="margin-top:2px;color:var(--muted);font-size:11px">${esc(notesArText)}</div>`:""}${missingAr?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ لم تُترجم</span>':""}</span>
-            <span data-lang="en" dir="ltr" style="display:none">${esc(partsEnText)}${notesEnText?`<div style="margin-top:2px;color:var(--muted);font-size:11px">${esc(notesEnText)}</div>`:""}${missingEn?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ not translated</span>':""}</span>
-          </td>
-          <td>${ph?`<img src="${ph.url}" style="cursor:pointer" onclick="openPhotoViewer('${ph.url}',{technicianNames:'${esc(teamNames)}'})">`:"—"}</td></tr>`;}).join("")}
-      </tbody></table>
+    <div class="ritems">${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
+      const partsArText=i.parts_ar||i.parts_needed_text||"", partsEnText=i.parts_en||i.parts_needed_text||"";
+      const notesArText=i.notes_ar||i.technician_notes||"", notesEnText=i.notes_en||i.technician_notes||"";
+      const missingAr=(i.parts_needed_text&&!i.parts_ar)||(i.technician_notes&&!i.notes_ar);
+      const missingEn=(i.parts_needed_text&&!i.parts_en)||(i.technician_notes&&!i.notes_en);
+      return `<div class="ritem">
+        <div class="rihead">
+          <div><span class="t">${esc(a.name_ar||"")}</span><div class="bi">${esc(a.name_en||CAT_EN[a.category]||"")}</div></div>
+          <div class="cond"><span class="dot ${s.c}"></span> ${esc(i.condition)}<div class="bi">${s.en}</div></div>
+        </div>
+        <div class="risub">
+          <div>${esc(a.asset_no||"")}<div class="bi">Asset No.</div></div>
+          <div>${esc(a.location_text||"—")}<div class="bi">Location</div></div>
+          <div>${esc(a.brand||"")} ${esc(a.model||"")}<div class="bi">Brand / Model</div></div>
+        </div>
+        ${(partsArText||partsEnText)?`<div class="rifield"><b>القطع المطلوبة / Spare Parts</b>
+          <span data-lang="ar">${esc(partsArText||"—")}${missingAr?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ لم تُترجم</span>':""}</span>
+          <span data-lang="en" dir="ltr" style="display:none">${esc(partsEnText||"—")}${missingEn?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ not translated</span>':""}</span></div>`:""}
+        ${(notesArText||notesEnText)?`<div class="rifield"><b>ملاحظة الفني / Technician Note</b>
+          <span data-lang="ar">${esc(notesArText)}</span>
+          <span data-lang="en" dir="ltr" style="display:none">${esc(notesEnText)}</span></div>`:""}
+        ${(i.photos||[]).length?`<div class="rphotos">${(i.photos||[]).map(p=>`<img src="${p.url}" style="cursor:pointer" onclick="openPhotoViewer('${p.url}',{technicianNames:'${esc(teamNames)}'})">`).join("")}</div>`:""}
+      </div>`;}).join("")}
+    </div>
 
     ${(v.recommendations||v.recommendations_en)?`<div style="margin-top:16px">
       <b>التعليق المعتمد / Approved Comment</b>
