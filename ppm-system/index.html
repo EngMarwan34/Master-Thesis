@@ -1689,21 +1689,21 @@ async function reportPage(id){
     <tbody><tr><td>
     <div class="rhead">
       <div style="flex:1">
-        <h2 style="margin:0">${v.visit_type==="emergency"?"تقرير صيانة طارئة":"تقرير زيارة صيانة وقائية"}</h2>
-        <div class="bi">${v.visit_type==="emergency"?"Emergency Maintenance Report":"Preventive Maintenance Visit Report"}</div>
-        <div style="margin-top:6px;font-weight:600">${esc(v.clients.name_ar)}</div>
-        <div class="bi">${esc(v.clients.name_en||"")}</div>
+        <h2 style="margin:0" data-lang="ar">${v.visit_type==="emergency"?"تقرير صيانة طارئة":"تقرير زيارة صيانة وقائية"}</h2>
+        <h2 style="margin:0;display:none" data-lang="en" dir="ltr">${v.visit_type==="emergency"?"Emergency Maintenance Report":"Preventive Maintenance Visit Report"}</h2>
+        <div style="margin-top:6px;font-weight:600" data-lang="ar">${esc(v.clients.name_ar)}</div>
+        <div style="margin-top:6px;font-weight:600;display:none" data-lang="en" dir="ltr">${esc(v.clients.name_en||v.clients.name_ar||"")}</div>
       </div>
       <div style="text-align:end;font-size:12px">
-        <div><b>${esc(v.report_no||"مسودة")}</b></div>
-        <div>التاريخ / Date: ${fmt(v.visit_date)}</div>
-        <div>الفني / Technician: <span data-lang="ar">${esc(teamNamesAr)}</span><span data-lang="en" dir="ltr" style="display:none">${esc(teamNamesEn)}</span></div>
+        <div><b>${v.report_no?esc(v.report_no):`<span data-lang="ar">مسودة</span><span data-lang="en" dir="ltr" style="display:none">Draft</span>`}</b></div>
+        <div><span data-lang="ar">التاريخ: ${fmt(v.visit_date)}</span><span data-lang="en" dir="ltr" style="display:none">Date: ${fmt(v.visit_date)}</span></div>
+        <div><span data-lang="ar">الفني: ${esc(teamNamesAr)}</span><span data-lang="en" dir="ltr" style="display:none">Technician: ${esc(teamNamesEn)}</span></div>
       </div>
     </div>
 
     <div class="sum">
       ${counts.map(([s,n])=>`<div><div class="n" style="color:var(${s.v})">${n}</div>
-        <div style="font-size:11.5px">${s.k}</div><div class="bi" style="font-size:10px">${s.en}</div></div>`).join("")}
+        <div data-lang="ar" style="font-size:11.5px">${s.k}</div><div data-lang="en" dir="ltr" style="font-size:11.5px;display:none">${s.en}</div></div>`).join("")}
     </div>
 
     <div class="ritems">${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
@@ -1714,17 +1714,17 @@ async function reportPage(id){
       return `<div class="ritem">
         <div class="rihead">
           <div><span class="t" data-lang="ar">${esc(a.name_ar||"")}</span><span class="t" data-lang="en" dir="ltr" style="display:none">${esc(a.name_en||CAT_EN[a.category]||a.name_ar||"")}</span></div>
-          <div class="cond"><span class="dot ${s.c}"></span> ${esc(i.condition)}<div class="bi">${s.en}</div></div>
+          <div class="cond"><span class="dot ${s.c}"></span> <span data-lang="ar">${esc(i.condition)}</span><span data-lang="en" dir="ltr" style="display:none">${s.en}</span></div>
         </div>
         <div class="risub">
-          <div>${esc(a.asset_no||"")}<div class="bi">Asset No.</div></div>
-          <div>${esc(a.location_text||"—")}<div class="bi">Location</div></div>
-          <div>${esc(a.brand||"")} ${esc(a.model||"")}<div class="bi">Brand / Model</div></div>
+          <div>${esc(a.asset_no||"")}<div class="bi" data-lang="ar">رقم الجهاز</div><div class="bi" data-lang="en" dir="ltr" style="display:none">Asset No.</div></div>
+          <div>${esc(a.location_text||"—")}<div class="bi" data-lang="ar">الموقع</div><div class="bi" data-lang="en" dir="ltr" style="display:none">Location</div></div>
+          <div>${esc(a.brand||"")} ${esc(a.model||"")}<div class="bi" data-lang="ar">الماركة والموديل</div><div class="bi" data-lang="en" dir="ltr" style="display:none">Brand / Model</div></div>
         </div>
-        ${(partsArText||partsEnText)?`<div class="rifield"><b>القطع المطلوبة / Spare Parts</b>
+        ${(partsArText||partsEnText)?`<div class="rifield"><b data-lang="ar">القطع المطلوبة</b><b data-lang="en" dir="ltr" style="display:none">Spare Parts</b>
           <span data-lang="ar">${esc(partsArText||"—")}${missingAr?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ لم تُترجم</span>':""}</span>
           <span data-lang="en" dir="ltr" style="display:none">${esc(partsEnText||"—")}${missingEn?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ not translated</span>':""}</span></div>`:""}
-        ${(notesArText||notesEnText)?`<div class="rifield"><b>ملاحظة الفني / Technician Note</b>
+        ${(notesArText||notesEnText)?`<div class="rifield"><b data-lang="ar">ملاحظة الفني</b><b data-lang="en" dir="ltr" style="display:none">Technician Note</b>
           <span data-lang="ar">${esc(notesArText)}</span>
           <span data-lang="en" dir="ltr" style="display:none">${esc(notesEnText)}</span></div>`:""}
         ${i.performed_by_profile?.full_name?`<div class="riauthor">
@@ -1736,14 +1736,14 @@ async function reportPage(id){
     </div>
 
     ${(v.recommendations||v.recommendations_en)?`<div style="margin-top:16px">
-      <b>التعليق المعتمد / Approved Comment</b>
+      <b data-lang="ar">التعليق المعتمد</b><b data-lang="en" dir="ltr" style="display:none">Approved Comment</b>
       <p data-lang="ar" style="font-size:12.5px">${esc(v.recommendations||"")}</p>
       <p data-lang="en" dir="ltr" style="font-size:12.5px;display:none">${esc(v.recommendations_en||"")}</p>
     </div>`:""}
 
     <div class="sign">
-      <div>ممثل شركة المحتسب<div class="bi">Al-Mohtaseb representative</div></div>
-      <div>ممثل العميل<div class="bi">Client representative</div></div>
+      <div><span data-lang="ar">ممثل شركة المحتسب</span><span data-lang="en" dir="ltr" style="display:none">Al-Mohtaseb representative</span></div>
+      <div><span data-lang="ar">ممثل العميل</span><span data-lang="en" dir="ltr" style="display:none">Client representative</span></div>
     </div>
     </td></tr></tbody>
     <tfoot><tr><td><img class="rfooterimg" src="${REPORT_FOOTER_IMG}" alt=""></td></tr></tfoot>
