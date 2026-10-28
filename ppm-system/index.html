@@ -1683,7 +1683,7 @@ async function reportPage(id){
       <button class="btn sm" onclick="window.print()">${tr("طباعة / PDF")}</button>
     </div></div></div>
 
-  <div class="report">
+  <div class="report" dir="rtl">
   <table class="report-table">
     <thead><tr><td><img class="rletterhead" src="${REPORT_HEADER_IMG}" alt="Al-Mohtaseb"></td></tr></thead>
     <tbody><tr><td>
@@ -1756,6 +1756,8 @@ function setReportLang(lang){
   document.querySelectorAll("[data-lang]").forEach(el=>{
     el.style.display = el.dataset.lang===lang ? "" : "none";
   });
+  const report = document.querySelector(".report");
+  if(report) report.dir = lang==="en" ? "ltr" : "rtl";
 }
 
 function exportVisitParts(){
