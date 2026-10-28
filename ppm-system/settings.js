@@ -42,8 +42,8 @@ async function saveOwnPassword(event){
   const {error}=await sb.auth.updateUser({password});if(error){button.disabled=false;return toast('تعذر التغيير: '+error.message);}closeSheet();toast('تم تغيير كلمة المرور');
 }
 async function userSettings(){
-  const {data,error}=await sb.from('profiles').select('id,full_name,phone,active,language').eq('role','technician').order('full_name');if(error)throw error;window._settingsTechnicians=data;
-  return `<div class="card"><div class="spread"><h3>فنيّو الفرع</h3><button class="btn" onclick="inviteTechnicianForm()">+ إضافة فني</button></div><p class="muted">الفني الموقوف لا يستطيع تعديل الزيارات. تبقى زياراته السابقة محفوظة.</p><div class="list">${data.map(t=>`<div class="item"><span class="avatar">${esc(t.full_name.slice(0,1))}</span><span class="body"><span class="t">${esc(t.full_name)}</span><span class="s">${esc(t.phone||'لا يوجد هاتف')}</span></span><span class="status-tag ${t.active?'ok':'neutral'}">${t.active?'مفعّل':'موقوف'}</span><button class="btn quiet sm" onclick="editTechnician('${t.id}')">تعديل</button></div>`).join('')||'<p class="empty">أضف أول فني في فرعك.</p>'}</div></div>`;
+  const {data,error}=await sb.from('profiles').select('id,full_name,full_name_en,full_name_en_auto,phone,active,language').eq('role','technician').order('full_name');if(error)throw error;window._settingsTechnicians=data;
+  return `<div class="card"><div class="spread"><h3>فنيّو الفرع</h3><button class="btn" onclick="inviteTechnicianForm()">+ إضافة فني</button></div><p class="muted">الفني الموقوف لا يستطيع تعديل الزيارات. تبقى زياراته السابقة محفوظة. الاسم بالإنجليزية يظهر في التقرير الإنجليزي — إن تُرك فارغاً يُحوَّل تلقائياً من الاسم العربي.</p><div class="list">${data.map(t=>`<div class="item"><span class="avatar">${esc(t.full_name.slice(0,1))}</span><span class="body"><span class="t">${esc(t.full_name)}</span><span class="s">${esc(t.full_name_en||t.full_name_en_auto||'')}${t.full_name_en?'':(t.full_name_en_auto?' (تلقائي)':' — لا يوجد اسم إنجليزي بعد')} · ${esc(t.phone||'لا يوجد هاتف')}</span></span><span class="status-tag ${t.active?'ok':'neutral'}">${t.active?'مفعّل':'موقوف'}</span><button class="btn quiet sm" onclick="editTechnician('${t.id}')">تعديل</button></div>`).join('')||'<p class="empty">أضف أول فني في فرعك.</p>'}</div></div>`;
 }
 function inviteTechnicianForm(){
   openSheet(`<div class="sheet-heading"><span class="eyebrow">عضو جديد في فريق الصيانة</span><h2>إضافة فني</h2><p class="muted">تصل دعوة إلى بريد الفني ليختار كلمة مروره. يُضاف إلى فرعك بصلاحية فني.</p></div><form onsubmit="inviteTechnician(event)"><label for="newTechnicianName">الاسم الكامل</label><input id="newTechnicianName" required maxlength="100"><label for="newTechnicianEmail">البريد الإلكتروني</label><input id="newTechnicianEmail" type="email" required autocomplete="email"><label for="newTechnicianPhone">الهاتف</label><input id="newTechnicianPhone" type="tel" maxlength="40"><div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">إضافة وإرسال الدعوة</button></div></form>`);
@@ -55,15 +55,29 @@ async function inviteTechnician(event){
     let result=data;if(error?.context instanceof Response)result=await error.context.clone().json().catch(()=>null);
     if(result?.pending_user_id){form.dataset.pendingUser=result.pending_user_id;$('#newTechnicianEmail').readOnly=true;button.textContent='إكمال ربط حساب الفني';}
     if(error||result?.error)throw new Error(result?.error||'تعذر إضافة الفني. تأكد من تفعيل خدمة إضافة الفنيين.');
+    if(result?.id) transliterateNameAsync(result.id,$('#newTechnicianName').value);
     closeSheet();toast('أُضيف الفني وأُرسلت دعوة إلى بريده');await route();
   }catch(e){toast(e.message,6000);button.disabled=false;}
 }
 function editTechnician(id){
   const t=window._settingsTechnicians.find(t=>t.id===id);
-  openSheet(`<h2>تعديل الفني</h2><form onsubmit="saveTechnician(event,'${id}')"><label for="technicianName">الاسم الكامل</label><input id="technicianName" required maxlength="100" value="${esc(t.full_name)}"><label for="technicianPhone">الهاتف</label><input id="technicianPhone" type="tel" maxlength="40" value="${esc(t.phone||'')}"><label for="technicianLanguage">لغة الواجهة</label><select id="technicianLanguage"><option value="ar" ${t.language!=='en'?'selected':''}>عربي</option><option value="en" ${t.language==='en'?'selected':''}>English</option></select><label class="team-option"><input id="technicianActive" type="checkbox" ${t.active?'checked':''}><span>الحساب مفعّل</span></label><p class="muted">إيقاف الحساب يمنع الوصول لبيانات الفرع دون حذف سجلاته.</p><div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ التعديلات</button></div></form>`);
+  openSheet(`<h2>تعديل الفني</h2><form onsubmit="saveTechnician(event,'${id}')"><label for="technicianName">الاسم الكامل</label><input id="technicianName" required maxlength="100" value="${esc(t.full_name)}"><label for="technicianNameEn">الاسم بالإنجليزية (يظهر في التقرير الإنجليزي)</label><input id="technicianNameEn" maxlength="100" value="${esc(t.full_name_en||'')}" placeholder="${esc(t.full_name_en_auto||'اتركه فاضياً للتحويل التلقائي')}"><label for="technicianPhone">الهاتف</label><input id="technicianPhone" type="tel" maxlength="40" value="${esc(t.phone||'')}"><label for="technicianLanguage">لغة الواجهة</label><select id="technicianLanguage"><option value="ar" ${t.language!=='en'?'selected':''}>عربي</option><option value="en" ${t.language==='en'?'selected':''}>English</option></select><label class="team-option"><input id="technicianActive" type="checkbox" ${t.active?'checked':''}><span>الحساب مفعّل</span></label><p class="muted">إيقاف الحساب يمنع الوصول لبيانات الفرع دون حذف سجلاته.</p><div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ التعديلات</button></div></form>`);
 }
 async function saveTechnician(event,id){
-  event.preventDefault();await settingsMutation(event,()=>sb.rpc('update_staff_profile',{p_id:id,p_full_name:$('#technicianName').value,p_phone:$('#technicianPhone').value,p_active:$('#technicianActive').checked,p_language:$('#technicianLanguage').value}));
+  event.preventDefault();const nameAr=$('#technicianName').value,nameEn=$('#technicianNameEn').value.trim();
+  await settingsMutation(event,()=>sb.rpc('update_staff_profile',{p_id:id,p_full_name:nameAr,p_phone:$('#technicianPhone').value,p_active:$('#technicianActive').checked,p_language:$('#technicianLanguage').value,p_full_name_en:nameEn}));
+  if(!nameEn) transliterateNameAsync(id,nameAr);
+}
+/* تحويل احتياطي للاسم العربي لحروف لاتينية بالذكاء الاصطناعي — فقط إن
+   تُرك الاسم الإنجليزي فارغاً. لا تنتظره الواجهة ولا يمنع حفظ الفني أبداً. */
+async function transliterateNameAsync(profileId,fullNameAr){
+  if(!(fullNameAr||'').trim()) return;
+  try{
+    const {data,error}=await sb.functions.invoke('transliterate-name',{body:{items:[{id:'x',text:fullNameAr}]}});
+    if(error) throw error;
+    const r=(data?.items||[])[0];if(!r?.name_en) return;
+    await sb.rpc('set_profile_name_en_auto',{p_id:profileId,p_name_en_auto:r.name_en});
+  }catch(e){ console.error('transliterateNameAsync failed',e); }
 }
 async function clientSettings(){
   const {data,error}=await sb.from('clients').select('*').order('name_ar');if(error)throw error;window._settingsClients=data;
