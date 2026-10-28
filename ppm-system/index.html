@@ -1107,10 +1107,10 @@ async function openAsset(assetId){
 
 /* ---------------------- الصورة المرجعية للجهاز ---------------------- */
 function uploadAssetPhoto(assetId){
-  captureOrPickPhoto().then(async f=>{
+  captureOrPickPhoto().then(async files=>{
     toast(tr("جارٍ رفع الصورة…"));
     try{
-      const blob = await compress(f);
+      const blob = await compress(files[0]);
       const path = `assets/${assetId}-${Date.now()}.jpg`;
       const {error:upErr} = await sb.storage.from("visit-photos").upload(path,blob,{contentType:"image/jpeg"});
       if(upErr) throw upErr;
@@ -1155,19 +1155,25 @@ function renderExtra(){
 function pickPhoto(type){
   if(!canEditVisit(window._v)) return;
   keepText();
-  captureOrPickPhoto().then(async f=>{
-    toast(tr("جارٍ رفع الصورة…"));
-    try{
-      const blob = await compress(f);
-      const hash = await computeDHash(blob);
-      if(!(await checkDuplicatePhoto(hash))){ toast(tr("أُلغي الرفع")); return; }
-      const path = `${window._v.id}/${window._draft.assetId}-${type}-${Date.now()}.jpg`;
-      const {error} = await sb.storage.from("visit-photos").upload(path,blob,{contentType:"image/jpeg"});
-      if(error) throw error;
-      const {data} = sb.storage.from("visit-photos").getPublicUrl(path);
-      window._draft.photos.push({url:data.publicUrl,type,isNew:true,phash:hash,hidden:false});
-      renderExtra(); toast(tr("تم رفع الصورة"));
-    }catch(e){ toast(tr("تعذر رفع الصورة: ")+(e.message||"")); }
+  captureOrPickPhoto({multiple:true}).then(async files=>{
+    toast(files.length>1?`${tr("جارٍ رفع")} ${files.length} ${tr("صور…")}`:tr("جارٍ رفع الصورة…"));
+    let uploaded=0, failed=0;
+    for(let idx=0; idx<files.length; idx++){
+      try{
+        const blob = await compress(files[idx]);
+        const hash = await computeDHash(blob);
+        if(!(await checkDuplicatePhoto(hash))) continue;
+        const path = `${window._v.id}/${window._draft.assetId}-${type}-${Date.now()}-${idx}.jpg`;
+        const {error} = await sb.storage.from("visit-photos").upload(path,blob,{contentType:"image/jpeg"});
+        if(error) throw error;
+        const {data} = sb.storage.from("visit-photos").getPublicUrl(path);
+        window._draft.photos.push({url:data.publicUrl,type,isNew:true,phash:hash,hidden:false});
+        uploaded++;
+      }catch(e){ failed++; toast(tr("تعذر رفع إحدى الصور: ")+(e.message||"")); }
+    }
+    renderExtra();
+    if(uploaded) toast(uploaded>1?`${tr("تم رفع")} ${uploaded} ${tr("صور")}`:tr("تم رفع الصورة"));
+    else if(!failed) toast(tr("أُلغي الرفع"));
   }).catch(()=>{});
 }
 function dropPhoto(type,i){
@@ -1182,10 +1188,10 @@ function dropPhoto(type,i){
 function replaceDraftPhoto(type,i){
   if(!canEditVisit(window._v)) return;
   keepText();
-  captureOrPickPhoto().then(async f=>{
+  captureOrPickPhoto().then(async files=>{
     toast(tr("جارٍ رفع الصورة…"));
     try{
-      const blob = await compress(f);
+      const blob = await compress(files[0]);
       const hash = await computeDHash(blob);
       const list = window._draft.photos.filter(p=>p.type===type);
       const target = list[i];
@@ -1251,8 +1257,11 @@ function keepText(){
   if($("#notes")) d.notes=$("#notes").value;
   if($("#parts")) d.parts=$("#parts").value;
 }
-/* ---------------------- التقاط صورة داخل الصفحة (بدون فتح تطبيق كاميرا منفصل) ---------------------- */
-function captureFromCamera(){
+/* ---------------------- التقاط صورة داخل الصفحة (بدون فتح تطبيق كاميرا منفصل) ----------------------
+   كل دوال الالتقاط/الاختيار ترجع مصفوفة ملفات دائماً (عنصر واحد عادةً، أو
+   أكثر عند اختيار عدة صور من المعرض دفعة واحدة — متاح فقط حين multiple=true). */
+function captureFromCamera(opts={}){
+  const {multiple=false} = opts;
   return new Promise((resolve,reject)=>{
     if(!navigator.mediaDevices?.getUserMedia){ reject(new Error("no-camera-api")); return; }
     const overlay=document.createElement("div");
@@ -1262,7 +1271,7 @@ function captureFromCamera(){
       <video id="camVideo" autoplay playsinline muted style="flex:1;width:100%;min-height:0;object-fit:cover;background:#000"></video>
       <div style="display:flex;gap:10px;padding:16px;background:#000;flex-wrap:wrap">
         <button id="camCancel" class="btn quiet" style="flex:1">${tr("إلغاء")}</button>
-        <button id="camGallery" class="btn quiet" style="flex:1">${tr("اختر من المعرض")}</button>
+        <button id="camGallery" class="btn quiet" style="flex:1">${multiple?tr("اختر من المعرض (عدة صور)"):tr("اختر من المعرض")}</button>
         <button id="camShoot" class="btn" style="flex:2">${tr("التقط الصورة")}</button>
       </div></div>`;
     document.body.appendChild(overlay);
@@ -1270,7 +1279,7 @@ function captureFromCamera(){
     const cleanup=()=>{ stream?.getTracks().forEach(t=>t.stop()); overlay.remove(); };
     const finish=(fn,arg)=>{ if(settled)return; settled=true; cleanup(); fn(arg); };
     overlay.querySelector("#camCancel").onclick=()=>finish(reject,new Error("cancelled"));
-    overlay.querySelector("#camGallery").onclick=()=>finish(()=>{ pickPhotoFile().then(resolve,reject); });
+    overlay.querySelector("#camGallery").onclick=()=>finish(()=>{ pickPhotoFiles(multiple).then(resolve,reject); });
     navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false}).then(s=>{
       if(settled){ s.getTracks().forEach(t=>t.stop()); return; }
       stream=s; overlay.querySelector("#camVideo").srcObject=s;
@@ -1281,21 +1290,22 @@ function captureFromCamera(){
       const cv=document.createElement("canvas");
       cv.width=video.videoWidth; cv.height=video.videoHeight;
       cv.getContext("2d").drawImage(video,0,0);
-      cv.toBlob(b=>finish(b?resolve:reject, b||new Error("capture-failed")),"image/jpeg",0.85);
+      cv.toBlob(b=>{ if(b) finish(resolve,[b]); else finish(reject,new Error("capture-failed")); },"image/jpeg",0.85);
     };
   });
 }
-function pickPhotoFile(){
+function pickPhotoFiles(multiple=false){
   return new Promise((resolve,reject)=>{
     const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
-    inp.onchange=()=>{ const f=inp.files[0]; f?resolve(f):reject(new Error("no-file")); };
+    if(multiple) inp.multiple=true;
+    inp.onchange=()=>{ const files=Array.from(inp.files||[]); files.length?resolve(files):reject(new Error("no-file")); };
     inp.click();
   });
 }
-function captureOrPickPhoto(){
-  return captureFromCamera().catch(e=>{
+function captureOrPickPhoto(opts={}){
+  return captureFromCamera(opts).catch(e=>{
     if(e.message==="cancelled") throw e;
-    return pickPhotoFile();
+    return pickPhotoFiles(opts.multiple);
   });
 }
 
