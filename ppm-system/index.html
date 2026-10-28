@@ -116,8 +116,12 @@ th{color:var(--muted);font-size:12px;font-weight:600}
 
 /* ---------- التقرير ---------- */
 .report{background:#fff;color:#000;max-width:820px;margin:0 auto;padding:26px}
+.report-table{width:100%;border-collapse:collapse}
+.report-table td{padding:0}
+.report-table thead{display:table-header-group}
+.report-table tfoot{display:table-footer-group}
 .rletterhead{width:100%;display:block;margin-bottom:14px}
-.rfooterimg{width:100%;display:block;margin-top:28px}
+.rfooterimg{width:100%;display:block;margin-top:14px}
 .rhead{display:flex;gap:16px;align-items:flex-start;border-bottom:3px solid var(--brand);padding-bottom:12px}
 .bi{font-size:12px;color:#444}
 .riauthor{margin-top:8px;font-size:11px;color:#777}
@@ -1680,7 +1684,9 @@ async function reportPage(id){
     </div></div></div>
 
   <div class="report">
-    <img class="rletterhead" src="${REPORT_HEADER_IMG}" alt="Al-Mohtaseb">
+  <table class="report-table">
+    <thead><tr><td><img class="rletterhead" src="${REPORT_HEADER_IMG}" alt="Al-Mohtaseb"></td></tr></thead>
+    <tbody><tr><td>
     <div class="rhead">
       <div style="flex:1">
         <h2 style="margin:0">${v.visit_type==="emergency"?"تقرير صيانة طارئة":"تقرير زيارة صيانة وقائية"}</h2>
@@ -1739,7 +1745,9 @@ async function reportPage(id){
       <div>ممثل شركة المحتسب<div class="bi">Al-Mohtaseb representative</div></div>
       <div>ممثل العميل<div class="bi">Client representative</div></div>
     </div>
-    <img class="rfooterimg" src="${REPORT_FOOTER_IMG}" alt="">
+    </td></tr></tbody>
+    <tfoot><tr><td><img class="rfooterimg" src="${REPORT_FOOTER_IMG}" alt=""></td></tr></tfoot>
+  </table>
   </div>`;
   window._reportItems = items.map(i=>({...i,asset:map.get(i.asset_id)}));
   window._reportVisit = v;
