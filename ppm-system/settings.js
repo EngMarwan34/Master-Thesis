@@ -80,15 +80,117 @@ async function saveSettingsClient(event,id){
 }
 async function assetSettings(){
   const {data,error}=await sb.from('assets').select('*,clients(name_ar)').order('asset_no');if(error)throw error;window._settingsAssets=data;
-  return `<div class="card"><div class="spread"><h3>الأجهزة والأصول</h3><a class="btn quiet" href="#/">إضافة جهاز من صفحة العميل</a></div><div class="search-field">${icon('search')}<input type="search" aria-label="البحث عن جهاز" placeholder="اسم الجهاز، رقم الأصل أو العميل…" oninput="filterSettingsAssets(this.value)"></div><div class="list">${data.map(a=>`<div class="item" data-asset-search="${esc(a.name_ar+' '+a.asset_no+' '+(a.clients?.name_ar||''))}"><span class="body"><span class="t">${esc(a.name_ar)}</span><span class="s">${esc(a.asset_no)} · ${esc(a.clients?.name_ar||'')} · ${esc(a.location_text||'')}</span></span><span class="status-tag ${a.active?'ok':'neutral'}">${a.active?'نشط':'مؤرشف'}</span><button class="btn quiet sm" onclick="settingsAssetForm('${a.id}')">تعديل</button></div>`).join('')||'<p class="empty">لا توجد أجهزة بعد.</p>'}</div><p id="noSettingsAssets" class="empty" hidden>لا توجد نتائج مطابقة.</p></div>`;
+  return `<div class="card"><div class="spread"><h3>الأجهزة والأصول</h3><a class="btn quiet" href="#/">إضافة جهاز من صفحة العميل</a></div>
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn ghost sm" onclick="findMissingArabicNames()">إكمال الأسماء الناقصة بالذكاء الاصطناعي</button>
+      <button class="btn ghost sm" onclick="findBrandModelDuplicates()">تنظيف الماركة والموديل المكررة</button>
+    </div>
+    <div class="search-field">${icon('search')}<input type="search" aria-label="البحث عن جهاز" placeholder="اسم الجهاز، رقم الأصل أو العميل…" oninput="filterSettingsAssets(this.value)"></div><div class="list">${data.map(a=>`<div class="item" data-asset-search="${esc(a.name_ar+' '+a.asset_no+' '+(a.clients?.name_ar||''))}"><span class="body"><span class="t">${esc(a.name_ar)}${a.name_ar_auto?' <span class="muted" style="font-size:11px">(اسم مترجَم تلقائياً — يحتاج مراجعة)</span>':''}</span><span class="s">${esc(a.asset_no)} · ${esc(a.clients?.name_ar||'')} · ${esc(a.location_text||'')}</span></span><span class="status-tag ${a.active?'ok':'neutral'}">${a.active?'نشط':'مؤرشف'}</span><button class="btn quiet sm" onclick="settingsAssetForm('${a.id}')">تعديل</button></div>`).join('')||'<p class="empty">لا توجد أجهزة بعد.</p>'}</div><p id="noSettingsAssets" class="empty" hidden>لا توجد نتائج مطابقة.</p></div>`;
+}
+/* ---------------------- تنظيف الكلمات المكررة في الماركة/الموديل ---------------------- */
+function dedupPhrase(s){
+  if(!s) return s;
+  const words=s.trim().split(/\s+/);
+  const n=words.length;
+  if(n<2 || n%2!==0) return s;
+  const half=n/2;
+  const a=words.slice(0,half).join(' ').toLowerCase();
+  const b=words.slice(half).join(' ').toLowerCase();
+  return a===b ? words.slice(0,half).join(' ') : s;
+}
+function findBrandModelDuplicates(){
+  const rows=(window._settingsAssets||[]).map(a=>({asset:a, brand:dedupPhrase(a.brand), model:dedupPhrase(a.model)}))
+    .filter(r=>r.brand!==(r.asset.brand||null) || r.model!==(r.asset.model||null));
+  if(!rows.length) return toast('لا توجد ماركات أو موديلات مكررة');
+  window._brandModelFixes=rows;
+  openSheet(`<h2>تنظيف الماركة والموديل (${rows.length})</h2>
+    <p class="muted">سيُطبَّق فقط على الحقول المعروضة أدناه — لا يتغيّر رقم الأصل ولا رمز الباركود.</p>
+    <div class="list" style="max-height:60vh;overflow:auto">${rows.map(r=>`
+      <div class="item"><span class="body">
+        <span class="s">${esc(r.asset.asset_no)} · ${esc(r.asset.clients?.name_ar||'')}</span>
+        ${r.brand!==(r.asset.brand||null)?`<span class="t">${esc(r.asset.brand||'')} ← ${esc(r.brand||'')}</span>`:''}
+        ${r.model!==(r.asset.model||null)?`<span class="t">${esc(r.asset.model||'')} ← ${esc(r.model||'')}</span>`:''}
+      </span></div>`).join('')}</div>
+    <div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button>
+    <button class="btn" onclick="applyBrandModelFixes()">تطبيق التنظيف</button></div>`);
+}
+async function applyBrandModelFixes(){
+  const rows=window._brandModelFixes||[];
+  try{
+    for(const r of rows){
+      const {error}=await sb.from('assets').update({brand:r.brand,model:r.model}).eq('id',r.asset.id);
+      if(error) throw error;
+    }
+    closeSheet(); toast(`تم تنظيف ${rows.length} سجلاً`); await route();
+  }catch(e){ toast('تعذر الحفظ: '+(e.message||'')); }
+}
+/* ---------------------- إكمال الأسماء العربية الناقصة بالذكاء الاصطناعي ---------------------- */
+function looksLikeMissingArabicName(a){
+  const ar=(a.name_ar||'').trim(); const en=(a.name_en||'').trim();
+  if(!ar) return false;
+  const hasArabicChars=/[؀-ۿ]/.test(ar);
+  if(!hasArabicChars) return true;
+  if(en && ar.toLowerCase()===en.toLowerCase()) return true;
+  return false;
+}
+async function findMissingArabicNames(){
+  const candidates=(window._settingsAssets||[]).filter(looksLikeMissingArabicName);
+  if(!candidates.length) return toast('كل الأجهزة لها اسم عربي مختلف عن الإنجليزي');
+  openSheet(`<h2>إكمال الأسماء الناقصة</h2><p class="muted">جارٍ توليد مقترحات بالذكاء الاصطناعي لـ ${candidates.length} جهازاً…</p>`);
+  try{
+    const items=candidates.map(a=>({id:a.id,text:a.name_en||a.name_ar}));
+    const CHUNK=80; const results=new Map();
+    for(let i=0;i<items.length;i+=CHUNK){
+      const batch=items.slice(i,i+CHUNK);
+      const {data,error}=await sb.functions.invoke('translate-text',{body:{items:batch}});
+      if(error) throw error;
+      (data?.items||[]).forEach(r=>results.set(r.id,r));
+    }
+    window._nameSuggestions=candidates.map(a=>({asset:a, suggested:results.get(a.id)?.text_ar||a.name_ar}));
+    renderNameSuggestionsReview();
+  }catch(e){ closeSheet(); toast('تعذر توليد المقترحات: '+(e.message||'')); }
+}
+function renderNameSuggestionsReview(){
+  const rows=window._nameSuggestions||[];
+  openSheet(`<h2>راجع الأسماء المقترحة (${rows.length})</h2>
+    <p class="muted">لن يتغيّر رقم الأصل ولا رمز الباركود لأي جهاز. عدّل المقترح إذا احتجت، ثم احفظ المعتمد فقط.</p>
+    <div class="list" style="max-height:60vh;overflow:auto">${rows.map((r,i)=>`
+      <div class="item" style="align-items:center">
+        <label class="team-option"><input type="checkbox" id="nameInc_${i}" checked></label>
+        <span class="body">
+          <span class="s">${esc(r.asset.asset_no)} · ${esc(r.asset.clients?.name_ar||'')} · ${esc(r.asset.name_en||r.asset.name_ar)}</span>
+          <input id="nameSug_${i}" value="${esc(r.suggested)}" style="margin-top:6px">
+        </span>
+      </div>`).join('')}</div>
+    <div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button>
+    <button class="btn" onclick="applyNameSuggestions()">حفظ المعتمد</button></div>`);
+}
+async function applyNameSuggestions(){
+  const rows=window._nameSuggestions||[];
+  const updates=[];
+  rows.forEach((r,i)=>{
+    if($('#nameInc_'+i)?.checked){
+      const val=($('#nameSug_'+i)?.value||'').trim();
+      if(val) updates.push({id:r.asset.id,name_ar:val});
+    }
+  });
+  if(!updates.length) return toast('لم تختر أي صف');
+  try{
+    for(const u of updates){
+      const {error}=await sb.from('assets').update({name_ar:u.name_ar,name_ar_auto:true}).eq('id',u.id);
+      if(error) throw error;
+    }
+    closeSheet(); toast(`تم تحديث ${updates.length} اسماً`); await route();
+  }catch(e){ toast('تعذر الحفظ: '+(e.message||'')); }
 }
 function filterSettingsAssets(query){let count=0;document.querySelectorAll('[data-asset-search]').forEach(el=>{el.hidden=!el.dataset.assetSearch.toLowerCase().includes(query.trim().toLowerCase());if(!el.hidden)count++;});$('#noSettingsAssets').hidden=count>0;}
 function settingsAssetForm(id){
   const a=window._settingsAssets.find(a=>a.id===id);
-  openSheet(`<h2>تعديل بيانات الجهاز</h2><p class="muted">${esc(a.clients?.name_ar||'')}</p><form onsubmit="saveSettingsAsset(event,'${id}')"><div class="grid2">${[['asset_no','رقم الأصل'],['name_ar','اسم الجهاز'],['name_en','الاسم بالإنجليزية'],['brand','الماركة'],['model','الموديل'],['serial_no','الرقم التسلسلي'],['location_text','الموقع'],['location_text_en','الموقع بالإنجليزية']].map(([key,label])=>`<div><label for="asset_${key}">${label}</label><input id="asset_${key}" ${['asset_no','name_ar'].includes(key)?'required':''} maxlength="200" value="${esc(a[key]||'')}"></div>`).join('')}<div><label for="asset_category">الفئة</label><select id="asset_category">${CATS.map(c=>`<option ${c===a.category?'selected':''}>${c}</option>`).join('')}</select></div></div><label class="team-option"><input type="checkbox" id="asset_active" ${a.active?'checked':''}><span>جهاز نشط في الزيارات الجديدة</span></label><p class="muted">إلغاء التفعيل يؤرشف الجهاز ويحافظ على سجله السابق.</p><div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ الجهاز</button></div></form>`);
+  openSheet(`<h2>تعديل بيانات الجهاز</h2><p class="muted">${esc(a.clients?.name_ar||'')}</p>${a.name_ar_auto?'<div class="card" style="background:#FEF6E7;border-color:var(--maint);padding:10px;margin-bottom:10px"><b style="color:var(--maint)">تنبيه:</b> الاسم العربي عُبّئ تلقائياً بالذكاء الاصطناعي — راجعه.</div>':''}<form onsubmit="saveSettingsAsset(event,'${id}')"><div class="grid2">${[['asset_no','رقم الأصل'],['name_ar','اسم الجهاز'],['name_en','الاسم بالإنجليزية'],['brand','الماركة'],['model','الموديل'],['serial_no','الرقم التسلسلي'],['location_text','الموقع'],['location_text_en','الموقع بالإنجليزية']].map(([key,label])=>`<div><label for="asset_${key}">${label}</label><input id="asset_${key}" ${['asset_no','name_ar'].includes(key)?'required':''} maxlength="200" value="${esc(a[key]||'')}"></div>`).join('')}<div><label for="asset_category">الفئة</label><select id="asset_category">${CATS.map(c=>`<option ${c===a.category?'selected':''}>${c}</option>`).join('')}</select></div></div><label class="team-option"><input type="checkbox" id="asset_active" ${a.active?'checked':''}><span>جهاز نشط في الزيارات الجديدة</span></label><p class="muted">إلغاء التفعيل يؤرشف الجهاز ويحافظ على سجله السابق.</p><div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button><button type="submit" class="btn">حفظ الجهاز</button></div></form>`);
 }
 async function saveSettingsAsset(event,id){
   event.preventDefault();const values=Object.fromEntries(['asset_no','name_ar','name_en','brand','model','serial_no','location_text','location_text_en','category'].map(key=>[key,$('#asset_'+key).value.trim()]));values.active=$('#asset_active').checked;
+  values.brand=dedupPhrase(values.brand);values.model=dedupPhrase(values.model);values.name_ar_auto=false;
   if(!values.name_ar||!values.asset_no)return toast('أدخل الاسم ورقم الأصل');await settingsMutation(event,()=>sb.from('assets').update(values).eq('id',id));
 }
 async function planSettings(){

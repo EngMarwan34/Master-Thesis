@@ -238,6 +238,7 @@ const TR = {
   "تأكيد الحذف":"Confirm removal","حذف هذا الجهاز من القائمة":"Remove this device from the list",
   "سيُحذف هذا الجهاز نهائياً مع كل سجل صياناته وصوره. متابعة؟":"This device will be permanently removed along with its maintenance history and photos. Continue?",
   "تم حذف الجهاز":"Device removed",
+  "اكتب بالعربية أو الإنجليزية، وستتم الترجمة تلقائياً":"Write in Arabic or English — it will be translated automatically",
   "أضف صورة الجهاز":"Add a device photo","أضف صورة للعيب":"Add a defect photo",
   "اكتب القطع المطلوبة أو وصف العطل":"Write the parts needed or describe the fault",
   "جارٍ الحفظ…":"Saving…","هذه الزيارة غير قابلة للتعديل":"This visit can no longer be edited",
@@ -707,7 +708,8 @@ async function editAsset(assetId){
   const location_text = prompt("الموقع داخل المنشأة", a.location_text||"") ?? (a.location_text||"");
   const {error} = await sb.from("assets").update({
     name_ar, asset_no, category: CATS.includes(category)?category:a.category,
-    brand: brand||null, model: model||null, serial_no: serial_no||null, location_text: location_text||null
+    brand: dedupPhrase(brand)||null, model: dedupPhrase(model)||null, serial_no: serial_no||null, location_text: location_text||null,
+    name_ar_auto: false
   }).eq("id",assetId);
   if(error) return toast("تعذر الحفظ: "+error.message);
   toast("تم تحديث بيانات الجهاز"); route();
@@ -1127,7 +1129,8 @@ function renderExtra(){
       <label>${tr("القطع المطلوبة")}</label>
       <textarea id="parts" ${editable?"":"readonly"} placeholder="${tr("اكتب القطع المطلوبة ووصف العطل")}">${esc(d.parts)}</textarea>`:""}
     <label>${tr("ملاحظات الفني")}</label>
-    <textarea id="notes" ${editable?"":"readonly"} placeholder="${d.condition==='غير متاح للفحص'?tr('اكتب سبب تعذر الفحص'):tr('اختياري')}">${esc(d.notes)}</textarea>`;
+    <textarea id="notes" ${editable?"":"readonly"} placeholder="${d.condition==='غير متاح للفحص'?tr('اكتب سبب تعذر الفحص'):tr('اختياري')}">${esc(d.notes)}</textarea>
+    ${editable?`<p class="muted" style="font-size:11.5px;margin-top:-4px">${tr("اكتب بالعربية أو الإنجليزية، وستتم الترجمة تلقائياً")}</p>`:""}`;
 }
 
 function pickPhoto(type){
@@ -1307,13 +1310,35 @@ async function saveItem(){
   window._savingItem=true;
   const btn=$('#saveItemButton'); if(btn){btn.disabled=true;btn.textContent=tr('جارٍ الحفظ…');}
   try{
-    const {error} = await sb.rpc('save_visit_item', {p_visit_id:window._v.id,p_asset_id:d.assetId,
+    const {data:savedItemId,error} = await sb.rpc('save_visit_item', {p_visit_id:window._v.id,p_asset_id:d.assetId,
       p_condition:d.condition,p_notes:d.notes,p_parts:d.parts,
       p_photos:d.photos.map(p=>({url:p.url,type:p.type}))});
     if(error) throw error;
-    closeSheet();toast(tr('حُفظ الفحص والصور بنجاح'));await route();
+    closeSheet();toast(tr('حُفظ الفحص والصور بنجاح'));
+    if(savedItemId) translateItemAsync(savedItemId,d.notes,d.parts);
+    await route();
   }catch(e){toast(tr('تعذر الحفظ. بياناتك ما زالت هنا: ')+e.message,5000);}
   finally{window._savingItem=false;if(btn){btn.disabled=false;btn.textContent=tr('حفظ الجهاز');}}
+}
+/* ترجمة فورية بعد حفظ الفني — لا تنتظرها الواجهة ولا تمنع الحفظ أبداً.
+   عند فشلها (شبكة/خطأ) يبقى translation_pending=true من save_visit_item
+   وتُعالَج لاحقاً بزر "ترجمة الكل" في صفحة المراجعة. */
+async function translateItemAsync(itemId,notes,parts){
+  if(!(notes||"").trim() && !(parts||"").trim()) return;
+  try{
+    const items=[];
+    if((notes||"").trim()) items.push({id:"notes",text:notes});
+    if((parts||"").trim()) items.push({id:"parts",text:parts});
+    const {data,error} = await sb.functions.invoke('translate-text',{body:{items}});
+    if(error) throw error;
+    const byId = new Map((data?.items||[]).map(x=>[x.id,x]));
+    const n=byId.get("notes"), p=byId.get("parts");
+    await sb.rpc('save_item_translation',{
+      p_item_id:itemId, p_source_lang:(n||p)?.source_lang||null,
+      p_notes_ar:n?n.text_ar:null, p_notes_en:n?n.text_en:null,
+      p_parts_ar:p?p.text_ar:null, p_parts_en:p?p.text_en:null
+    });
+  }catch(e){ console.error("translateItemAsync failed, will retry via bulk translate",e); }
 }
 
 async function finishVisit(){
@@ -1349,28 +1374,119 @@ async function reviewPage(id){
     <textarea id="rec">${esc(v.recommendations||"")}</textarea>
     <label style="margin-top:10px">Approved Comment — English <span class="muted">(shown to the client if they request the English report)</span></label>
     <textarea id="recEn">${esc(v.recommendations_en||"")}</textarea>
-    <p class="muted" style="font-size:12px">هذا التعليق منفصل عن ملاحظات الفني لكل جهاز أدناه — اكتبه أو اتركه فاضياً لتعبّئته لاحقاً.</p></div>`;
+    <div class="row" style="margin:8px 0">
+      <button class="btn ghost sm" onclick="translateRecommendation('ar_to_en',this)">ترجمة عربي ← English</button>
+      <button class="btn ghost sm" onclick="translateRecommendation('en_to_ar',this)">Translate English → عربي</button>
+      <button class="btn quiet sm" onclick="saveRecommendationsOnly('${id}')">حفظ التعليق فقط</button>
+    </div>
+    <p class="muted" style="font-size:12px">هذا التعليق منفصل عن ملاحظات الفني لكل جهاز أدناه — اكتبه أو اتركه فاضياً لتعبّئته لاحقاً. الحفظ هنا لا يعتمد الزيارة.</p></div>`;
 
   body += `<div class="card"><div class="spread"><h3>البنود</h3>
-      <button class="btn ghost sm" id="aiFixBtn" onclick="aiFixReport('${id}')">✨ صحّح الكشف إملائياً بالذكاء الاصطناعي</button></div>
-    <p class="muted">تقدر تعدّل كتابة الفني كاملة (الملاحظات والقطع المطلوبة) قبل الاعتماد — يدوياً أو بزر التصحيح أعلاه، ثم راجعها قبل الحفظ.</p>
+      <div class="row">
+        <button class="btn ghost sm" id="aiFixBtn" onclick="aiFixReport('${id}')">✨ صحّح الكشف إملائياً بالذكاء الاصطناعي</button>
+        <button class="btn ghost sm" id="bulkTranslateBtn" onclick="bulkTranslateItems('${id}')">🌐 ترجمة / إعادة ترجمة الكل</button>
+        <span id="bulkTranslateProgress" class="muted"></span>
+      </div></div>
+    <p class="muted">تقدر تعدّل كتابة الفني كاملة (الملاحظات والقطع المطلوبة) قبل الاعتماد — يدوياً أو بزر التصحيح أعلاه، ثم راجعها قبل الحفظ.
+      الترجمة العربية/الإنجليزية لكل بند منفصلة أدناه ("ترجمة البند") — أي تعديل يدوي عليها يمنع الترجمة التلقائية من استبداله لاحقاً.</p>
     <div class="list" style="margin-top:10px">
     ${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
       const showParts = i.condition!=="سليم" || i.parts_needed_text;
+      const needsTranslation = i.translation_pending || (i.technician_notes && !i.notes_ar && !i.notes_en) || (i.parts_needed_text && !i.parts_ar && !i.parts_en);
       return `<div class="item" style="align-items:flex-start">
         <span class="edge" style="background:var(${s.v})"></span>
         <span class="body" style="width:100%"><span class="t">${esc(a.name_ar||"")}</span>
           <span class="s">${esc(a.asset_no||"")} · ${esc(i.condition)}</span>
-          ${showParts?`<label style="margin-top:8px">القطع المطلوبة</label>
+          ${showParts?`<label style="margin-top:8px">القطع المطلوبة (نص الفني الأصلي)</label>
           <textarea id="parts_${i.id}" style="min-height:44px">${esc(i.parts_needed_text||"")}</textarea>`:""}
-          <label style="margin-top:8px">ملاحظة الفني</label>
+          <label style="margin-top:8px">ملاحظة الفني (نص أصلي)</label>
           <textarea id="note_${i.id}" style="min-height:56px">${esc(i.technician_notes||"")}</textarea>
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer;font-size:12.5px">ترجمة البند ${needsTranslation?'<span style="color:var(--maint)">⚠ تحتاج ترجمة</span>':'<span style="color:var(--ok)">✓ مُترجم</span>'}</summary>
+            <div class="grid2" style="margin-top:6px">
+              <div><label style="font-size:12px">ملاحظة — عربي</label>
+                <textarea id="notesAr_${i.id}" style="min-height:44px" onchange="saveItemTranslationField('${i.id}','notes_ar',this.value)">${esc(i.notes_ar||"")}</textarea></div>
+              <div><label style="font-size:12px">Note — English</label>
+                <textarea id="notesEn_${i.id}" dir="ltr" style="min-height:44px" onchange="saveItemTranslationField('${i.id}','notes_en',this.value)">${esc(i.notes_en||"")}</textarea></div>
+              ${showParts?`<div><label style="font-size:12px">القطع — عربي</label>
+                <textarea id="partsAr_${i.id}" style="min-height:44px" onchange="saveItemTranslationField('${i.id}','parts_ar',this.value)">${esc(i.parts_ar||"")}</textarea></div>
+              <div><label style="font-size:12px">Parts — English</label>
+                <textarea id="partsEn_${i.id}" dir="ltr" style="min-height:44px" onchange="saveItemTranslationField('${i.id}','parts_en',this.value)">${esc(i.parts_en||"")}</textarea></div>`:""}
+            </div>
+          </details>
           <div class="photos">${(i.photos||[]).map(p=>`<img src="${p.url}" style="cursor:pointer" onclick="openPhotoViewer('${p.url}',{technicianNames:'${esc((v.team||[]).map(t=>t.full_name).join('، '))}'})">`).join("")}</div>
         </span></div>`;}).join("")}</div></div>`;
 
   shell("مراجعة الزيارة", body,
     `<button class="btn quiet" onclick="rejectVisit('${id}')">إعادة للفني</button>
      <button class="btn" onclick="approveVisit('${id}')">اعتماد وإصدار التقرير</button>`);
+}
+
+/* ---------------------- ترجمة التعليق المعتمد (عربي/إنجليزي) ---------------------- */
+async function translateRecommendation(direction,btn){
+  const fromId = direction==='ar_to_en' ? 'rec' : 'recEn';
+  const toId = direction==='ar_to_en' ? 'recEn' : 'rec';
+  const text = ($('#'+fromId)?.value||'').trim();
+  if(!text) return toast('اكتب النص المصدر أولاً');
+  if(btn) btn.disabled=true;
+  try{
+    const {data,error} = await sb.functions.invoke('translate-text',{body:{items:[{id:'x',text}]}});
+    if(error) throw error;
+    const r=(data?.items||[])[0]; if(!r) throw new Error('رد غير متوقع من خدمة الترجمة');
+    $('#'+toId).value = direction==='ar_to_en' ? r.text_en : r.text_ar;
+    toast('تمت الترجمة — راجعها قبل الحفظ');
+  }catch(e){ toast('تعذرت الترجمة: '+(e.message||'')); }
+  finally{ if(btn) btn.disabled=false; }
+}
+async function saveRecommendationsOnly(visitId){
+  const {error} = await sb.rpc('save_visit_recommendations',{p_visit_id:visitId,
+    p_recommendations:$('#rec')?.value||'', p_recommendations_en:$('#recEn')?.value||''});
+  if(error) return toast('تعذر الحفظ: '+error.message);
+  toast('تم حفظ التعليق المعتمد');
+}
+
+/* ---------------------- ترجمة بنود الفحص (فردي/جماعي) ---------------------- */
+async function saveItemTranslationField(itemId,field,value){
+  const {error} = await sb.rpc('set_item_translation_field',{p_item_id:itemId,p_field:field,p_value:value});
+  if(error) return toast('تعذر حفظ الترجمة: '+error.message);
+  toast('حُفظ التعديل — لن تستبدله الترجمة التلقائية لاحقاً');
+  const i=(window._items||[]).find(x=>x.id===itemId); if(i) i[field]=value;
+}
+async function bulkTranslateItems(visitId){
+  const btn=$('#bulkTranslateBtn'), prog=$('#bulkTranslateProgress');
+  const items=(window._items||[]).filter(i=>
+    i.translation_pending ||
+    (i.technician_notes && !i.notes_ar && !i.notes_en) ||
+    (i.parts_needed_text && !i.parts_ar && !i.parts_en));
+  if(!items.length) return toast('كل البنود مُترجمة');
+  btn.disabled=true; let done=0; prog.textContent=`0 / ${items.length}`;
+  const CHUNK=20;
+  try{
+    for(let c=0;c<items.length;c+=CHUNK){
+      const batch=items.slice(c,c+CHUNK);
+      const payload=[];
+      batch.forEach(it=>{
+        if((it.technician_notes||"").trim()) payload.push({id:it.id+"::notes",text:it.technician_notes});
+        if((it.parts_needed_text||"").trim()) payload.push({id:it.id+"::parts",text:it.parts_needed_text});
+      });
+      if(payload.length){
+        const {data,error} = await sb.functions.invoke('translate-text',{body:{items:payload}});
+        if(error) throw error;
+        const byKey=new Map((data?.items||[]).map(x=>[x.id,x]));
+        const toSave=batch.map(it=>{
+          const n=byKey.get(it.id+"::notes"), p=byKey.get(it.id+"::parts");
+          return {id:it.id, source_lang:(n||p)?.source_lang||null,
+            notes_ar:n?n.text_ar:null, notes_en:n?n.text_en:null,
+            parts_ar:p?p.text_ar:null, parts_en:p?p.text_en:null};
+        });
+        const {error:saveErr} = await sb.rpc('save_item_translations_bulk',{p_items:toSave});
+        if(saveErr) throw saveErr;
+      }
+      done += batch.length;
+      prog.textContent = `${done} / ${items.length}`;
+    }
+    toast('تمت ترجمة البنود'); await reviewPage(visitId);
+  }catch(e){ toast('تعذرت الترجمة: '+(e.message||''),5000); btn.disabled=false; }
 }
 
 /* ---------------------- تصحيح إملائي بالذكاء الاصطناعي ---------------------- */
@@ -1408,6 +1524,10 @@ async function aiFixReport(visitId){
 
 async function approveVisit(id){
   if(window._approving) return;
+  const incomplete=(window._items||[]).filter(i=>
+    (i.technician_notes && !i.notes_ar && !i.notes_en) ||
+    (i.parts_needed_text && !i.parts_ar && !i.parts_en)).length;
+  if(incomplete) toast(`تنبيه: ${incomplete} بند لم تكتمل ترجمته — سيُعتمد مع ذلك`,5000);
   window._approving=true;
   try{
     const items=(window._items||[]).map(i=>({id:i.id,
@@ -1438,6 +1558,8 @@ async function reportPage(id){
   <div class="wrap noprint"><div class="spread">
     ${back(me.role==="technician"?"#/":"#/client/"+v.client_id)}
     <div class="row">
+      <button class="btn quiet sm" onclick="setReportLang('ar')">عربي</button>
+      <button class="btn quiet sm" onclick="setReportLang('en')">English</button>
       <button class="btn quiet sm" onclick="exportVisitParts()">${tr("Excel للقطع")}</button>
       <button class="btn quiet sm" onclick="shareReport()">${tr("مشاركة")}</button>
       <button class="btn sm" onclick="window.print()">${tr("طباعة / PDF")}</button>
@@ -1477,26 +1599,27 @@ async function reportPage(id){
       <th>الصورة<div class="bi">Photo</div></th></tr></thead>
       <tbody>${items.map(i=>{const a=map.get(i.asset_id)||{}; const s=stateOf(i.condition);
         const ph=(i.photos||[])[0];
+        const partsArText=i.parts_ar||i.parts_needed_text||"—", partsEnText=i.parts_en||i.parts_needed_text||"—";
+        const notesArText=i.notes_ar||i.technician_notes||"", notesEnText=i.notes_en||i.technician_notes||"";
+        const missingAr=(i.parts_needed_text&&!i.parts_ar)||(i.technician_notes&&!i.notes_ar);
+        const missingEn=(i.parts_needed_text&&!i.parts_en)||(i.technician_notes&&!i.notes_en);
         return `<tr>
           <td>${esc(a.asset_no||"")}</td>
           <td>${esc(a.name_ar||"")}<div class="bi">${esc(a.name_en||CAT_EN[a.category]||"")}</div></td>
           <td>${esc(a.location_text||"—")}</td>
           <td>${esc(a.brand||"")} ${esc(a.model||"")}</td>
           <td><span class="dot ${s.c}"></span> ${esc(i.condition)}<div class="bi">${s.en}</div></td>
-          <td>${esc(i.parts_needed_text||"—")}${i.technician_notes?`<div class="bi">${esc(i.technician_notes)}</div>`:""}</td>
+          <td>
+            <span data-lang="ar">${esc(partsArText)}${notesArText?`<div style="margin-top:2px;color:var(--muted);font-size:11px">${esc(notesArText)}</div>`:""}${missingAr?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ لم تُترجم</span>':""}</span>
+            <span data-lang="en" dir="ltr" style="display:none">${esc(partsEnText)}${notesEnText?`<div style="margin-top:2px;color:var(--muted);font-size:11px">${esc(notesEnText)}</div>`:""}${missingEn?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ not translated</span>':""}</span>
+          </td>
           <td>${ph?`<img src="${ph.url}" style="cursor:pointer" onclick="openPhotoViewer('${ph.url}',{technicianNames:'${esc(teamNames)}'})">`:"—"}</td></tr>`;}).join("")}
       </tbody></table>
 
     ${(v.recommendations||v.recommendations_en)?`<div style="margin-top:16px">
-      <div class="spread noprint" style="margin-bottom:6px">
-        <b>التعليق المعتمد / Approved Comment</b>
-        <div class="row">
-          <button class="btn quiet sm" onclick="setReportLang('ar')">عربي</button>
-          <button class="btn quiet sm" onclick="setReportLang('en')">English</button>
-        </div>
-      </div>
-      <p id="recAr" style="font-size:12.5px;display:${v.recommendations?"block":"none"}">${esc(v.recommendations||"")}</p>
-      <p id="recEnP" dir="ltr" style="font-size:12.5px;display:${v.recommendations?"none":"block"}">${esc(v.recommendations_en||"")}</p>
+      <b>التعليق المعتمد / Approved Comment</b>
+      <p data-lang="ar" style="font-size:12.5px">${esc(v.recommendations||"")}</p>
+      <p data-lang="en" dir="ltr" style="font-size:12.5px;display:none">${esc(v.recommendations_en||"")}</p>
     </div>`:""}
 
     <div class="sign">
@@ -1508,9 +1631,9 @@ async function reportPage(id){
   window._reportVisit = v;
 }
 function setReportLang(lang){
-  const ar=$("#recAr"), en=$("#recEnP");
-  if(ar) ar.style.display = lang==="ar" ? "block":"none";
-  if(en) en.style.display = lang==="en" ? "block":"none";
+  document.querySelectorAll("[data-lang]").forEach(el=>{
+    el.style.display = el.dataset.lang===lang ? "" : "none";
+  });
 }
 
 function exportVisitParts(){
