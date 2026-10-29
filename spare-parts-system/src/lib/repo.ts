@@ -328,6 +328,67 @@ export function upsertBranchContact(data: {
 }
 
 // ---------------------------------------------------------------------------
+// Global part search
+// ---------------------------------------------------------------------------
+
+export interface PartOccurrence {
+  maintenance_request_id: number;
+  request_number: string;
+  customer_name: string | null;
+  request_status: "open" | "closed";
+  part_request_id: number;
+  part_code: string;
+  part_name: string | null;
+  quantity_needed: number;
+  // Sourcing columns are null when the part has no branch split yet.
+  sourcing_id: number | null;
+  branch: Branch | null;
+  quantity: number | null;
+  source_type: SourceType | null;
+  sourcing_status: PartSourcing["status"] | null;
+  received_by: string | null;
+  received_at: string | null;
+  tracking_ref: string | null;
+}
+
+export function searchPartOccurrences(query: string): PartOccurrence[] {
+  const like = `%${query}%`;
+  return toPlainRows<PartOccurrence>(
+    db
+      .prepare(
+        `SELECT
+           mr.id AS maintenance_request_id, mr.request_number AS request_number,
+           mr.customer_name AS customer_name, mr.status AS request_status,
+           pr.id AS part_request_id, pr.part_code AS part_code, pr.part_name AS part_name,
+           pr.quantity_needed AS quantity_needed,
+           ps.id AS sourcing_id, ps.branch AS branch, ps.quantity AS quantity,
+           ps.source_type AS source_type, ps.status AS sourcing_status,
+           ps.received_by AS received_by, ps.received_at AS received_at,
+           ps.tracking_ref AS tracking_ref
+         FROM part_requests pr
+         JOIN maintenance_requests mr ON mr.id = pr.maintenance_request_id
+         LEFT JOIN part_sourcing ps ON ps.part_request_id = pr.id
+         WHERE pr.part_code LIKE ? OR pr.part_name LIKE ?
+         ORDER BY mr.created_at DESC, pr.created_at ASC, ps.created_at ASC`,
+      )
+      .all(like, like),
+  );
+}
+
+export function searchStock(query: string): BranchStock[] {
+  const like = `%${query}%`;
+  return toPlainRows<BranchStock>(
+    db
+      .prepare(
+        `SELECT * FROM branch_stock
+         WHERE part_code LIKE ? OR part_name LIKE ?
+         ORDER BY part_code, branch`,
+      )
+      .all(like, like),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 

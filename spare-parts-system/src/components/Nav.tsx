@@ -7,6 +7,7 @@ import Logo from "./Logo";
 const LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/maintenance-requests", label: "Maintenance Requests" },
+  { href: "/search", label: "Search" },
   { href: "/whatsapp-center", label: "WhatsApp Center" },
   { href: "/receiving", label: "Receiving" },
   { href: "/branch-stock", label: "Branch Stock" },
@@ -46,6 +47,20 @@ export default function Nav() {
             );
           })}
         </nav>
+        <form action="/search" method="get" className="relative sm:w-52">
+          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </span>
+          <input
+            name="q"
+            placeholder="Search a part…"
+            aria-label="Search parts"
+            className="w-full rounded-lg border border-slate-300 bg-white py-1.5 pr-3 pl-8 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none"
+          />
+        </form>
       </div>
     </header>
   );
