@@ -440,7 +440,7 @@ function shell(title, html, bar=""){
     <aside class="sidebar noprint">
       <a class="brand-lockup" href="#/"><img src="${LOGO}" alt="شعار المحتسب"><span>${esc(preferences.display_name)}<small>${tr("إدارة الصيانة")}</small></span></a>
       <div class="nav-caption">${tr("مساحة العمل")}</div>
-      <nav aria-label="القائمة الرئيسية"><a class="nav-link ${!schedule&&!settings?'active':''}" href="#/">${icon('home')}<span>${me.role==='client'?'تقاريري':tr('لوحة المتابعة')}</span></a>
+      <nav aria-label="القائمة الرئيسية"><a class="nav-link ${!schedule&&!settings?'active':''}" href="#/">${icon('home')}<span>${me.role==='client'?'أجهزتي':tr('لوحة المتابعة')}</span></a>
       ${me.role==='supervisor'?`<a class="nav-link ${schedule?'active':''}" href="#/schedule">${icon('calendar')}<span>${tr('جدولة الوقائية')}</span></a>`:''}${me.role==='supervisor'?`<a class="nav-link ${settings?'active':''}" href="#/settings">${icon('tool')}<span>${tr('الإعدادات')}</span></a>`:''}</nav>
       <div class="sidebar-note">كل جهاز له قصة.<br><strong>تابعها من مكان واحد.</strong>${preferences.support_phone?`<br><a href="tel:${esc(preferences.support_phone)}">${esc(preferences.support_phone)}</a>`:""}</div>
       <div class="account"><span class="avatar">${esc(me.full_name?.slice(0,1)||'م')}</span><span><strong>${esc(me.full_name)}</strong><small>${roleAr} · ${esc(me.branch||'')}</small></span><button class="icon-button" onclick="logout()" aria-label="${tr('تسجيل الخروج')}">${icon('logout')}</button></div>
@@ -495,6 +495,10 @@ async function route(){
   const h = location.hash.replace(/^#\/?/,"");
   const [page,id] = h.split("/");
   try{
+    // حساب العميل: صفحة واحدة فقط (حالة أجهزته)، بلا استثناء — حتى لو
+    // كُتب أي رابط آخر يدوياً. "scan" مستثناة فقط لأنها تُعيد التوجيه
+    // لنفس الصفحة بعد تجهيز طلب الصيانة الطارئة من الملصق الممسوح.
+    if(me?.role==="client" && page!=="scan") return await clientHome();
     if(page==="settings")    return await settingsPage(id);
     if(page==="schedule")    return await schedulePage();
     if(page==="client")      return await clientPage(id);
@@ -522,7 +526,10 @@ async function route(){
 async function scanPage(code){
   const {data:a} = await sb.from("assets").select("*").eq("qr_code",code).maybeSingle();
   if(!a){ toast(tr("هذا الرمز غير معروف أو لا يخص فرعك")); return location.hash="#/"; }
-  if(me.role==="client"){ return location.hash="#/client/"+a.client_id; }
+  if(me.role==="client"){
+    sessionStorage.setItem("clientEmergencyAssetAfterLoad",a.id);
+    return location.hash="#/client/"+a.client_id;
+  }
 
   // فني/مشرف: افتح زيارة اليوم المفتوحة لهذا العميل أو ابدأ واحدة، ثم افتح بطاقة الجهاز مباشرة
   const today = todayISO();
@@ -635,16 +642,88 @@ async function homePage(){
   shell("لوحة المتابعة", body);
 }
 
+/* ---------------------- صفحة العميل: عرض فقط، بدون تعقيد ----------------------
+   الصفحة الوحيدة المتاحة لحساب العميل: حالة أجهزة منشأته وصورها من آخر
+   فحص معتمد، وطلب صيانة طارئة لأي جهاز بالنقر عليه أو بمسح ملصقه. */
 async function clientHome(){
-  const {data:visits=[]} = await sb.from("visits").select("*").eq("status","approved").order("visit_date",{ascending:false});
-  const body = `<div class="card"><h3>تقارير الصيانة الوقائية</h3>
-    ${visits.length?`<div class="list" style="margin-top:10px">${visits.map(v=>`
-      <button class="item" onclick="location.hash='#/report/${v.id}'">
-        <span class="edge" style="background:var(--ok)"></span>
-        <span class="body"><span class="t">تقرير ${esc(v.report_no||"")}</span>
-        <span class="s">زيارة ${fmt(v.visit_date)}</span></span><span class="muted">›</span></button>`).join("")}</div>`
-      : `<p class="empty">لا توجد تقارير معتمدة بعد.</p>`}</div>`;
-  shell("تقاريري", body, `<button class="btn quiet" onclick="logout()">خروج</button>`);
+  const clientId = me.client_id;
+  if(!clientId){
+    shell(tr("أجهزتي"), `<p class="empty">${tr("حسابك غير مرتبط بمنشأة بعد. تواصل مع شركة المحتسب.")}</p>`,
+      `<button class="btn quiet" onclick="logout()">${tr("خروج")}</button>`);
+    return;
+  }
+  const [{data:c},{data:assets=[]}] = await Promise.all([
+    sb.from("clients").select("*").eq("id",clientId).single(),
+    sb.from("assets").select("*").eq("client_id",clientId).eq("active",true).order("asset_no")
+  ]);
+  const {data:items=[]} = await sb.from("visit_items")
+    .select("asset_id,condition,photos(url,type,hidden),visits!inner(visit_date,status)")
+    .eq("visits.status","approved").order("visits(visit_date)",{ascending:false}).limit(500);
+  const latestByAsset = new Map();
+  items.forEach(it=>{ if(!latestByAsset.has(it.asset_id)) latestByAsset.set(it.asset_id,it); });
+  window._clientAssets = assets;
+
+  const pendingEmergency = sessionStorage.getItem("clientEmergencyAssetAfterLoad");
+
+  const body = `<div class="card"><div class="spread"><h3>${esc(c?.name_ar||"")}</h3>
+      <button class="btn ghost sm" onclick="clientToggleScan()">${tr("مسح ملصق الجهاز")}</button></div>
+    <p class="muted">${tr("اضغط على أي جهاز لطلب صيانة طارئة له.")}</p>
+    <div id="clientReader" style="margin-top:10px"></div>
+    ${assets.length?`<div class="list" style="margin-top:14px">${assets.map(a=>{
+      const it = latestByAsset.get(a.id);
+      const s = it ? stateOf(it.condition) : null;
+      const photos = (it?.photos||[]).filter(p=>!p.hidden);
+      return `<button class="item" style="align-items:flex-start" onclick="clientRequestEmergency('${a.id}')">
+        <span class="edge" style="background:${s?`var(${s.v})`:"#CBD5E1"}"></span>
+        <span class="body">
+          <span class="t">${esc(a.name_ar)}</span>
+          <span class="s"><span class="dot" style="background:${s?`var(${s.v})`:"#CBD5E1"}"></span>
+            ${s?esc(it.condition):tr("لم تُفحص بعد")}${a.location_text?" · "+esc(a.location_text):""}</span>
+          ${photos.length?`<div class="photos" style="margin-top:8px">${photos.slice(0,4).map(p=>
+            `<img src="${p.url}" onclick="event.stopPropagation();openPhotoViewer('${p.url}')">`).join("")}</div>`:""}
+        </span>
+        <span class="muted" title="${tr("طلب صيانة طارئة")}">⚡</span>
+      </button>`;}).join("")}</div>`
+      : `<p class="empty">${tr("لا توجد أجهزة مسجَّلة بعد.")}</p>`}</div>`;
+  shell(tr("أجهزتي"), body, `<button class="btn quiet" onclick="logout()">${tr("خروج")}</button>`);
+
+  if(pendingEmergency){
+    sessionStorage.removeItem("clientEmergencyAssetAfterLoad");
+    if(assets.some(x=>x.id===pendingEmergency)) clientRequestEmergency(pendingEmergency);
+  }
+}
+function clientRequestEmergency(assetId){
+  const a = (window._clientAssets||[]).find(x=>x.id===assetId); if(!a) return;
+  openSheet(`
+    <div class="spread"><h3>${tr("طلب صيانة طارئة")}</h3><button class="btn quiet sm" onclick="closeSheet()">${tr("إغلاق")}</button></div>
+    <p class="muted">${tr("الجهاز:")} <b>${esc(a.name_ar)}</b> (${esc(a.asset_no)})</p>
+    <label>${tr("وصف الحالة (اختياري)")}</label>
+    <textarea id="clientEmgNote" placeholder="${tr("مثال: صوت غريب من الجهاز منذ الصباح")}"></textarea>
+    <div style="height:16px"></div>
+    <button class="btn" style="width:100%" onclick="submitClientEmergency('${assetId}',this)">${tr("إرسال الطلب")}</button>
+  `);
+}
+async function submitClientEmergency(assetId,btn){
+  const note = $("#clientEmgNote")?.value.trim()||null;
+  if(btn) btn.disabled=true;
+  try{
+    const {error} = await sb.rpc("request_emergency_visit",{p_asset_id:assetId,p_note:note});
+    if(error) throw error;
+    closeSheet(); toast(tr("تم إرسال طلب الصيانة الطارئة، سيتواصل معك الفريق قريباً"));
+  }catch(e){ toast(tr("تعذر إرسال الطلب: ")+e.message); if(btn) btn.disabled=false; }
+}
+async function clientToggleScan(){
+  if(scanner){ await scanner.stop(); scanner=null; return; }
+  scanner = new Html5Qrcode("clientReader");
+  try{
+    await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:230,height:230}}, txt=>{
+      const raw = txt.trim();
+      const oldFormatCode = raw.includes("/scan/") ? raw.split("/scan/")[1] : null;
+      const a = (window._clientAssets||[]).find(x=>x.asset_no===raw || x.qr_code===raw || (oldFormatCode && x.qr_code===oldFormatCode));
+      scanner.stop().then(()=>{scanner=null;});
+      if(a) clientRequestEmergency(a.id); else toast(tr("هذا الملصق لا يخص أجهزة منشأتك"));
+    }, ()=>{});
+  }catch(e){ scanner=null; toast(tr("تعذر فتح الكاميرا. اختر الجهاز من القائمة.")); }
 }
 
 async function newClient(){
@@ -951,12 +1030,13 @@ async function visitPage(id){
   if(v.status==="rejected") body += `<div class="card" style="border-color:var(--down)">
     <h3 style="color:var(--down)">${tr("أُعيدت الزيارة للتعديل")}</h3><p>${esc(v.reject_reason||"")}</p></div>`;
 
-  const canAddHelper = !readOnly && !isEmergency && (me.role==="supervisor" || v.team.some(t=>t.technician_id===me.id));
+  const needsAssignment = isEmergency && !v.technician_id; // طلب طارئة من العميل، ما زال بلا فني
+  const canAddHelper = !readOnly && (!isEmergency || needsAssignment) && (me.role==="supervisor" || v.team.some(t=>t.technician_id===me.id));
   const canEditCrm = me.role==="supervisor"; // الفني لا يتعامل مع تذكرة CRM ولا عرض السعر — هذا للمشرف فقط
   body += `<div class="card"><h3>${esc(v.clients.name_ar)}</h3>
     <p class="muted">${tr("زيارة ")}${fmt(v.visit_date)} · ${tr("بدأت ")}${time(v.check_in)}</p>
     <div class="row">${(v.team||[]).map(t=>`<span class="pill">${esc(t.full_name)}</span>`).join("")}
-      ${canAddHelper?`<button class="btn quiet sm" onclick="addVisitHelper('${v.id}')">${tr("+ إضافة فني للمساعدة")}</button>`:""}</div>
+      ${canAddHelper?`<button class="btn quiet sm" onclick="addVisitHelper('${v.id}')">${needsAssignment?tr("تكليف فني"):tr("+ إضافة فني للمساعدة")}</button>`:""}</div>
     <div class="mosaic">${assets.map(a=>{const it=done.get(a.id);
       return `<i style="background:${it?`var(${stateOf(it.condition).v})`:"#CBD5E1"}"></i>`}).join("")}</div>
     <div class="rail"><span style="width:${pct}%"></span></div>
