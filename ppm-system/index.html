@@ -1290,11 +1290,14 @@ function openPhotoViewer(url,opts={}){
       ${canDelete?`<button class="btn" style="flex:1;background:var(--down);border-color:var(--down)" id="pvDelete">${tr("حذف")}</button>`:""}
     </div></div>`;
   document.body.appendChild(d);
-  d.addEventListener("click",e=>{ if(e.target===d) d.remove(); });
-  d.querySelector("#pvClose").onclick=()=>d.remove();
+  const onKey=e=>{ if(e.key==="Escape") close(); };
+  const close=()=>{ document.removeEventListener("keydown",onKey); d.remove(); };
+  document.addEventListener("keydown",onKey);
+  d.addEventListener("click",e=>{ if(e.target===d) close(); });
+  d.querySelector("#pvClose").onclick=close;
   d.querySelector("#pvDownload").onclick=()=>downloadImage(url);
-  if(canReplace) d.querySelector("#pvReplace").onclick=()=>{ d.remove(); onReplace?.(); };
-  if(canDelete) d.querySelector("#pvDelete").onclick=()=>{ d.remove(); onDelete?.(); };
+  if(canReplace) d.querySelector("#pvReplace").onclick=()=>{ close(); onReplace?.(); };
+  if(canDelete) d.querySelector("#pvDelete").onclick=()=>{ close(); onDelete?.(); };
 }
 function keepText(){
   const d=window._draft;
