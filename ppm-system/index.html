@@ -863,6 +863,7 @@ async function clientPage(id){
         <span class="body" style="cursor:pointer" onclick="location.hash='${target}'"><span class="t">${label}</span>
         <span class="s">${st[0]}${v.report_no?" · "+esc(v.report_no):""}</span></span>
         <span class="muted" style="cursor:pointer" onclick="location.hash='${target}'">›</span>
+        ${isSup&&v.status==="approved"?`<button class="btn quiet sm" onclick="location.hash='#/review/${v.id}'" title="مراجعة وتعديل">📝</button>`:""}
         ${isSup?`<button class="btn quiet sm" style="color:var(--down)" onclick="deleteVisit('${v.id}')" title="حذف">🗑</button>`:""}
         </div>`;}).join("")}</div>`
       : `<p class="empty">لا توجد زيارات.</p>`}</div>`;
@@ -1890,7 +1891,8 @@ async function reportPage(id){
       <button class="btn quiet sm" onclick="exportVisitParts()">${tr("Excel للقطع")}</button>
       <button class="btn quiet sm" onclick="shareReport()">${tr("مشاركة")}</button>
       <button class="btn sm" onclick="window.print()">${tr("طباعة / PDF")}</button>
-      ${me.role==="supervisor"?`<button class="btn quiet sm" style="color:var(--down)" onclick="deleteReportVisit('${v.id}','${v.client_id}')">${tr("حذف التقرير")}</button>`:""}
+      ${me.role==="supervisor"?`<button class="btn quiet sm" onclick="location.hash='#/review/${v.id}'">${tr("مراجعة / تعديل")}</button>
+      <button class="btn quiet sm" style="color:var(--down)" onclick="deleteReportVisit('${v.id}','${v.client_id}')">${tr("حذف التقرير")}</button>`:""}
     </div></div></div>
 
   <div class="report" dir="rtl">
