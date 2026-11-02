@@ -814,7 +814,9 @@ async function clientPage(id){
   const {data:c} = await sb.from("clients").select("*").eq("id",id).single();
   if(!c) return toast("العميل غير موجود");
   const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",id).eq("active",true).order("asset_no");
-  const {data:visits=[]} = await sb.from("visits").select("*").eq("client_id",id).order("visit_date",{ascending:false}).limit(12);
+  const {data:allVisits=[]} = await sb.from("visits").select("*").eq("client_id",id).order("visit_date",{ascending:false}).limit(300);
+  const showAllVisits = window._clientShowAllVisits===true;
+  const visits = showAllVisits ? allVisits : allVisits.slice(0,12);
   window._client = c; window._assets = assets;
 
   const byCat = CATS.map(k=>[k,assets.filter(a=>a.category===k).length]).filter(x=>x[1]);
@@ -847,7 +849,9 @@ async function clientPage(id){
         <button class="btn quiet sm" style="color:var(--down)" onclick="deleteAssetWithReason('${a.id}')" title="حذف">🗑</button>`:""}
       </div>`).join("")}</div>` : `<p class="empty">لا توجد أجهزة. ابدأ باستيراد ملف Excel.</p>`}</div>`;
 
-  body += `<div class="card"><h3>الزيارات</h3>
+  body += `<div class="card"><div class="spread"><h3>الزيارات</h3>
+    ${!showAllVisits&&allVisits.length>12?`<a href="#" onclick="window._clientShowAllVisits=true;route();return false">إظهار كل الزيارات (${allVisits.length})</a>`
+      :showAllVisits&&allVisits.length>12?`<a href="#" onclick="window._clientShowAllVisits=false;route();return false">إظهار آخر ١٢ فقط</a>`:""}</div>
     ${visits.length?`<div class="list" style="margin-top:10px">${visits.map(v=>{
       const st={draft:["مسودة","--na"],submitted:["بانتظار الاعتماد","--maint"],
                 approved:["معتمدة","--ok"],rejected:["مُعادة للفني","--down"]}[v.status];
@@ -954,6 +958,12 @@ async function deleteVisit(visitId){
   const {error} = await sb.rpc("admin_delete_visit",{p_visit_id:visitId});
   if(error) return toast("تعذر الحذف: "+error.message);
   toast("تم حذف الزيارة"); route();
+}
+async function deleteReportVisit(visitId,clientId){
+  if(!confirm("سيُحذف سجل هذه الزيارة (وأي تقرير صادر عنها وصوره) نهائياً ولا يمكن التراجع. متابعة؟")) return;
+  const {error} = await sb.rpc("admin_delete_visit",{p_visit_id:visitId});
+  if(error) return toast("تعذر الحذف: "+error.message);
+  toast("تم حذف الزيارة"); location.hash="#/client/"+clientId;
 }
 
 /* ---------------------- طلب صيانة طارئة على جهاز محدَّد ---------------------- */
@@ -1880,6 +1890,7 @@ async function reportPage(id){
       <button class="btn quiet sm" onclick="exportVisitParts()">${tr("Excel للقطع")}</button>
       <button class="btn quiet sm" onclick="shareReport()">${tr("مشاركة")}</button>
       <button class="btn sm" onclick="window.print()">${tr("طباعة / PDF")}</button>
+      ${me.role==="supervisor"?`<button class="btn quiet sm" style="color:var(--down)" onclick="deleteReportVisit('${v.id}','${v.client_id}')">${tr("حذف التقرير")}</button>`:""}
     </div></div></div>
 
   <div class="report" dir="rtl">
@@ -1916,17 +1927,17 @@ async function reportPage(id){
           <div class="cond"><span class="dot ${s.c}"></span> <span data-lang="ar">${esc(i.condition)}</span><span data-lang="en" dir="ltr" style="display:none">${s.en}</span></div>
         </div>
         <div class="risub">
-          <div>${esc(a.asset_no||"")}<div class="bi" data-lang="ar">رقم الجهاز</div><div class="bi" data-lang="en" dir="ltr" style="display:none">Asset No.</div></div>
-          <div>${esc(a.location_text||"—")}<div class="bi" data-lang="ar">الموقع</div><div class="bi" data-lang="en" dir="ltr" style="display:none">Location</div></div>
-          <div>${esc(a.brand||"")} ${esc(a.model||"")}<div class="bi" data-lang="ar">الماركة والموديل</div><div class="bi" data-lang="en" dir="ltr" style="display:none">Brand / Model</div></div>
+          <div><div class="bi" data-lang="ar">رقم الجهاز</div><div class="bi" data-lang="en" dir="ltr" style="display:none">Asset No.</div>${esc(a.asset_no||"")}</div>
+          <div><div class="bi" data-lang="ar">الموقع</div><div class="bi" data-lang="en" dir="ltr" style="display:none">Location</div>${esc(a.location_text||"—")}</div>
+          <div><div class="bi" data-lang="ar">الماركة والموديل</div><div class="bi" data-lang="en" dir="ltr" style="display:none">Brand / Model</div>${esc(a.brand||"")} ${esc(a.model||"")}</div>
         </div>
-        ${(partsArText||partsEnText)?`<div class="rifield"><b data-lang="ar">القطع المطلوبة</b><b data-lang="en" dir="ltr" style="display:none">Spare Parts</b>
-          <span data-lang="ar">${esc(partsArText||"—")}${missingAr?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ لم تُترجم</span>':""}</span>
-          <span data-lang="en" dir="ltr" style="display:none">${esc(partsEnText||"—")}${missingEn?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ not translated</span>':""}</span></div>`:""}
         ${(notesArText||notesEnText)?`<div class="rifield"><b data-lang="ar">ملاحظة الفني</b><b data-lang="en" dir="ltr" style="display:none">Technician Note</b>
           <span data-lang="ar">${esc(notesArText)}</span>
           <span data-lang="en" dir="ltr" style="display:none">${esc(notesEnText)}</span></div>`:""}
-        ${i.performed_by_profile?.full_name?`<div class="riauthor">
+        ${(partsArText||partsEnText)?`<div class="rifield"><b data-lang="ar">القطع المطلوبة</b><b data-lang="en" dir="ltr" style="display:none">Spare Parts</b>
+          <span data-lang="ar">${esc(partsArText||"—")}${missingAr?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ لم تُترجم</span>':""}</span>
+          <span data-lang="en" dir="ltr" style="display:none">${esc(partsEnText||"—")}${missingEn?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ not translated</span>':""}</span></div>`:""}
+        ${i.performed_by_profile?.full_name&&me.role!=="client"?`<div class="riauthor">
           <span data-lang="ar">فحصه: ${esc(i.performed_by_profile.full_name)}</span>
           <span data-lang="en" dir="ltr" style="display:none">Inspected by: ${esc(personNameEn(i.performed_by_profile))}</span>
         </div>`:""}
@@ -1936,8 +1947,8 @@ async function reportPage(id){
 
     ${(v.recommendations||v.recommendations_en)?`<div style="margin-top:16px">
       <b data-lang="ar">التعليق المعتمد</b><b data-lang="en" dir="ltr" style="display:none">Approved Comment</b>
-      <p data-lang="ar" style="font-size:12.5px">${esc(v.recommendations||"")}</p>
-      <p data-lang="en" dir="ltr" style="font-size:12.5px;display:none">${esc(v.recommendations_en||"")}</p>
+      <p data-lang="ar" style="font-size:12.5px;white-space:pre-line">${esc(v.recommendations||"")}</p>
+      <p data-lang="en" dir="ltr" style="font-size:12.5px;white-space:pre-line;display:none">${esc(v.recommendations_en||"")}</p>
     </div>`:""}
 
     <div class="sign">
