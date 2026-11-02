@@ -436,11 +436,13 @@ function icon(name){
 function shell(title, html, bar=""){
   const roleAr = tr({supervisor:"مشرف فرع",technician:"فني ميداني",client:"حساب عميل"}[me.role]);
   const schedule = location.hash.startsWith("#/schedule"),settings=location.hash.startsWith("#/settings");
+  const myVisits = location.hash.startsWith("#/myvisits")||location.hash.startsWith("#/report");
   app.innerHTML = `<div class="workspace-shell">
     <aside class="sidebar noprint">
       <a class="brand-lockup" href="#/"><img src="${LOGO}" alt="شعار المحتسب"><span>${esc(preferences.display_name)}<small>${tr("إدارة الصيانة")}</small></span></a>
       <div class="nav-caption">${tr("مساحة العمل")}</div>
-      <nav aria-label="القائمة الرئيسية"><a class="nav-link ${!schedule&&!settings?'active':''}" href="#/">${icon('home')}<span>${me.role==='client'?'أجهزتي':tr('لوحة المتابعة')}</span></a>
+      <nav aria-label="القائمة الرئيسية"><a class="nav-link ${!schedule&&!settings&&!myVisits?'active':''}" href="#/">${icon('home')}<span>${me.role==='client'?'أجهزتي':tr('لوحة المتابعة')}</span></a>
+      ${me.role==='client'?`<a class="nav-link ${myVisits?'active':''}" href="#/myvisits">${icon('calendar')}<span>${tr('الزيارات والتقارير')}</span></a>`:''}
       ${me.role==='supervisor'?`<a class="nav-link ${schedule?'active':''}" href="#/schedule">${icon('calendar')}<span>${tr('جدولة الوقائية')}</span></a>`:''}${me.role==='supervisor'?`<a class="nav-link ${settings?'active':''}" href="#/settings">${icon('tool')}<span>${tr('الإعدادات')}</span></a>`:''}</nav>
       <div class="sidebar-note">كل جهاز له قصة.<br><strong>تابعها من مكان واحد.</strong>${preferences.support_phone?`<br><a href="tel:${esc(preferences.support_phone)}">${esc(preferences.support_phone)}</a>`:""}</div>
       <div class="account"><span class="avatar">${esc(me.full_name?.slice(0,1)||'م')}</span><span><strong>${esc(me.full_name)}</strong><small>${roleAr} · ${esc(me.branch||'')}</small></span><button class="icon-button" onclick="logout()" aria-label="${tr('تسجيل الخروج')}">${icon('logout')}</button></div>
@@ -495,10 +497,16 @@ async function route(){
   const h = location.hash.replace(/^#\/?/,"");
   const [page,id] = h.split("/");
   try{
-    // حساب العميل: صفحة واحدة فقط (حالة أجهزته)، بلا استثناء — حتى لو
-    // كُتب أي رابط آخر يدوياً. "scan" مستثناة فقط لأنها تُعيد التوجيه
-    // لنفس الصفحة بعد تجهيز طلب الصيانة الطارئة من الملصق الممسوح.
-    if(me?.role==="client" && page!=="scan") return await clientHome(page==="client"?id:null);
+    // حساب العميل: فقط صفحاته الثلاث (أجهزته، زياراته وتقاريره، وعرض
+    // تقرير زيارة واحدة)، بلا استثناء — حتى لو كُتب أي رابط آخر يدوياً.
+    // "scan" مستثناة فقط لأنها تُعيد التوجيه لنفس الصفحة بعد تجهيز طلب
+    // الصيانة الطارئة من الملصق الممسوح. صلاحيات القاعدة (RLS) تمنع عرض
+    // أي زيارة/تقرير لا يخص منشآته حتى لو خمّن رابط تقرير آخر.
+    if(me?.role==="client"){
+      if(page==="report")   return await reportPage(id);
+      if(page==="myvisits") return await clientVisitsPage(id);
+      if(page!=="scan")     return await clientHome(page==="client"?id:null);
+    }
     if(page==="settings")    return await settingsPage(id);
     if(page==="schedule")    return await schedulePage();
     if(page==="client")      return await clientPage(id);
@@ -670,8 +678,8 @@ async function clientHome(selectedClientId){
   const c = list.find(x=>x.id===clientId);
   const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",clientId).eq("active",true).order("asset_no");
   const {data:items=[]} = await sb.from("visit_items")
-    .select("asset_id,condition,photos(url,type,hidden),visits!inner(visit_date,status)")
-    .eq("visits.status","approved").order("visits(visit_date)",{ascending:false}).limit(500);
+    .select("asset_id,condition,photos(url,type,hidden),visits!inner(visit_date,status,client_id)")
+    .eq("visits.status","approved").eq("visits.client_id",clientId).order("visits(visit_date)",{ascending:false}).limit(500);
   const latestByAsset = new Map();
   items.forEach(it=>{ if(!latestByAsset.has(it.asset_id)) latestByAsset.set(it.asset_id,it); });
   window._clientAssets = assets;
@@ -705,6 +713,45 @@ async function clientHome(selectedClientId){
     sessionStorage.removeItem("clientEmergencyAssetAfterLoad");
     if(assets.some(x=>x.id===pendingEmergency)) clientRequestEmergency(pendingEmergency);
   }
+}
+async function clientVisitsPage(selectedClientId){
+  const {data:list=[], error} = await sb.rpc("my_client_list");
+  if(error || !list.length){
+    shell(tr("الزيارات والتقارير"), `<p class="empty">${tr("حسابك غير مرتبط بمنشأة بعد. تواصل مع شركة المحتسب.")}</p>`,
+      `<button class="btn quiet" onclick="logout()">${tr("خروج")}</button>`);
+    return;
+  }
+  let clientId = selectedClientId && list.some(x=>x.id===selectedClientId) ? selectedClientId : null;
+  if(!clientId && list.length===1) clientId = list[0].id;
+
+  if(!clientId){
+    const body = `<div class="card"><h3>${tr("منشآتك")}</h3>
+      <p class="muted">${tr("اختر المنشأة لعرض زياراتها وتقاريرها.")}</p>
+      <div class="list" style="margin-top:12px">${list.map(c=>
+        `<a class="item" href="#/myvisits/${c.id}"><span class="body">
+          <span class="t">${esc(c.name_ar)}</span><span class="s">${esc(c.city||"")}</span>
+        </span></a>`).join("")}</div></div>`;
+    shell(tr("الزيارات والتقارير"), body, `<button class="btn quiet" onclick="logout()">${tr("خروج")}</button>`);
+    return;
+  }
+
+  const c = list.find(x=>x.id===clientId);
+  const {data:visits=[]} = await sb.from("visits")
+    .select("id,visit_date,visit_type,report_no,status")
+    .eq("client_id",clientId).eq("status","approved")
+    .order("visit_date",{ascending:false}).limit(200);
+  const backLink = list.length>1 ? `<a class="btn ghost sm" href="#/myvisits">${tr("كل منشآتك")}</a>` : "";
+  const typeLabel = v => v.visit_type==="emergency" ? tr("⚡ صيانة طارئة") : tr("صيانة وقائية");
+
+  const body = `<div class="card"><div class="spread"><h3>${esc(c?.name_ar||"")}</h3>${backLink}</div>
+    <p class="muted">${tr("كل الزيارات المعتمدة لهذه المنشأة، مع رابط تقرير كل زيارة.")}</p>
+    ${visits.length?`<div class="list" style="margin-top:14px">${visits.map(v=>
+      `<a class="item" href="#/report/${v.id}"><span class="body">
+        <span class="t">${typeLabel(v)}${v.report_no?" · "+esc(v.report_no):""}</span>
+        <span class="s">${fmt(v.visit_date)}</span>
+      </span><span class="muted">${tr("عرض التقرير")}</span></a>`).join("")}</div>`
+      : `<p class="empty">${tr("لا توجد زيارات معتمدة بعد.")}</p>`}</div>`;
+  shell(tr("الزيارات والتقارير"), body, `<button class="btn quiet" onclick="logout()">${tr("خروج")}</button>`);
 }
 function clientRequestEmergency(assetId){
   const a = (window._clientAssets||[]).find(x=>x.id===assetId); if(!a) return;
@@ -1826,7 +1873,7 @@ async function reportPage(id){
 
   app.innerHTML = `
   <div class="wrap noprint"><div class="spread">
-    ${back(me.role==="technician"?"#/":"#/client/"+v.client_id)}
+    ${back(me.role==="technician"?"#/":me.role==="client"?"#/myvisits/"+v.client_id:"#/client/"+v.client_id)}
     <div class="row">
       <button class="btn quiet sm" onclick="setReportLang('ar')">عربي</button>
       <button class="btn quiet sm" onclick="setReportLang('en')">English</button>
