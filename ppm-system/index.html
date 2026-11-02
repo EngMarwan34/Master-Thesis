@@ -1937,7 +1937,7 @@ async function reportPage(id){
         ${(partsArText||partsEnText)?`<div class="rifield"><b data-lang="ar">القطع المطلوبة</b><b data-lang="en" dir="ltr" style="display:none">Spare Parts</b>
           <span data-lang="ar">${esc(partsArText||"—")}${missingAr?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ لم تُترجم</span>':""}</span>
           <span data-lang="en" dir="ltr" style="display:none">${esc(partsEnText||"—")}${missingEn?'<span class="noprint" style="color:var(--maint);font-size:10px"> ⚠ not translated</span>':""}</span></div>`:""}
-        ${i.performed_by_profile?.full_name&&me.role!=="client"?`<div class="riauthor">
+        ${i.performed_by_profile?.full_name&&me.role!=="client"?`<div class="riauthor noprint">
           <span data-lang="ar">فحصه: ${esc(i.performed_by_profile.full_name)}</span>
           <span data-lang="en" dir="ltr" style="display:none">Inspected by: ${esc(personNameEn(i.performed_by_profile))}</span>
         </div>`:""}
