@@ -80,8 +80,69 @@ async function transliterateNameAsync(profileId,fullNameAr){
   }catch(e){ console.error('transliterateNameAsync failed',e); }
 }
 async function clientSettings(){
-  const {data,error}=await sb.from('clients').select('*').order('name_ar');if(error)throw error;window._settingsClients=data;
-  return `<div class="card"><div class="spread"><h3>بيانات العملاء</h3><button class="btn" onclick="settingsClientForm()">+ إضافة عميل</button></div><div class="list">${data.map(c=>`<div class="item"><span class="body"><span class="t">${esc(c.name_ar)}</span><span class="s">${esc(c.name_en||'')} · ${esc(c.city||'')} · ${esc(c.contact_phone||'')}</span></span><a class="btn quiet sm" href="#/client/${c.id}">فتح</a><button class="btn quiet sm" onclick="settingsClientForm('${c.id}')">تعديل البيانات</button></div>`).join('')||'<p class="empty">لا يوجد عملاء بعد.</p>'}</div></div>`;
+  const [{data:clients,error},{data:accounts,error:accError}]=await Promise.all([
+    sb.from('clients').select('*').order('name_ar'),
+    sb.from('profiles').select('id,full_name,active,client_access(client_id)').eq('role','client').order('full_name')
+  ]);
+  if(error)throw error;if(accError)throw accError;
+  window._settingsClients=clients;window._settingsClientAccounts=accounts;
+  const clientName=cid=>clients.find(c=>c.id===cid)?.name_ar||'';
+  return `<div class="card"><div class="spread"><h3>حسابات بوابة العملاء</h3><button class="btn" onclick="newClientAccountForm()">+ إضافة حساب عميل</button></div>
+    <p class="muted">حساب يدخل به العميل بنفسه ليشاهد حالة أجهزة منشأته (أو أكثر) فقط — بدون أي صلاحية تعديل.</p>
+    <div class="list" style="margin-top:10px">${accounts.map(a=>{
+      const names=(a.client_access||[]).map(x=>clientName(x.client_id)).filter(Boolean);
+      return `<div class="item"><span class="body"><span class="t">${esc(a.full_name)}</span>
+        <span class="s">${names.length?esc(names.join('، ')):'لا توجد منشآت مرتبطة'}</span></span>
+        <span class="status-tag ${a.active?'ok':'neutral'}">${a.active?'مفعّل':'موقوف'}</span>
+        <button class="btn quiet sm" onclick="editClientAccountAccess('${a.id}')">تعديل المنشآت</button></div>`;
+    }).join('')||'<p class="empty">لا يوجد حسابات عملاء بعد.</p>'}</div></div>
+  <div class="card"><div class="spread"><h3>بيانات العملاء (المنشآت)</h3><button class="btn" onclick="settingsClientForm()">+ إضافة عميل</button></div><div class="list">${clients.map(c=>`<div class="item"><span class="body"><span class="t">${esc(c.name_ar)}</span><span class="s">${esc(c.name_en||'')} · ${esc(c.city||'')} · ${esc(c.contact_phone||'')}</span></span><a class="btn quiet sm" href="#/client/${c.id}">فتح</a><button class="btn quiet sm" onclick="settingsClientForm('${c.id}')">تعديل البيانات</button></div>`).join('')||'<p class="empty">لا يوجد عملاء بعد.</p>'}</div></div>`;
+}
+function clientCheckboxList(selected=[]){
+  return (window._settingsClients||[]).map(c=>`<label class="team-option"><input type="checkbox" name="clientAccess" value="${c.id}" ${selected.includes(c.id)?'checked':''}><span>${esc(c.name_ar)}</span></label>`).join('')
+    ||'<p class="empty">لا يوجد عملاء في فرعك بعد.</p>';
+}
+function selectedClientAccess(){return [...document.querySelectorAll('[name=clientAccess]:checked')].map(el=>el.value);}
+function newClientAccountForm(){
+  openSheet(`<div class="sheet-heading"><span class="eyebrow">بوابة العميل</span><h2>إضافة حساب عميل</h2>
+      <p class="muted">يدخل العميل بهذا البريد وكلمة المرور مباشرة، ويرى فقط المنشآت التي تختارها له هنا.</p></div>
+    <form onsubmit="saveNewClientAccount(event)">
+      <label for="newClientName">الاسم الكامل</label><input id="newClientName" required maxlength="100">
+      <label for="newClientEmail">البريد الإلكتروني</label><input id="newClientEmail" type="email" required autocomplete="email">
+      <label for="newClientPassword">كلمة المرور</label><input id="newClientPassword" type="text" required minlength="6" maxlength="72">
+      <fieldset class="team-picker"><legend>المنشآت التي يراها</legend>${clientCheckboxList()}</fieldset>
+      <div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button>
+      <button type="submit" class="btn">إنشاء الحساب</button></div>
+    </form>`);
+}
+async function saveNewClientAccount(event){
+  event.preventDefault();const form=event.target,button=form.querySelector('[type=submit]');
+  const clientIds=selectedClientAccess();
+  if(!clientIds.length)return toast('اختر منشأة واحدة على الأقل');
+  button.disabled=true;
+  try{
+    const {data,error}=await sb.functions.invoke('manage-clients',{body:{
+      full_name:$('#newClientName').value,email:$('#newClientEmail').value,
+      password:$('#newClientPassword').value,client_ids:clientIds}});
+    let result=data;if(error?.context instanceof Response)result=await error.context.clone().json().catch(()=>null);
+    if(error||result?.error)throw new Error(result?.error||'تعذر إنشاء الحساب');
+    closeSheet();toast('أُنشئ حساب العميل');await route();
+  }catch(e){toast(e.message,6000);button.disabled=false;}
+}
+function editClientAccountAccess(profileId){
+  const a=window._settingsClientAccounts.find(a=>a.id===profileId);
+  const selected=(a?.client_access||[]).map(x=>x.client_id);
+  openSheet(`<h2>منشآت ${esc(a?.full_name||'')}</h2>
+    <form onsubmit="saveClientAccountAccess(event,'${profileId}')">
+      <fieldset class="team-picker"><legend>المنشآت التي يراها</legend>${clientCheckboxList(selected)}</fieldset>
+      <div class="form-actions"><button type="button" class="btn quiet" onclick="closeSheet()">إلغاء</button>
+      <button type="submit" class="btn">حفظ</button></div>
+    </form>`);
+}
+async function saveClientAccountAccess(event,profileId){
+  event.preventDefault();const clientIds=selectedClientAccess();
+  if(!clientIds.length)return toast('اختر منشأة واحدة على الأقل');
+  await settingsMutation(event,()=>sb.rpc('set_client_access',{p_profile_id:profileId,p_client_ids:clientIds}));
 }
 function settingsClientForm(id=null){
   const c=id?window._settingsClients.find(c=>c.id===id):{};

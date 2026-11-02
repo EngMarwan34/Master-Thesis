@@ -498,7 +498,7 @@ async function route(){
     // حساب العميل: صفحة واحدة فقط (حالة أجهزته)، بلا استثناء — حتى لو
     // كُتب أي رابط آخر يدوياً. "scan" مستثناة فقط لأنها تُعيد التوجيه
     // لنفس الصفحة بعد تجهيز طلب الصيانة الطارئة من الملصق الممسوح.
-    if(me?.role==="client" && page!=="scan") return await clientHome();
+    if(me?.role==="client" && page!=="scan") return await clientHome(page==="client"?id:null);
     if(page==="settings")    return await settingsPage(id);
     if(page==="schedule")    return await schedulePage();
     if(page==="client")      return await clientPage(id);
@@ -645,17 +645,30 @@ async function homePage(){
 /* ---------------------- صفحة العميل: عرض فقط، بدون تعقيد ----------------------
    الصفحة الوحيدة المتاحة لحساب العميل: حالة أجهزة منشأته وصورها من آخر
    فحص معتمد، وطلب صيانة طارئة لأي جهاز بالنقر عليه أو بمسح ملصقه. */
-async function clientHome(){
-  const clientId = me.client_id;
-  if(!clientId){
+async function clientHome(selectedClientId){
+  const {data:list=[], error} = await sb.rpc("my_client_list");
+  if(error || !list.length){
     shell(tr("أجهزتي"), `<p class="empty">${tr("حسابك غير مرتبط بمنشأة بعد. تواصل مع شركة المحتسب.")}</p>`,
       `<button class="btn quiet" onclick="logout()">${tr("خروج")}</button>`);
     return;
   }
-  const [{data:c},{data:assets=[]}] = await Promise.all([
-    sb.from("clients").select("*").eq("id",clientId).single(),
-    sb.from("assets").select("*").eq("client_id",clientId).eq("active",true).order("asset_no")
-  ]);
+  window._clientList = list;
+  let clientId = selectedClientId && list.some(x=>x.id===selectedClientId) ? selectedClientId : null;
+  if(!clientId && list.length===1) clientId = list[0].id;
+
+  if(!clientId){
+    const body = `<div class="card"><h3>${tr("منشآتك")}</h3>
+      <p class="muted">${tr("اختر المنشأة لعرض حالة أجهزتها.")}</p>
+      <div class="list" style="margin-top:12px">${list.map(c=>
+        `<a class="item" href="#/client/${c.id}"><span class="body">
+          <span class="t">${esc(c.name_ar)}</span><span class="s">${esc(c.city||"")}</span>
+        </span></a>`).join("")}</div></div>`;
+    shell(tr("أجهزتي"), body, `<button class="btn quiet" onclick="logout()">${tr("خروج")}</button>`);
+    return;
+  }
+
+  const c = list.find(x=>x.id===clientId);
+  const {data:assets=[]} = await sb.from("assets").select("*").eq("client_id",clientId).eq("active",true).order("asset_no");
   const {data:items=[]} = await sb.from("visit_items")
     .select("asset_id,condition,photos(url,type,hidden),visits!inner(visit_date,status)")
     .eq("visits.status","approved").order("visits(visit_date)",{ascending:false}).limit(500);
@@ -664,9 +677,10 @@ async function clientHome(){
   window._clientAssets = assets;
 
   const pendingEmergency = sessionStorage.getItem("clientEmergencyAssetAfterLoad");
+  const backLink = list.length>1 ? `<a class="btn ghost sm" href="#/client">${tr("كل منشآتك")}</a>` : "";
 
   const body = `<div class="card"><div class="spread"><h3>${esc(c?.name_ar||"")}</h3>
-      <button class="btn ghost sm" onclick="clientToggleScan()">${tr("مسح ملصق الجهاز")}</button></div>
+      <span style="display:flex;gap:8px">${backLink}<button class="btn ghost sm" onclick="clientToggleScan()">${tr("مسح ملصق الجهاز")}</button></span></div>
     <p class="muted">${tr("اضغط على أي جهاز لطلب صيانة طارئة له.")}</p>
     <div id="clientReader" style="margin-top:10px"></div>
     ${assets.length?`<div class="list" style="margin-top:14px">${assets.map(a=>{
