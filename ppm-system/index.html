@@ -1880,6 +1880,7 @@ async function rejectVisit(id){
 /* ---------------------- التقرير ---------------------- */
 async function reportPage(id){
   const {v,assets,items} = await loadVisit(id);
+  items.sort((a,b)=> STATES.findIndex(s=>s.k===a.condition) - STATES.findIndex(s=>s.k===b.condition));
   const map = new Map(assets.map(a=>[a.id,a]));
   const teamNamesAr=(v.team||[]).map(t=>t.full_name).join("، ");
   const teamNamesEn=(v.team||[]).map(t=>personNameEn(t)).join(", ");
